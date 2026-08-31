@@ -1,0 +1,90 @@
+{% extends "campaigns/base.html" %}
+{% block title %}{{ c.title }}{% endblock %}
+{% block head %}
+{% if c.org.givebutter_account_id %}<script src="https://widgets.givebutter.com/latest.umd.cjs?acct={{ c.org.givebutter_account_id }}" defer></script>{% endif %}
+{% endblock %}
+{% block content %}
+<h1>{{ c.title }}</h1>
+<p class="meta">{% if c.organizer %}Organized by {{ c.organizer }}{% endif %}{% if c.location %} &middot; {{ c.location }}{% endif %}</p>
+
+<div class="cols">
+<div>
+  {% if c.photo %}<img src="{{ c.photo.url }}" alt="" style="width:100%;border:1px solid var(--rule)">{% endif %}
+
+  {% if c.story %}
+  <h2>The story</h2>
+  {{ c.story|linebreaks }}
+  {% if c.source_url %}<p class="meta">source: <a href="{{ c.source_url }}">{{ c.source_url }}</a></p>{% endif %}
+  {% endif %}
+
+  {% if testimonials %}
+  <h2>Vouched for — on the record</h2>
+  <div class="vouches">
+    {% for t in testimonials %}
+    <div class="vouch">
+      {% if t.video %}<video class="vid" controls preload="metadata" src="{{ t.video.url }}"></video>{% endif %}
+      <div class="body"{% if not t.video %} style="padding-top:1rem"{% endif %}>
+        <blockquote>&ldquo;{{ t.quote }}&rdquo;</blockquote>
+        <div class="who">{% if t.show_identity and t.display_name %}{{ t.display_name }}{% else %}Name withheld by choice{% endif %}</div>
+        {% if t.relationship %}<div class="meta">{{ t.relationship }}</div>{% endif %}
+        {% if t.linkedclaim_uri %}<div class="chain"><a href="{{ t.linkedclaim_uri }}">signed claim</a></div>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  <p style="margin-top:1rem"><a class="btn ghost" href="/c/{{ c.slug }}/testimony/">Add your testimony</a>
+    <span class="meta">video or text, published after review; showing your name is your choice</span></p>
+
+  {% if ctas %}
+  <h2 id="help">More than one way to help</h2>
+  <div class="ways">
+    {% for cta in ctas %}{% if cta.kind != "give" %}
+    <div class="way">
+      <h3>{{ cta.title }}</h3>
+      {% if cta.description %}<p>{{ cta.description }}</p>{% endif %}
+      <a class="btn ghost" href="/c/{{ c.slug }}/act/{{ cta.id }}/">{{ cta.button_label }}</a>
+    </div>
+    {% endif %}{% endfor %}
+  </div>
+  {% endif %}
+
+  {% if updates %}
+  <h2>Updates & receipts</h2>
+  {% for u in updates %}<p class="meta">{{ u.date }} — {{ u.text }}</p>{% endfor %}
+  {% endif %}
+</div>
+
+<aside class="rail">
+  <div class="card">
+    {% if c.givebutter_campaign_id %}
+      <givebutter-widget id="{{ c.givebutter_campaign_id }}"></givebutter-widget>
+    {% elif c.simpletip_receiver %}
+      <simple-tip receiver="{{ c.simpletip_receiver }}" receiver-name="{{ c.title }}" amounts="5,10,25"></simple-tip>
+      <script src="{{ c.simpletip_api }}/../simpletip.js" data-api="{{ c.simpletip_api }}"></script>
+    {% else %}
+      <p class="meta">Giving opens soon.</p>
+    {% endif %}
+    <p class="meta" style="margin-top:.7rem">{{ donation_disclosure }}</p>
+  </div>
+  <div class="card" style="margin-top:1rem">
+    <h3 style="font-size:.95rem">Tell someone</h3>
+    <p class="meta" style="margin:.3rem 0 .6rem">Share the page — your words, our facts.</p>
+    <div class="methods">
+      <a href="https://wa.me/?text={{ share_url|urlencode }}">WhatsApp</a>
+      <a href="https://t.me/share/url?url={{ share_url|urlencode }}">Telegram</a>
+      <a href="https://bsky.app/intent/compose?text={{ share_url|urlencode }}">Bluesky</a>
+      <a href="https://twitter.com/intent/tweet?url={{ share_url|urlencode }}">X</a>
+      <a href="https://www.facebook.com/sharer/sharer.php?u={{ share_url|urlencode }}">Facebook</a>
+      <a href="https://www.linkedin.com/sharing/share-offsite/?url={{ share_url|urlencode }}">LinkedIn</a>
+      <a href="mailto:?body={{ share_url|urlencode }}">Email</a>
+      <a href="/c/{{ c.slug }}/card/story.png">Instagram story card (download)</a>
+      <a href="/c/{{ c.slug }}/card/post.png">Instagram post card (download)</a>
+    </div>
+    {% if user.is_authenticated %}
+      <a class="btn ghost" style="width:100%;margin-top:.5rem" href="/c/{{ c.slug }}/share/">My counted share link</a>
+    {% endif %}
+  </div>
+</aside>
+</div>
+{% endblock %}

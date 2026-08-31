@@ -1,0 +1,14 @@
+# /etc/systemd/system/act.service — adjust paths/user for the VM
+[Unit]
+Description=act (story + calls-to-action)
+After=network.target
+
+[Service]
+User=act
+WorkingDirectory=/opt/apps/act
+EnvironmentFile=/opt/apps/act/.env
+ExecStart=/opt/apps/act/.venv/bin/gunicorn actsite.wsgi:application --bind 127.0.0.1:8050 --workers 2
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,17 @@
+{% extends "campaigns/base.html" %}
+{% block content %}
+<h1>Every campaign here is vouched for by people you can check.</h1>
+<p style="max-width:38rem">Each campaign carries signed testimonials from named people, and you can
+follow the chain: who vouched, who vouches for <em>them</em>. <a href="/why/">Why we built it this way</a>.</p>
+<h2>Open campaigns</h2>
+{% for c in campaigns %}
+<div class="camp">
+  <div class="thumb">{% if c.photo %}<img src="{{ c.photo.url }}" alt="" style="width:100%;height:100%;object-fit:cover">{% else %}photo to come{% endif %}</div>
+  <div>
+    <h3><a href="/c/{{ c.slug }}/">{{ c.title }}</a></h3>
+    {% if c.summary %}<p style="font-size:.95rem">{{ c.summary }}</p>{% endif %}
+    <p><a class="btn" href="/c/{{ c.slug }}/">See the campaign</a></p>
+  </div>
+</div>
+{% empty %}<p class="meta">No published campaigns yet.</p>{% endfor %}
+{% endblock %}

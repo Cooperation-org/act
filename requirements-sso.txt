@@ -1,0 +1,2 @@
+# LinkedTrust SSO (optional until client credentials exist — see README)
+django-linkedtrust-auth @ git+https://github.com/Cooperation-org/django-linkedtrust-auth.git

@@ -1,0 +1,8 @@
+{% extends "campaigns/base.html" %}
+{% block content %}
+<article class="piece">
+<h1>Thank you</h1>
+<p>{% if note %}{{ note }}{% else %}You're in — the team will be in touch at the email you gave.{% endif %}</p>
+<p><a href="/c/{{ c.slug }}/">Back to {{ c.title }}</a></p>
+</article>
+{% endblock %}

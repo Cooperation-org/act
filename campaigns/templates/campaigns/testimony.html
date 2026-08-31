@@ -1,0 +1,12 @@
+{% extends "campaigns/base.html" %}
+{% block content %}
+<article class="piece">
+<h1>Add your testimony for {{ c.title }}</h1>
+<p class="meta">Published after review. Showing your name is entirely your choice — testimony with the
+name withheld is still valuable.</p>
+<form method="post" enctype="multipart/form-data">{% csrf_token %}
+{{ form.as_p }}
+<button class="btn" type="submit">Submit for review</button>
+</form>
+</article>
+{% endblock %}

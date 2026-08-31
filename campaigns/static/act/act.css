@@ -1,0 +1,147 @@
+/* help.raisethevoices.org — design mock
+   Typography/layout conventions from inkandswitch.com base.css (serif body, sans UI,
+   uppercase small h2 labels, ~62rem page, one accent). Palette from testimonies-world
+   app.css (Marturia: teal #25646a, PT Sans). Hand-authored, no framework. */
+
+@import url('https://fonts.googleapis.com/css2?family=PT+Serif:ital,wght@0,400;0,700;1,400&family=PT+Sans:wght@400;700&display=swap');
+
+:root {
+  --teal: #25646a;
+  --teal-light: #477c81;
+  --ink: #1a1a1a;
+  --faded: #767676;
+  --bg: #fcfcfb;
+  --bg-grey: #f2f2ef;
+  --rule: #ddd;
+  --good: #2f855a;
+  --serif: 'PT Serif', Georgia, serif;
+  --sans: 'PT Sans', 'Helvetica Neue', sans-serif;
+  --page: 62rem;
+}
+
+*, *:before, *:after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: none; text-size-adjust: none; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 400 17px/1.6 var(--serif);
+  overflow-wrap: break-word;
+}
+.page { max-width: var(--page); margin: 0 auto; padding: 0 2rem 5rem; }
+
+a { color: var(--teal); }
+a:hover { color: var(--ink); }
+
+h1 { font: 700 2rem/1.25 var(--serif); margin: 0 0 .5rem; text-wrap: balance; }
+/* Ink & Switch-style section label */
+h2 { font: 700 .8rem/1.5 var(--sans); text-transform: uppercase; letter-spacing: .08em;
+     color: var(--faded); margin: 3rem 0 1rem; }
+h3 { font: 700 1.1rem/1.35 var(--serif); margin: 0 0 .35rem; }
+small, .meta { font: 400 .82rem/1.55 var(--sans); color: var(--faded); }
+
+/* header */
+header.site {
+  display: flex; align-items: baseline; gap: .75rem;
+  padding: 1.4rem 0 1.1rem; border-bottom: 1px solid var(--rule); margin-bottom: 2.5rem;
+}
+header.site .wordmark { font: 700 1.05rem var(--sans); color: var(--ink); text-decoration: none; }
+header.site .wordmark span { color: var(--teal); }
+header.site nav { margin-left: auto; display: flex; gap: 1.4rem; }
+header.site nav a { font: 400 .9rem var(--sans); text-decoration: none; }
+
+/* mock marker — every invented fact carries this */
+.mock {
+  background: #fff8e1; border: 1px dashed #d9a441; color: #7a5c12;
+  font: 400 .78rem/1.4 var(--sans); padding: .1rem .45rem; border-radius: 2px;
+  display: inline-block; vertical-align: middle;
+}
+
+/* buttons — Marturia style */
+.btn {
+  background: var(--teal); color: #fafafa; border: none; cursor: pointer;
+  font: 700 .85rem var(--sans); text-transform: uppercase; letter-spacing: .05em;
+  padding: 11px 20px; border-radius: 2px; text-decoration: none; display: inline-block;
+}
+.btn:hover { background: var(--teal-light); color: #fafafa; }
+.btn.ghost { background: transparent; color: var(--teal); border: 1px solid var(--teal); }
+.btn.ghost:hover { background: var(--bg-grey); }
+
+/* campaign layout: story + rail (GoFundMe-standard two column) */
+.cols { display: grid; grid-template-columns: 1fr 21rem; gap: 3rem; align-items: start; }
+@media (max-width: 52rem) { .cols { grid-template-columns: 1fr; } .rail { position: static !important; } }
+.rail { position: sticky; top: 1rem; }
+
+.card { background: #fff; border: 1px solid var(--rule); border-radius: 3px; padding: 1.25rem; }
+
+/* progress */
+.progress { height: 8px; background: var(--bg-grey); border-radius: 4px; overflow: hidden; margin: .6rem 0 .4rem; }
+.progress b { display: block; height: 100%; background: var(--teal); }
+.raised { font: 700 1.35rem var(--sans); }
+.raised small { font-weight: 400; }
+
+/* give card */
+.amounts { display: flex; gap: .5rem; margin: .9rem 0; }
+.amounts button {
+  flex: 1; font: 700 .95rem var(--sans); padding: .55rem 0; cursor: pointer;
+  background: #fff; border: 1px solid var(--rule); border-radius: 2px;
+}
+.amounts button[aria-pressed="true"] { border-color: var(--teal); background: #eef4f4; color: var(--teal); }
+.methods { display: grid; gap: .45rem; margin: .9rem 0; font: 400 .88rem var(--sans); }
+.methods label {
+  display: flex; align-items: center; gap: .55rem; padding: .55rem .7rem;
+  border: 1px solid var(--rule); border-radius: 2px; cursor: pointer; background: #fff;
+}
+.methods label:has(input:checked) { border-color: var(--teal); background: #eef4f4; }
+.methods .fee { margin-left: auto; color: var(--faded); font-size: .78rem; }
+.methods .fee.zero { color: var(--good); font-weight: 700; }
+
+/* testimony cards */
+.vouches { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 1.25rem; }
+.vouch { background: #fff; border: 1px solid var(--rule); border-radius: 3px; overflow: hidden; }
+.vouch .vid {
+  aspect-ratio: 16/9; background: #2b3231; color: #fafafa; display: grid; place-items: center;
+  font: 400 .85rem var(--sans); position: relative; cursor: pointer;
+}
+.vouch .vid .play {
+  width: 3rem; height: 3rem; border-radius: 50%; background: rgba(255,255,255,.92);
+  display: grid; place-items: center; color: var(--ink);
+}
+.vouch .body { padding: .9rem 1rem 1rem; }
+.vouch blockquote { margin: 0 0 .6rem; font: italic 400 .95rem/1.5 var(--serif); }
+.vouch .who { font: 700 .85rem var(--sans); }
+.vouch .chain { font: 400 .78rem/1.5 var(--sans); color: var(--faded); border-top: 1px solid var(--rule);
+  margin-top: .7rem; padding-top: .6rem; }
+.vouch .chain a { text-decoration: none; }
+
+/* ways to help */
+.ways { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 1.25rem; }
+.way { border-top: 3px solid var(--teal); background: #fff; border-inline: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule); padding: 1rem 1.1rem 1.1rem; }
+.way p { font-size: .95rem; margin: .2rem 0 .8rem; }
+.way .meta { display: block; margin-bottom: .5rem; }
+
+/* campaign list on home */
+.camp { display: grid; grid-template-columns: 11rem 1fr; gap: 1.5rem; padding: 1.5rem 0;
+  border-top: 1px solid var(--rule); }
+.camp .thumb { aspect-ratio: 4/3; background: var(--bg-grey); border: 1px solid var(--rule);
+  display: grid; place-items: center; color: var(--faded); font: 400 .8rem var(--sans); }
+@media (max-width: 40rem) { .camp { grid-template-columns: 1fr; } }
+
+/* article */
+article.piece { max-width: 38rem; }
+article.piece p { margin: 0 0 1.1rem; }
+.byline { font: 400 .88rem var(--sans); color: var(--faded); margin-bottom: 2rem; }
+
+/* split tip widget (simpletip look) */
+.tipbox { border: 1px solid var(--rule); border-radius: 3px; background: #fff; padding: 1.1rem 1.25rem; max-width: 24rem; }
+.tipbox .who { font: 700 .9rem var(--sans); margin-bottom: .5rem; }
+.split-row { display: flex; align-items: center; gap: .6rem; font: 400 .78rem var(--sans); margin: .7rem 0; }
+.split-row input[type=range] { flex: 1; accent-color: var(--teal); height: 4px; }
+.split-pct { font-weight: 700; min-width: 30px; text-align: center; }
+
+footer.site { margin-top: 5rem; border-top: 1px solid var(--rule); padding-top: 1.2rem;
+  font: 400 .82rem/1.6 var(--sans); color: var(--faded); }
+
+/* trust graph */
+.graph-wrap { background: #fff; border: 1px solid var(--rule); border-radius: 3px; padding: 1rem; overflow-x: auto; }
+.graph-wrap svg { display: block; margin: 0 auto; }
+.graph-wrap text { font: 400 11px var(--sans); }
