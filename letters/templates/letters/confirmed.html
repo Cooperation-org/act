@@ -1,0 +1,8 @@
+{% extends "letters/base.html" %}
+{% block content %}
+<header class="letter-head"><h1>{{ letter.title }}</h1></header>
+<section class="notice">
+  <h2>Thank you, {{ s.first_name }}. Your signature is on the letter.</h2>
+  <p><a href="{% url 'letters:letter' letter.slug %}">Read the letter and the signatures</a></p>
+</section>
+{% endblock %}

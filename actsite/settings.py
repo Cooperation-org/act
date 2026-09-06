@@ -17,6 +17,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "campaigns",
+    "letters",
 ]
 
 # LinkedTrust SSO — enabled only when client credentials are configured.
@@ -85,3 +86,14 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 LOGIN_URL = "/admin/login/"
 
 PUBLIC_URL = os.environ.get("ACT_PUBLIC_URL", "http://localhost:8000")
+
+# Outgoing mail (signature confirmations). Unset EMAIL_HOST means nothing is
+# sent; each attempt is still logged for the admin (letters.mail).
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "1") == "1"
+EMAIL_USE_SSL = os.environ.get("EMAIL_USE_SSL", "0") == "1"
+EMAIL_TIMEOUT = 15
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "")

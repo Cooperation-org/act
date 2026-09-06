@@ -1,0 +1,19 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{{ letter.title }}{% endblock %}</title>
+<meta property="og:title" content="{{ letter.title }}">
+<meta property="og:type" content="article">
+<link rel="stylesheet" href="{% static 'letters/letter.css' %}">
+{% block head %}{% endblock %}
+</head>
+<body class="theme-{{ letter.theme }}">
+<main class="sheet">
+{% block content %}{% endblock %}
+<footer>{{ letter.org.name }}{% if user.is_staff %} · <a href="/admin/letters/letter/{{ letter.pk }}/change/">Edit</a>{% endif %}</footer>
+</main>
+{% block scripts %}{% endblock %}
+</body>
+</html>

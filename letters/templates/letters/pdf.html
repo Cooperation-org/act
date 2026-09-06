@@ -1,0 +1,36 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{ letter.title }}</title>
+<link rel="stylesheet" href="{% static 'letters/letter.css' %}">
+<link rel="stylesheet" href="{% static 'letters/pdf.css' %}">
+</head>
+<body class="theme-{{ letter.theme }} pdf">
+<header class="letter-head">
+  <h1>{{ letter.title }}</h1>
+  <p class="meta">
+    {% if letter.kind == "petition" %}Petition{% if letter.addressee %} to {{ letter.addressee }}{% endif %}{% else %}Open letter{% endif %}
+    <span class="count"><b>{{ count }}</b> signature{{ count|pluralize }}</span>
+  </p>
+</header>
+<article class="body">{{ body_html }}</article>
+<section class="signatures">
+  <h2>Signed by</h2>
+  <ol>
+  {% for s in signatures %}
+    <li>
+      <div class="who">
+        {% if s.drawn %}<img class="drawn" src="{{ s.drawn.url }}" alt="">{% endif %}<span class="name">{{ s.full_name }}</span>
+        <span class="place">{{ s.city }}, {{ s.country }}</span>
+      </div>
+      {% for f, value in s.public_extras %}
+        {% if f.kind == "long" %}<p class="commentary">{{ value|linebreaksbr }}</p>{% elif f.kind == "checkbox" %}<span class="tag">{{ f.label }}</span>{% else %}<span class="extra">{{ value }}</span>{% endif %}
+      {% endfor %}
+    </li>
+  {% endfor %}
+  </ol>
+</section>
+<footer>{{ letter.org.name }}</footer>
+</body>
+</html>

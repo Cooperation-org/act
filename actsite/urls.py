@@ -5,6 +5,7 @@ from django.urls import include, path
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("letters/", include("letters.urls")),
     path("", include("campaigns.urls")),
 ]
 if settings.LINKEDTRUST_SSO_ENABLED:

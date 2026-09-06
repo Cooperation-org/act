@@ -30,6 +30,30 @@ Publish the campaign in /admin (Campaigns → jreas → status: published).
 - DNS + Caddy route for act.raisethevoices.org are host-side actions.
 - Register in cobox `app-registry.md` when running.
 
+## Letters (open letters and petitions)
+
+`letters/` app, pages under `/letters/<slug>/`. A Letter belongs to an Org, is written in
+Markdown (bold, italics, paragraphs, bullets), and is `draft` until published in /admin.
+`kind` is open letter (counter only) or petition (addressee + goal). Theme: parchment,
+EB Garamond (bundled, OFL).
+
+Signing: first name, last name, city, country, plus the letter's own fields
+(Letters → Signature fields: label, kind short / paragraph / checkbox, required, public).
+A signature counts when the signer has **either** confirmed their email **or** drawn a
+signature (signature_pad, stored as PNG). Email is required to get updates
+(`keep_updated`). Same email twice: an unconfirmed one is replaced, a confirmed one is
+refused.
+
+Confirmation mail goes out over SMTP (`EMAIL_HOST`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`,
+`DEFAULT_FROM_EMAIL`). With `EMAIL_HOST` unset nothing is sent; every attempt, sent or failed,
+is an `EmailLog` row. Admin → Signatures → filter "confirmation": confirmed / drawn /
+sent, waiting / email failed / no email sent; action "Resend confirmation email".
+
+PDF: `/letters/<slug>.pdf` is the letter with every counted signature that has `on_pdf`
+ticked, ordered by `pdf_sort` then date. In admin, filter (city, country, …), tick rows,
+action "PDF of the letter with the selected signatures". WeasyPrint renders the same
+templates; static and media files are read from disk.
+
 ## Money boundary
 
 act never touches funds. The give rail embeds the Givebutter widget for the org's

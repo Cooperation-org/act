@@ -1,0 +1,21 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Letters</title>
+<link rel="stylesheet" href="{% static 'letters/letter.css' %}">
+</head>
+<body class="theme-parchment">
+<main class="sheet">
+<header class="letter-head"><h1>Letters</h1></header>
+<ul class="letters">
+{% for l in letters %}
+  <li><a href="{% url 'letters:letter' l.slug %}">{{ l.title }}</a> <span class="count"><b>{{ l.count }}</b> signature{{ l.count|pluralize }}</span></li>
+{% empty %}
+  <li>No letters yet.</li>
+{% endfor %}
+</ul>
+</main>
+</body>
+</html>

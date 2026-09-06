@@ -1,0 +1,7 @@
+{{ s.first_name }},
+
+Confirm your signature on "{{ letter.title }}":
+
+{{ confirm_url }}
+
+{{ letter.org.name }}

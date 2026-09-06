@@ -1,0 +1,120 @@
+@font-face { font-family: "EB Garamond"; font-weight: 400; font-style: normal; src: url(fonts/EBGaramond12-Regular.woff) format("woff"); }
+@font-face { font-family: "EB Garamond"; font-weight: 400; font-style: italic; src: url(fonts/EBGaramond12-Italic.woff) format("woff"); }
+@font-face { font-family: "EB Garamond"; font-weight: 700; font-style: normal; src: url(fonts/EBGaramond12-Bold.woff) format("woff"); }
+@font-face { font-family: "EB Garamond SC"; font-weight: 400; font-style: normal; src: url(fonts/EBGaramondSC12-Regular.woff) format("woff"); }
+
+:root {
+  --paper: #f6edd9;
+  --paper-deep: #e9dbb9;
+  --ink: #2b2118;
+  --ink-soft: #6b5a47;
+  --rule: #c9b48c;
+  --accent: #7a3b1e;
+  --error: #8a1f11;
+}
+
+* { box-sizing: border-box; }
+html { background: var(--paper-deep); }
+body {
+  margin: 0;
+  color: var(--ink);
+  font-family: "EB Garamond", Garamond, Georgia, "Times New Roman", serif;
+  font-size: 1.25rem;
+  line-height: 1.55;
+  background: radial-gradient(ellipse at 30% 20%, #efe3c7 0%, var(--paper-deep) 70%, #dfcfa8 100%);
+  min-height: 100vh;
+  padding: 2rem 1rem;
+}
+.sheet {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 3rem clamp(1.25rem, 5vw, 4rem) 2.5rem;
+  background: var(--paper);
+  box-shadow: 0 1px 2px rgba(60, 40, 10, .25), 0 12px 40px rgba(60, 40, 10, .18);
+  border: 1px solid #e2d3ad;
+}
+a { color: var(--accent); }
+
+.letter-head h1 {
+  font-family: "EB Garamond SC", "EB Garamond", serif;
+  font-weight: 400;
+  font-size: 2.2rem;
+  line-height: 1.15;
+  letter-spacing: .02em;
+  margin: 0 0 .5rem;
+}
+.meta {
+  color: var(--ink-soft);
+  margin: 0 0 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--rule);
+  display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; align-items: baseline;
+}
+.meta .count b { color: var(--ink); font-size: 1.35em; }
+
+.body p { margin: 0 0 1.1em; }
+.body ul, .body ol { padding-left: 1.4em; margin: 0 0 1.1em; }
+.body li { margin: .25em 0; }
+.body h2, .body h3 { font-weight: 700; font-size: 1.25em; margin: 1.5em 0 .5em; }
+.body blockquote { margin: 1em 0; padding-left: 1em; border-left: 2px solid var(--rule); color: var(--ink-soft); }
+
+h2 { font-family: "EB Garamond SC", "EB Garamond", serif; font-weight: 400; font-size: 1.5rem; margin: 2.5rem 0 1rem; }
+
+.sign form { display: grid; gap: 1rem; }
+.row.two { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+@media (max-width: 520px) { .row.two { grid-template-columns: 1fr; } }
+.field { display: grid; gap: .3rem; }
+.field label { font-size: 1.05rem; }
+.opt { color: var(--ink-soft); }
+.field input[type=text], .field input[type=email], .field textarea {
+  font: inherit; color: var(--ink);
+  padding: .55rem .7rem;
+  border: 1px solid #a8926a; border-radius: 2px;
+  background: #fffdf6;
+  width: 100%;
+}
+.field input:focus, .field textarea:focus { outline: 3px solid #d9a441; outline-offset: 0; border-color: var(--ink); }
+.field.check { grid-template-columns: auto 1fr; align-items: center; }
+.field.check input { width: 1.4rem; height: 1.4rem; margin: 0; accent-color: var(--accent); }
+.has-error input, .has-error textarea, .has-error .pad-wrap { border-color: var(--error); border-width: 2px; }
+.error { color: var(--error); margin: 0; font-weight: 700; }
+.hp { position: absolute; left: -9999px; }
+
+.pad-wrap { position: relative; border: 1px solid #a8926a; border-radius: 2px; background: #fffdf6; }
+.pad-wrap canvas { display: block; width: 100%; height: 160px; touch-action: none; }
+.pad-wrap .clear {
+  position: absolute; right: .4rem; top: .4rem;
+  font: inherit; font-size: .95rem; color: var(--ink-soft);
+  background: transparent; border: 0; cursor: pointer; padding: .2rem .4rem;
+}
+.pad-wrap .clear:hover { color: var(--ink); text-decoration: underline; }
+
+button.primary {
+  font: inherit; font-size: 1.2rem;
+  padding: .7rem 2.2rem; justify-self: start;
+  background: var(--accent); color: #fff8ec;
+  border: 0; border-radius: 2px; cursor: pointer;
+}
+button.primary:hover { background: #5f2c14; }
+button.primary:focus-visible { outline: 3px solid #d9a441; outline-offset: 2px; }
+
+.signatures ol { list-style: none; padding: 0; margin: 0; }
+.signatures li { padding: .7rem 0; border-top: 1px solid var(--rule); }
+.signatures li.none { color: var(--ink-soft); }
+.who { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem 1rem; }
+.who .name { font-weight: 700; }
+.who .place { color: var(--ink-soft); }
+img.drawn { height: 2.4rem; mix-blend-mode: multiply; }
+.extra { color: var(--ink-soft); }
+.extra + .extra::before { content: " · "; }
+.tag { font-family: "EB Garamond SC", serif; color: var(--ink-soft); }
+.commentary { margin: .3rem 0 0; font-style: italic; }
+.pdf { margin-top: 1.5rem; }
+
+.notice { margin: 2rem 0; }
+.notice h2 { margin-top: 0; }
+
+.letters { list-style: none; padding: 0; }
+.letters li { padding: .6rem 0; border-top: 1px solid var(--rule); display: flex; justify-content: space-between; gap: 1rem; }
+
+footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--rule); color: var(--ink-soft); font-size: 1rem; }

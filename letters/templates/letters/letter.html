@@ -1,0 +1,97 @@
+{% extends "letters/base.html" %}{% load static %}
+{% block content %}
+<header class="letter-head">
+  <h1>{{ letter.title }}</h1>
+  <p class="meta">
+    {% if letter.kind == "petition" %}Petition{% if letter.addressee %} to {{ letter.addressee }}{% endif %}{% else %}Open letter{% endif %}
+    <span class="count"><b>{{ count }}</b> {% if letter.goal %}of {{ letter.goal }} {% endif %}signature{{ count|pluralize }}</span>
+  </p>
+</header>
+
+<article class="body">{{ body_html }}</article>
+
+<section class="sign" id="sign">
+  <h2>Sign this {% if letter.kind == "petition" %}petition{% else %}letter{% endif %}</h2>
+  <form method="post" action="#sign" novalidate>
+    {% csrf_token %}
+    {% if form.non_field_errors %}<p class="error">{{ form.non_field_errors.0 }}</p>{% endif %}
+    <div class="row two">
+      <div class="field{% if form.first_name.errors %} has-error{% endif %}">
+        <label for="{{ form.first_name.id_for_label }}">First name</label>
+        {% if form.first_name.errors %}<p class="error">{{ form.first_name.errors.0 }}</p>{% endif %}
+        {{ form.first_name }}
+      </div>
+      <div class="field{% if form.last_name.errors %} has-error{% endif %}">
+        <label for="{{ form.last_name.id_for_label }}">Last name</label>
+        {% if form.last_name.errors %}<p class="error">{{ form.last_name.errors.0 }}</p>{% endif %}
+        {{ form.last_name }}
+      </div>
+    </div>
+    <div class="row two">
+      <div class="field{% if form.city.errors %} has-error{% endif %}">
+        <label for="{{ form.city.id_for_label }}">City</label>
+        {% if form.city.errors %}<p class="error">{{ form.city.errors.0 }}</p>{% endif %}
+        {{ form.city }}
+      </div>
+      <div class="field{% if form.country.errors %} has-error{% endif %}">
+        <label for="{{ form.country.id_for_label }}">Country</label>
+        {% if form.country.errors %}<p class="error">{{ form.country.errors.0 }}</p>{% endif %}
+        {{ form.country }}
+      </div>
+    </div>
+    {% for f in form.extra_fields %}
+    <div class="field{% if f.errors %} has-error{% endif %}{% if f.field.widget.input_type == 'checkbox' %} check{% endif %}">
+      {% if f.field.widget.input_type == 'checkbox' %}
+        {{ f }} <label for="{{ f.id_for_label }}">{{ f.label }}</label>
+      {% else %}
+        <label for="{{ f.id_for_label }}">{{ f.label }}{% if not f.field.required %} <span class="opt">(optional)</span>{% endif %}</label>
+        {% if f.errors %}<p class="error">{{ f.errors.0 }}</p>{% endif %}
+        {{ f }}
+      {% endif %}
+    </div>
+    {% endfor %}
+    <div class="field{% if form.email.errors %} has-error{% endif %}">
+      <label for="{{ form.email.id_for_label }}">Email</label>
+      {% if form.email.errors %}<p class="error">{{ form.email.errors.0 }}</p>{% endif %}
+      {{ form.email }}
+    </div>
+    <div class="field check">
+      {{ form.keep_updated }} <label for="{{ form.keep_updated.id_for_label }}">{{ letter.updates_label }}</label>
+    </div>
+    <div class="field pad{% if form.drawn.errors %} has-error{% endif %}">
+      <label for="pad">Draw your signature</label>
+      {% if form.drawn.errors %}<p class="error">{{ form.drawn.errors.0 }}</p>{% endif %}
+      <div class="pad-wrap"><canvas id="pad" aria-label="Signature"></canvas><button type="button" class="clear" id="clear">Clear</button></div>
+      {{ form.drawn }}
+    </div>
+    <div class="hp" aria-hidden="true">{{ form.website }}</div>
+    <button type="submit" class="primary">Sign</button>
+  </form>
+</section>
+
+{% if letter.show_signatures %}
+<section class="signatures">
+  <h2>Signatures</h2>
+  <ol reversed>
+  {% for s in signatures %}
+    <li>
+      <div class="who">
+        {% if s.drawn %}<img class="drawn" src="{{ s.drawn.url }}" alt="">{% endif %}<span class="name">{{ s.full_name }}</span>
+        <span class="place">{{ s.city }}, {{ s.country }}</span>
+      </div>
+      {% for f, value in s.public_extras %}
+        {% if f.kind == "long" %}<p class="commentary">{{ value|linebreaksbr }}</p>{% elif f.kind == "checkbox" %}<span class="tag">{{ f.label }}</span>{% else %}<span class="extra">{{ value }}</span>{% endif %}
+      {% endfor %}
+    </li>
+  {% empty %}
+    <li class="none">Be the first to sign.</li>
+  {% endfor %}
+  </ol>
+  <p class="pdf"><a href="{% url 'letters:pdf' letter.slug %}">PDF with all signatures</a></p>
+</section>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script src="{% static 'letters/signature_pad.umd.min.js' %}"></script>
+<script src="{% static 'letters/sign.js' %}"></script>
+{% endblock %}

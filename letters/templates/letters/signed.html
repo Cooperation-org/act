@@ -1,0 +1,20 @@
+{% extends "letters/base.html" %}
+{% block content %}
+<header class="letter-head"><h1>{{ letter.title }}</h1></header>
+<section class="notice">
+{% if already %}
+  <h2>{{ s.email }} has already signed.</h2>
+{% elif s.drawn %}
+  <h2>Thank you, {{ s.first_name }}. Your signature is on the letter.</h2>
+  {% if s.email and not mail_failed %}<p>A confirmation was sent to {{ s.email }}.</p>{% endif %}
+  {% if s.email and mail_failed %}<p class="error">The confirmation email to {{ s.email }} could not be sent.</p>{% endif %}
+{% elif mail_failed %}
+  <h2>The confirmation email to {{ s.email }} could not be sent.</h2>
+  <p><a href="{% url 'letters:letter' letter.slug %}#sign">Sign again and draw your signature</a></p>
+{% else %}
+  <h2>Check your email.</h2>
+  <p>Open the link sent to {{ s.email }} to add your signature.</p>
+{% endif %}
+  <p><a href="{% url 'letters:letter' letter.slug %}">Back to the letter</a></p>
+</section>
+{% endblock %}

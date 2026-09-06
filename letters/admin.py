@@ -1,0 +1,166 @@
+"""Letters admin, scoped to the editor's org (superusers see all).
+
+Signatures: filter by letter, confirmation state, city or country; tick which
+appear on the PDF and set their order in the list; resend a confirmation;
+export the selected rows as the PDF.
+"""
+from django.contrib import admin, messages
+from django.http import HttpResponse
+from django.urls import reverse
+from django.utils import timezone
+from django.utils.html import format_html
+
+from campaigns.admin import OrgScopedAdmin, publish
+
+from .mail import send_confirmation
+from .models import EmailLog, Letter, Signature, SignatureField
+from .pdf import letter_pdf
+
+
+class SignatureFieldInline(admin.TabularInline):
+    model = SignatureField
+    extra = 0
+    fields = ["label", "key", "kind", "required", "public", "sort"]
+
+
+@admin.register(Letter)
+class LetterAdmin(OrgScopedAdmin):
+    list_display = ["title", "org", "kind", "status", "signature_count", "open"]
+    list_filter = ["status", "kind", "org"]
+    prepopulated_fields = {"slug": ["title"]}
+    inlines = [SignatureFieldInline]
+    actions = [publish]
+    readonly_fields = ["created", "published_at", "open"]
+    fieldsets = [
+        (None, {"fields": ["org", "title", "slug", "kind", "status", "open"]}),
+        ("Text", {"fields": ["body"]}),
+        ("Petition", {"fields": ["addressee", "goal"], "classes": ["collapse"]}),
+        ("Page", {"fields": ["theme", "show_signatures", "updates_label", "created", "published_at"]}),
+    ]
+
+    @admin.display(description="Signatures")
+    def signature_count(self, obj):
+        return obj.count()
+
+    @admin.display(description="Page")
+    def open(self, obj):
+        if not obj.pk:
+            return ""
+        url = reverse("letters:letter", args=[obj.slug])
+        pdf = reverse("letters:pdf", args=[obj.slug])
+        return format_html('<a href="{}" target="_blank">{}</a> · <a href="{}" target="_blank">PDF</a>', url, url, pdf)
+
+    def save_model(self, request, obj, form, change):
+        if obj.status == "published" and not obj.published_at:
+            obj.published_at = timezone.now()
+        super().save_model(request, obj, form, change)
+
+
+class ConfirmationFilter(admin.SimpleListFilter):
+    title = "confirmation"
+    parameter_name = "confirmation"
+
+    def lookups(self, request, model_admin):
+        return [
+            ("confirmed", "Email confirmed"),
+            ("drawn", "Signed by drawing"),
+            ("waiting", "Sent, waiting"),
+            ("failed", "Email failed"),
+            ("unsent", "No email sent"),
+        ]
+
+    def queryset(self, request, qs):
+        v = self.value()
+        if v == "confirmed":
+            return qs.filter(confirmed_at__isnull=False)
+        if v == "drawn":
+            return qs.exclude(drawn="")
+        if v == "waiting":
+            return qs.filter(confirmed_at__isnull=True, drawn="", confirm_sent_at__isnull=False)
+        if v == "failed":
+            return qs.filter(confirmed_at__isnull=True, emails__error__gt="").distinct()
+        if v == "unsent":
+            return qs.filter(confirmed_at__isnull=True, drawn="", confirm_sent_at__isnull=True)
+        return qs
+
+
+@admin.action(description="Resend confirmation email")
+def resend_confirmation(modeladmin, request, queryset):
+    sent = failed = 0
+    for s in queryset.exclude(email="").filter(confirmed_at__isnull=True):
+        url = request.build_absolute_uri(reverse("letters:confirm", args=[s.letter.slug, s.token]))
+        log = send_confirmation(s, url)
+        if log.error:
+            failed += 1
+        else:
+            sent += 1
+    level = messages.WARNING if failed else messages.SUCCESS
+    modeladmin.message_user(request, f"Sent {sent}, failed {failed}.", level)
+
+
+@admin.action(description="PDF of the letter with the selected signatures")
+def export_pdf(modeladmin, request, queryset):
+    letters = {s.letter_id for s in queryset}
+    if len(letters) != 1:
+        modeladmin.message_user(request, "Select signatures from one letter.", messages.ERROR)
+        return
+    letter = queryset.first().letter
+    sigs = queryset.valid().order_by("pdf_sort", "created")
+    data = letter_pdf(letter, sigs, request.build_absolute_uri("/"))
+    response = HttpResponse(data, content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="{letter.slug}-{sigs.count()}-signatures.pdf"'
+    return response
+
+
+@admin.action(description="Hide from page and PDF")
+def hide(modeladmin, request, queryset):
+    queryset.update(hidden=True)
+
+
+@admin.action(description="Show on page and PDF")
+def show(modeladmin, request, queryset):
+    queryset.update(hidden=False)
+
+
+@admin.register(Signature)
+class SignatureAdmin(OrgScopedAdmin):
+    org_path = "letter__org"
+    list_display = ["full_name", "email", "city", "country", "confirmation", "keep_updated",
+                    "signed", "on_pdf", "pdf_sort", "hidden", "created"]
+    list_editable = ["on_pdf", "pdf_sort", "hidden"]
+    list_filter = ["letter", ConfirmationFilter, "keep_updated", "on_pdf", "hidden", "country", "city"]
+    search_fields = ["first_name", "last_name", "email", "city", "country", "extras"]
+    actions = [export_pdf, resend_confirmation, hide, show]
+    readonly_fields = ["token", "confirmed_at", "confirm_sent_at", "confirm_sends", "ip", "created", "signed", "mail"]
+    fields = ["letter", "first_name", "last_name", "email", "city", "country", "extras", "keep_updated",
+              "drawn", "signed", "hidden", "on_pdf", "pdf_sort",
+              "confirmed_at", "confirm_sent_at", "confirm_sends", "mail", "ip", "created", "token"]
+    list_per_page = 100
+    date_hierarchy = "created"
+
+    @admin.display(description="Drawn")
+    def signed(self, obj):
+        if obj.drawn:
+            return format_html('<img src="{}" alt="" style="height:28px;background:#fff">', obj.drawn.url)
+        return ""
+
+    @admin.display(description="Mail")
+    def mail(self, obj):
+        rows = [f"{e.sent_at:%Y-%m-%d %H:%M} {e.subject}: {e.error or 'sent'}" for e in obj.emails.all()[:10]]
+        return format_html("<br>".join(["{}"] * len(rows)), *rows) if rows else ""
+
+
+@admin.register(EmailLog)
+class EmailLogAdmin(OrgScopedAdmin):
+    org_path = "letter__org"
+    list_display = ["sent_at", "to", "subject", "status", "letter"]
+    list_filter = ["letter"]
+    search_fields = ["to", "subject", "error"]
+    readonly_fields = ["letter", "signature", "to", "subject", "sent_at", "error"]
+
+    @admin.display(description="Status")
+    def status(self, obj):
+        return obj.error or "sent"
+
+    def has_add_permission(self, request):
+        return False

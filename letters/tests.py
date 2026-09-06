@@ -1,0 +1,114 @@
+import base64
+import io
+import tempfile
+
+from django.core import mail
+from django.test import TestCase, override_settings
+from PIL import Image
+
+from campaigns.models import Org
+
+from .models import EmailLog, Letter, Signature, SignatureField
+
+
+def png_data_url():
+    buf = io.BytesIO()
+    Image.new("RGBA", (300, 100), (0, 0, 0, 0)).save(buf, "PNG")
+    return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class LetterTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        org = Org.objects.create(slug="coop", name="Cooperation.org")
+        cls.letter = Letter.objects.create(org=org, slug="test", title="A Letter", status="published",
+                                           body="We **affirm** this.\n\n- one\n- two")
+        SignatureField.objects.create(letter=cls.letter, key="affiliation", label="Affiliation", sort=1)
+        SignatureField.objects.create(letter=cls.letter, key="commentary", label="Commentary", kind="long", sort=2)
+        cls.base = {"first_name": "Ada", "last_name": "Lovelace", "city": "Tucson", "country": "USA"}
+
+    def test_draft_hidden(self):
+        Letter.objects.filter(pk=self.letter.pk).update(status="draft")
+        self.assertEqual(self.client.get("/letters/test/").status_code, 404)
+
+    def test_page_renders_markdown_fields_and_count(self):
+        r = self.client.get("/letters/test/")
+        self.assertContains(r, "<strong>affirm</strong>")
+        self.assertContains(r, "<li>one</li>")
+        self.assertContains(r, "Affiliation")
+        self.assertContains(r, "Commentary")
+        self.assertContains(r, "<b>0</b>")
+
+    def test_needs_email_or_drawing(self):
+        r = self.client.post("/letters/test/", self.base)
+        self.assertContains(r, "Enter your email or draw your signature")
+        self.assertEqual(Signature.objects.count(), 0)
+
+    @override_settings(EMAIL_HOST="", DEFAULT_FROM_EMAIL="")
+    def test_email_only_waits_for_confirmation_and_logs_mail_failure(self):
+        r = self.client.post("/letters/test/", {**self.base, "email": "Ada@Example.org",
+                                                "extra_affiliation": "Analytical Engine Society"})
+        s = Signature.objects.get()
+        self.assertEqual(s.email, "ada@example.org")
+        self.assertEqual(s.extras, {"affiliation": "Analytical Engine Society"})
+        self.assertFalse(s.is_valid)
+        self.assertEqual(self.letter.count(), 0)
+        self.assertContains(r, "could not be sent")
+        self.assertIn("not configured", EmailLog.objects.get().error)
+        self.assertEqual(s.confirmation, "unsent")
+
+    @override_settings(EMAIL_HOST="smtp.example.org", DEFAULT_FROM_EMAIL="letters@example.org",
+                       EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_confirm_link_makes_signature_count(self):
+        r = self.client.post("/letters/test/", {**self.base, "email": "ada@example.org", "keep_updated": "on"})
+        self.assertContains(r, "Check your email")
+        self.assertEqual(len(mail.outbox), 1)
+        s = Signature.objects.get()
+        self.assertEqual(s.confirmation, "waiting")
+        self.assertIn(f"/letters/test/confirm/{s.token}/", mail.outbox[0].body)
+        r = self.client.get(f"/letters/test/confirm/{s.token}/")
+        self.assertContains(r, "Your signature is on the letter")
+        s.refresh_from_db()
+        self.assertTrue(s.is_valid)
+        self.assertTrue(s.keep_updated)
+        self.assertEqual(self.letter.count(), 1)
+        self.assertContains(self.client.get("/letters/test/"), "Ada Lovelace")
+
+    def test_drawn_signature_counts_immediately(self):
+        r = self.client.post("/letters/test/", {**self.base, "drawn": png_data_url(),
+                                                "extra_commentary": "Count me in.\nTwice."})
+        self.assertContains(r, "Your signature is on the letter")
+        s = Signature.objects.get()
+        self.assertTrue(s.drawn.name.endswith(".png"))
+        self.assertEqual(s.confirmation, "drawn")
+        self.assertEqual(self.letter.count(), 1)
+        page = self.client.get("/letters/test/")
+        self.assertContains(page, "Count me in.<br>Twice.")
+        self.assertContains(page, s.drawn.url)
+
+    def test_bad_drawing_rejected(self):
+        r = self.client.post("/letters/test/", {**self.base, "drawn": "data:image/png;base64,AAAA"})
+        self.assertContains(r, "could not be read")
+
+    def test_duplicate_confirmed_email(self):
+        Signature.objects.create(letter=self.letter, email="ada@example.org", first_name="A", last_name="L",
+                                 city="x", country="y", confirmed_at="2026-01-01T00:00Z")
+        r = self.client.post("/letters/test/", {**self.base, "email": "ada@example.org"})
+        self.assertContains(r, "already signed")
+        self.assertEqual(Signature.objects.count(), 1)
+
+    def test_pdf(self):
+        self.client.post("/letters/test/", {**self.base, "drawn": png_data_url()})
+        r = self.client.get("/letters/test.pdf")
+        self.assertEqual(r["Content-Type"], "application/pdf")
+        self.assertTrue(r.content.startswith(b"%PDF"))
+
+    def test_hidden_signature_not_shown(self):
+        self.client.post("/letters/test/", {**self.base, "drawn": png_data_url()})
+        Signature.objects.update(hidden=True)
+        self.assertEqual(self.letter.count(), 0)
+        self.assertNotContains(self.client.get("/letters/test/"), "Ada Lovelace")
+
+    def test_index_redirects_single_letter(self):
+        self.assertRedirects(self.client.get("/letters/"), "/letters/test/")

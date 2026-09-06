@@ -1,0 +1,15 @@
+@page { size: A4; margin: 22mm 20mm; background: #f6edd9; }
+html { background: #f6edd9; }
+body.pdf { background: #f6edd9; padding: 0; font-size: 12.5pt; line-height: 1.5; min-height: 0; }
+body.pdf .letter-head h1 { font-size: 24pt; }
+body.pdf .meta { display: block; }
+body.pdf .meta .count { margin-left: 1.2em; }
+body.pdf .body li::marker { font-family: "DejaVu Serif", serif; }
+body.pdf h2 { font-size: 15pt; margin-top: 18pt; }
+body.pdf .signatures li { page-break-inside: avoid; padding: 6pt 0; }
+body.pdf .who { display: block; }
+body.pdf img.drawn { display: block; height: 26pt; margin: 0 0 2pt; }
+body.pdf .who .name { font-weight: 700; }
+body.pdf .who .place { margin-left: .6em; }
+body.pdf .extra { display: block; }
+body.pdf footer { margin-top: 24pt; font-size: 10pt; }
