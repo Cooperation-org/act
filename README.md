@@ -23,9 +23,10 @@ Publish the campaign in /admin (Campaigns → jreas → status: published).
 
 ## Deploy (VM 513)
 
-- `.env` from `.env.example` (mode 600). Postgres: own DB on VM 100 (confirm name with golda
-  before creating — data-boundary rule).
+- `.env` from `.env.example` (mode 600). Postgres: database `act` on VM 100 (roles `act_owner` for
+  migrations, `act_user` for the running app).
 - `deploy/act.service`, `deploy/nginx-act.conf` are the patterns; port 8050.
+  `deploy/nginx-cooperation.org.conf`: cooperation.org serving `/letters/` and `/admin/` only.
 - `manage.py collectstatic`, `migrate`, `seed_jreas`.
 - DNS + Caddy route for act.raisethevoices.org are host-side actions.
 - Register in cobox `app-registry.md` when running.

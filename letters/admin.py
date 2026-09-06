@@ -4,6 +4,8 @@ Signatures: filter by letter, confirmation state, city or country; tick which
 appear on the PDF and set their order in the list; resend a confirmation;
 export the selected rows as the PDF.
 """
+import csv
+
 from django.contrib import admin, messages
 from django.http import HttpResponse
 from django.urls import reverse
@@ -112,6 +114,20 @@ def export_pdf(modeladmin, request, queryset):
     return response
 
 
+@admin.action(description="CSV of the selected signatures")
+def export_csv(modeladmin, request, queryset):
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = 'attachment; filename="signatures.csv"'
+    keys = sorted({k for s in queryset for k in s.extras})
+    w = csv.writer(response)
+    w.writerow(["letter", "first_name", "last_name", "email", "city", "country", "keep_updated",
+                "confirmation", "signed_at", *keys])
+    for s in queryset.select_related("letter").order_by("created"):
+        w.writerow([s.letter.slug, s.first_name, s.last_name, s.email, s.city, s.country, s.keep_updated,
+                    s.confirmation, s.created.isoformat(timespec="seconds"), *[s.extras.get(k, "") for k in keys]])
+    return response
+
+
 @admin.action(description="Hide from page and PDF")
 def hide(modeladmin, request, queryset):
     queryset.update(hidden=True)
@@ -130,7 +146,7 @@ class SignatureAdmin(OrgScopedAdmin):
     list_editable = ["on_pdf", "pdf_sort", "hidden"]
     list_filter = ["letter", ConfirmationFilter, "keep_updated", "on_pdf", "hidden", "country", "city"]
     search_fields = ["first_name", "last_name", "email", "city", "country", "extras"]
-    actions = [export_pdf, resend_confirmation, hide, show]
+    actions = [export_pdf, export_csv, resend_confirmation, hide, show]
     readonly_fields = ["token", "confirmed_at", "confirm_sent_at", "confirm_sends", "ip", "created", "signed", "mail"]
     fields = ["letter", "first_name", "last_name", "email", "city", "country", "extras", "keep_updated",
               "drawn", "signed", "hidden", "on_pdf", "pdf_sort",

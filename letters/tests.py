@@ -110,5 +110,20 @@ class LetterTests(TestCase):
         self.assertEqual(self.letter.count(), 0)
         self.assertNotContains(self.client.get("/letters/test/"), "Ada Lovelace")
 
+    def test_admin_csv_and_pdf_actions(self):
+        from django.contrib.auth.models import User
+        User.objects.create_superuser("admin", "a@example.org", "pw")
+        self.client.login(username="admin", password="pw")
+        self.client.post("/letters/test/", {**self.base, "drawn": png_data_url(), "extra_affiliation": "AES"})
+        sig = Signature.objects.get()
+        r = self.client.post("/admin/letters/signature/", {"action": "export_csv", "_selected_action": [sig.pk]})
+        self.assertEqual(r["Content-Type"], "text/csv")
+        self.assertIn(b"Ada,Lovelace,,Tucson,USA,False,drawn", r.content)
+        self.assertIn(b"AES", r.content)
+        r = self.client.post("/admin/letters/signature/", {"action": "export_pdf", "_selected_action": [sig.pk]})
+        self.assertEqual(r["Content-Type"], "application/pdf")
+        r = self.client.get("/admin/letters/signature/?confirmation=drawn")
+        self.assertContains(r, "Ada")
+
     def test_index_redirects_single_letter(self):
         self.assertRedirects(self.client.get("/letters/"), "/letters/test/")
