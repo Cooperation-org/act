@@ -77,9 +77,15 @@ TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
 
-STATIC_URL = "/static/"
+# Served under a path prefix (e.g. demos.linkedtrust.us/act/): ACT_BASE_PATH=/act
+BASE_PATH = os.environ.get("ACT_BASE_PATH", "").rstrip("/")
+FORCE_SCRIPT_NAME = BASE_PATH or None
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+USE_X_FORWARDED_HOST = True
+
+STATIC_URL = f"{BASE_PATH}/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
-MEDIA_URL = "/media/"
+MEDIA_URL = f"{BASE_PATH}/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
