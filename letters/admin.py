@@ -27,6 +27,7 @@ class SignatureFieldInline(admin.TabularInline):
 
 @admin.register(Letter)
 class LetterAdmin(OrgScopedAdmin):
+    feature = "letters"
     list_display = ["title", "org", "kind", "status", "signature_count", "open"]
     list_filter = ["status", "kind", "org"]
     prepopulated_fields = {"slug": ["title"]}
@@ -140,6 +141,7 @@ def show(modeladmin, request, queryset):
 
 @admin.register(Signature)
 class SignatureAdmin(OrgScopedAdmin):
+    feature = "letters"
     org_path = "letter__org"
     list_display = ["full_name", "email", "city", "country", "confirmation", "keep_updated",
                     "signed", "on_pdf", "pdf_sort", "hidden", "created"]
@@ -168,6 +170,7 @@ class SignatureAdmin(OrgScopedAdmin):
 
 @admin.register(EmailLog)
 class EmailLogAdmin(OrgScopedAdmin):
+    feature = "letters"
     org_path = "letter__org"
     list_display = ["sent_at", "to", "subject", "status", "letter"]
     list_filter = ["letter"]

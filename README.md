@@ -40,6 +40,21 @@ Live: **cooperation.org/letters/** on the civic-actions VM (10.0.0.154) since 20
   `migrate --check`, `sudo systemctl restart act`.
 - DNS + Caddy route are host-side actions. Register in cobox `app-registry.md`.
 
+## Deployments
+
+One repo and one database schema, several deployments. `ACT_APPS` in `.env` picks the apps a
+deployment routes and shows in admin: `campaigns` (story + calls to action, owns `/`),
+`letters` (open letters and petitions at `/letters/`). Org and volunteer accounts are shared
+and always visible.
+
+| Site | ACT_APPS | Public paths |
+|------|----------|--------------|
+| cooperation.org | `letters` | `/letters/`, `/admin/` (root forwards to `/letters/`) |
+| raisethevoices.org | `campaigns` | `/`, `/c/<slug>/`, `/admin/` |
+
+New capabilities (content management, content planning, email campaigns) arrive as further
+apps in this list.
+
 ## Letters (open letters and petitions)
 
 `letters/` app, pages under `/letters/<slug>/`. A Letter belongs to an Org, is written in

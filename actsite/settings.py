@@ -9,6 +9,14 @@ DEBUG = os.environ.get("ACT_DEBUG", "1") == "1"
 ALLOWED_HOSTS = [h for h in os.environ.get("ACT_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if h]
 CSRF_TRUSTED_ORIGINS = [f"https://{h}" for h in ALLOWED_HOSTS if h not in ("localhost", "127.0.0.1")]
 
+# Which public apps this deployment serves (routes + admin). Models of every app
+# are always installed so one database can back several deployments.
+ALL_ACT_APPS = ["campaigns", "letters"]
+ENABLED_APPS = [a.strip() for a in os.environ.get("ACT_APPS", ",".join(ALL_ACT_APPS)).split(",") if a.strip()]
+_unknown = set(ENABLED_APPS) - set(ALL_ACT_APPS)
+if _unknown or not ENABLED_APPS:
+    raise RuntimeError(f"ACT_APPS must be a comma list from {ALL_ACT_APPS}, got {ENABLED_APPS!r}")
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",

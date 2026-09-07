@@ -3,6 +3,7 @@
 Volunteers get is_staff + group 'volunteers' (created by seed command) and a
 VolunteerProfile. Superusers see everything.
 """
+from django.conf import settings
 from django.contrib import admin
 
 from .models import CTA, Campaign, Org, Response, ShareLink, Testimonial, Update, VolunteerProfile
@@ -20,6 +21,22 @@ def _is_approver(request):
 
 class OrgScopedAdmin(admin.ModelAdmin):
     org_path = "org"  # override per model: how to reach the Org from this model
+    feature = None  # app slug in settings.ENABLED_APPS; None = always shown
+
+    def _enabled(self):
+        return self.feature is None or self.feature in settings.ENABLED_APPS
+
+    def has_module_permission(self, request):
+        return self._enabled() and super().has_module_permission(request)
+
+    def has_view_permission(self, request, obj=None):
+        return self._enabled() and super().has_view_permission(request, obj)
+
+    def has_add_permission(self, request):
+        return self._enabled() and super().has_add_permission(request)
+
+    def has_change_permission(self, request, obj=None):
+        return self._enabled() and super().has_change_permission(request, obj)
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
@@ -29,7 +46,7 @@ class OrgScopedAdmin(admin.ModelAdmin):
         return qs.filter(**{self.org_path: org}) if org else qs.none()
 
     def has_delete_permission(self, request, obj=None):
-        return request.user.is_superuser
+        return self._enabled() and request.user.is_superuser
 
 
 @admin.action(description="Publish selected (approvers only)")
@@ -65,6 +82,7 @@ class CTAInline(admin.TabularInline):
 
 @admin.register(Campaign)
 class CampaignAdmin(OrgScopedAdmin):
+    feature = "campaigns"
     org_path = "org"
     list_display = ["slug", "title", "org", "status"]
     list_filter = ["status"]
@@ -80,6 +98,7 @@ class CampaignAdmin(OrgScopedAdmin):
 
 @admin.register(Testimonial)
 class TestimonialAdmin(OrgScopedAdmin):
+    feature = "campaigns"
     org_path = "campaign__org"
     list_display = ["campaign", "relationship", "show_identity", "status", "created"]
     list_filter = ["status"]
@@ -88,6 +107,7 @@ class TestimonialAdmin(OrgScopedAdmin):
 
 @admin.register(Update)
 class UpdateAdmin(OrgScopedAdmin):
+    feature = "campaigns"
     org_path = "campaign__org"
     list_display = ["campaign", "date", "status"]
     actions = [publish]
@@ -95,6 +115,7 @@ class UpdateAdmin(OrgScopedAdmin):
 
 @admin.register(Response)
 class ResponseAdmin(OrgScopedAdmin):
+    feature = "campaigns"
     org_path = "cta__campaign__org"
     list_display = ["name", "email", "cta", "handled", "created"]
     list_filter = ["handled", "cta__kind"]
@@ -103,6 +124,7 @@ class ResponseAdmin(OrgScopedAdmin):
 
 @admin.register(ShareLink)
 class ShareLinkAdmin(OrgScopedAdmin):
+    feature = "campaigns"
     org_path = "campaign__org"
     list_display = ["code", "campaign", "volunteer", "clicks"]
     readonly_fields = ["clicks", "code"]
