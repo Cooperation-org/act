@@ -1,14 +1,28 @@
-# /etc/systemd/system/act.service — adjust paths/user for the VM
+# /etc/systemd/system/act.service — adjust paths/user for the VM.
+# Live on the civic-actions VM (cooperation.org/letters/) since 2026-09-07.
 [Unit]
-Description=act (story + calls-to-action)
+Description=act (open letters, petitions, calls-to-action)
 After=network.target
 
 [Service]
 User=act
+Group=act
 WorkingDirectory=/opt/apps/act
 EnvironmentFile=/opt/apps/act/.env
-ExecStart=/opt/apps/act/.venv/bin/gunicorn actsite.wsgi:application --bind 127.0.0.1:8050 --workers 2
-Restart=on-failure
+# --no-control-socket: gunicorn >= 26 otherwise tries to create
+# WorkingDirectory/.gunicorn, which the service user does not own.
+ExecStart=/opt/apps/act/.venv/bin/gunicorn actsite.wsgi:application \
+    --bind 127.0.0.1:8050 \
+    --workers 2 \
+    --threads 2 \
+    --max-requests 1000 \
+    --max-requests-jitter 50 \
+    --no-control-socket \
+    --access-logfile - --error-logfile -
+Restart=always
+RestartSec=5
+MemoryMax=1G
+CPUQuota=150%
 
 [Install]
 WantedBy=multi-user.target

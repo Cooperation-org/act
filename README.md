@@ -21,15 +21,24 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 Publish the campaign in /admin (Campaigns → jreas → status: published).
 
-## Deploy (VM 513)
+## Deploy
+
+Live: **cooperation.org/letters/** on the civic-actions VM (10.0.0.154) since 2026-09-07; only
+`/letters/`, `/admin/`, `/static/`, `/media/` are routed there. Later: act.raisethevoices.org
+(VM 513) for the campaign pages.
 
 - `.env` from `.env.example` (mode 600). Postgres: database `act` on VM 100 (roles `act_owner` for
-  migrations, `act_user` for the running app).
-- `deploy/act.service`, `deploy/nginx-act.conf` are the patterns; port 8050.
-  `deploy/nginx-cooperation.org.conf`: cooperation.org serving `/letters/` and `/admin/` only.
-- `manage.py collectstatic`, `migrate`, `seed_jreas`.
-- DNS + Caddy route for act.raisethevoices.org are host-side actions.
-- Register in cobox `app-registry.md` when running.
+  migrations, `act_user` for the running app). `ACT_BASE_PATH`/`SCRIPT_NAME` empty at a domain root.
+- Python 3.12 venv, `pip install -r requirements.txt`. WeasyPrint needs `libpango-1.0-0
+  libpangoft2-1.0-0 libharfbuzz-subset0`.
+- `manage.py migrate --check` (run `migrate` with the `act_owner` credentials if pending),
+  `collectstatic`. `media/` must be writable by the service user (`act`).
+- `deploy/act.service` (gunicorn 127.0.0.1:8050) and `deploy/nginx-cooperation.org.conf` (locations
+  added inside the existing cooperation.org vhost) are what is live. `deploy/nginx-act.conf` is the
+  own-domain variant for act.raisethevoices.org.
+- Deploy a change: `git pull`, `.venv/bin/pip install -r requirements.txt`, `collectstatic`,
+  `migrate --check`, `sudo systemctl restart act`.
+- DNS + Caddy route are host-side actions. Register in cobox `app-registry.md`.
 
 ## Letters (open letters and petitions)
 

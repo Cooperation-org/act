@@ -82,6 +82,9 @@ BASE_PATH = os.environ.get("ACT_BASE_PATH", "").rstrip("/")
 FORCE_SCRIPT_NAME = BASE_PATH or None
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 USE_X_FORWARDED_HOST = True
+# Behind Caddy/nginx that terminate TLS: cookies over https only when not in dev.
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
 
 STATIC_URL = f"{BASE_PATH}/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
