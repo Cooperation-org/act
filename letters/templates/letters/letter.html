@@ -29,7 +29,7 @@
     </div>
     <div class="row two">
       <div class="field{% if form.city.errors %} has-error{% endif %}">
-        <label for="{{ form.city.id_for_label }}">City</label>
+        <label for="{{ form.city.id_for_label }}">City, State/Province</label>
         {% if form.city.errors %}<p class="error">{{ form.city.errors.0 }}</p>{% endif %}
         {{ form.city }}
       </div>

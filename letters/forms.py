@@ -13,7 +13,7 @@ class SignForm(forms.Form):
     first_name = forms.CharField(max_length=100, label="First name")
     last_name = forms.CharField(max_length=100, label="Last name")
     email = forms.EmailField(required=False, label="Email")
-    city = forms.CharField(max_length=100, label="City")
+    city = forms.CharField(max_length=100, label="City, State/Province")
     country = forms.CharField(max_length=100, label="Country")
     drawn = forms.CharField(required=False, widget=forms.HiddenInput)
     keep_updated = forms.BooleanField(required=False)
