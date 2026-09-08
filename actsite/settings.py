@@ -96,6 +96,14 @@ CSRF_COOKIE_SECURE = not DEBUG
 
 STATIC_URL = f"{BASE_PATH}/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+# Hashed static filenames in production so nginx can cache /static/ for a long
+# time and a changed CSS or font still reaches every browser at once.
+# (Run tests with ACT_DEBUG=1: the manifest only exists after collectstatic.)
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage" if DEBUG
+                    else "django.contrib.staticfiles.storage.ManifestStaticFilesStorage"},
+}
 MEDIA_URL = f"{BASE_PATH}/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 

@@ -6,6 +6,7 @@ from urllib.parse import unquote, urlsplit
 
 from django.conf import settings
 from django.contrib.staticfiles import finders
+from django.contrib.staticfiles.storage import staticfiles_storage
 from django.template.loader import render_to_string
 from weasyprint import HTML, default_url_fetcher
 
@@ -19,7 +20,9 @@ def _file(path):
 def _local_fetcher(url):
     path = unquote(urlsplit(url).path)
     if path.startswith(settings.STATIC_URL):
-        found = finders.find(path[len(settings.STATIC_URL):])
+        name = path[len(settings.STATIC_URL):]
+        # collected (possibly hashed) name first, then the app's source file
+        found = staticfiles_storage.path(name) if staticfiles_storage.exists(name) else finders.find(name)
         if found:
             return _file(found)
     if path.startswith(settings.MEDIA_URL):

@@ -37,7 +37,8 @@ Live: **cooperation.org/letters/** on the civic-actions VM (10.0.0.154) since 20
 - `deploy/act.service` (gunicorn 127.0.0.1:8050) and `deploy/nginx-cooperation.org.conf` (locations
   added inside the existing cooperation.org vhost) are what is live. `deploy/nginx-act.conf` is the
   own-domain variant for act.raisethevoices.org.
-- Deploy a change: `git pull`, `.venv/bin/pip install -r requirements.txt`, `collectstatic`,
+- Deploy a change: `git pull`, `.venv/bin/pip install -r requirements.txt`, `collectstatic --clear`
+  (hashed filenames; nginx caches `/static/` for 7 days), tests with `ACT_DEBUG=1 manage.py test`,
   `migrate --check`, `sudo systemctl restart act`.
 - DNS + Caddy route are host-side actions. Register in cobox `app-registry.md`.
 
