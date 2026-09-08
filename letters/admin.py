@@ -20,10 +20,25 @@ from .models import EmailLog, Letter, Signature, SignatureField
 from .pdf import letter_pdf
 
 
+LOCKED_LETTER_FIELDS = ["org", "title", "slug", "kind", "body", "addressee"]
+LOCKED_FIELD_FIELDS = ["key", "kind"]  # labels may be reworded; stored shape may not
+
+
+def _locked(letter):
+    """A letter with any signature is what people signed: its text is frozen."""
+    return bool(letter and letter.pk and letter.signatures.exists())
+
+
 class SignatureFieldInline(admin.TabularInline):
     model = SignatureField
     extra = 0
     fields = ["label", "key", "kind", "required", "public", "sort"]
+
+    def get_readonly_fields(self, request, obj=None):
+        return LOCKED_FIELD_FIELDS if _locked(obj) else []
+
+    def has_delete_permission(self, request, obj=None):
+        return not _locked(obj) and super().has_delete_permission(request, obj)
 
 
 @admin.register(Letter)
@@ -34,9 +49,9 @@ class LetterAdmin(OrgScopedAdmin):
     prepopulated_fields = {"slug": ["title"]}
     inlines = [SignatureFieldInline]
     actions = [publish]
-    readonly_fields = ["created", "published_at", "open"]
+    readonly_fields = ["created", "published_at", "open", "locked"]
     fieldsets = [
-        (None, {"fields": ["org", "title", "slug", "kind", "status", "open"]}),
+        (None, {"fields": ["org", "title", "slug", "kind", "status", "open", "locked"]}),
         ("Text", {"fields": ["body"]}),
         ("Petition", {"fields": ["addressee", "goal"], "classes": ["collapse"]}),
         ("Page", {"fields": ["theme", "show_signatures", "updates_label", "created", "published_at"]}),
@@ -45,6 +60,21 @@ class LetterAdmin(OrgScopedAdmin):
     @admin.display(description="Signatures")
     def signature_count(self, obj):
         return obj.count()
+
+    @admin.display(description="Text")
+    def locked(self, obj):
+        if _locked(obj):
+            return format_html("<b>Locked</b>: {} signature(s) exist, so the title, kind and text can no longer "
+                               "be changed. Question labels may still be reworded; questions cannot be removed.",
+                               obj.signatures.count())
+        return "Editable until the first signature."
+
+    def get_readonly_fields(self, request, obj=None):
+        fields = list(super().get_readonly_fields(request, obj))
+        return fields + LOCKED_LETTER_FIELDS if _locked(obj) else fields
+
+    def get_prepopulated_fields(self, request, obj=None):
+        return {} if _locked(obj) else super().get_prepopulated_fields(request, obj)
 
     @admin.display(description="Page")
     def open(self, obj):

@@ -194,3 +194,30 @@ class LetterTests(TestCase):
         self.assertEqual(self.letter.count(), 1)
         self.assertEqual(retry_due(now=timezone.now() + timedelta(days=1)), (0, 0))
 
+    def test_letter_text_locks_after_first_signature(self):
+        from django.contrib.auth.models import User
+        User.objects.create_superuser("admin", "a@example.org", "pw")
+        self.client.login(username="admin", password="pw")
+        url = f"/admin/letters/letter/{self.letter.pk}/change/"
+        r = self.client.get(url)
+        self.assertContains(r, 'name="body"')
+        self.assertContains(r, "Editable until the first signature")
+        self.client.post("/letters/test/", {**self.base, "email": "ada@example.org"})
+        r = self.client.get(url)
+        self.assertNotContains(r, 'name="body"')
+        self.assertContains(r, 'name="fields-0-label"')  # labels stay editable
+        self.assertNotContains(r, 'name="fields-0-key"')
+        self.assertNotContains(r, 'name="fields-0-DELETE"')
+        self.assertContains(r, "Locked")
+        # a post that tries to change the text is ignored; status still saves
+        r = self.client.post(url, {"status": "draft", "theme": "parchment", "show_signatures": "on",
+                                   "updates_label": "Keep me posted", "body": "tampered", "title": "Tampered",
+                                   "fields-TOTAL_FORMS": "0", "fields-INITIAL_FORMS": "0", "_save": "Save"})
+        self.assertEqual(r.status_code, 302)
+        self.letter.refresh_from_db()
+        self.assertEqual(self.letter.body, "We **affirm** this.\n\n- one\n- two")
+        self.assertEqual(self.letter.title, "A Letter")
+        self.assertEqual(self.letter.status, "draft")
+        self.assertEqual(self.letter.updates_label, "Keep me posted")
+        self.assertEqual(self.letter.fields.count(), 2)
+
