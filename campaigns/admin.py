@@ -55,24 +55,35 @@ def publish(modeladmin, request, queryset):
         queryset.update(status="published")
 
 
-@admin.register(Org)
-class OrgAdmin(admin.ModelAdmin):
-    list_display = ["slug", "name", "givebutter_account_id"]
+class SuperuserOnlyAdmin(admin.ModelAdmin):
+    """Visible and editable by superusers only. The per-object hooks take an
+    optional obj argument, which Django passes on change and list views."""
 
     def has_module_permission(self, request):
         return request.user.is_superuser
 
-    has_view_permission = has_add_permission = has_change_permission = has_module_permission
+    def has_view_permission(self, request, obj=None):
+        return request.user.is_superuser
+
+    def has_add_permission(self, request):
+        return request.user.is_superuser
+
+    def has_change_permission(self, request, obj=None):
+        return request.user.is_superuser
+
+    def has_delete_permission(self, request, obj=None):
+        return request.user.is_superuser
+
+
+@admin.register(Org)
+class OrgAdmin(SuperuserOnlyAdmin):
+    list_display = ["slug", "name", "givebutter_account_id"]
+    prepopulated_fields = {"slug": ["name"]}
 
 
 @admin.register(VolunteerProfile)
-class VolunteerProfileAdmin(admin.ModelAdmin):
+class VolunteerProfileAdmin(SuperuserOnlyAdmin):
     list_display = ["user", "org", "is_approver"]
-
-    def has_module_permission(self, request):
-        return request.user.is_superuser
-
-    has_view_permission = has_add_permission = has_change_permission = has_module_permission
 
 
 class CTAInline(admin.TabularInline):

@@ -37,3 +37,26 @@ class DeploymentAppsTests(TestCase):
         r = self.client.get("/admin/")
         self.assertContains(r, "/admin/campaigns/campaign/")
         self.assertNotContains(r, "/admin/letters/letter/")
+
+
+class SuperuserOnlyAdminTests(TestCase):
+    """Org and Volunteer admin: superusers get the list, add and change pages;
+    staff without superuser see nothing (regression: the pages used to 500)."""
+
+    def test_superuser_can_list_add_and_change_orgs_and_volunteers(self):
+        from campaigns.models import Org, VolunteerProfile
+        admin = User.objects.create_superuser("admin", "a@example.org", "pw")
+        org = Org.objects.create(slug="coop", name="Cooperation.org")
+        VolunteerProfile.objects.create(user=admin, org=org)
+        self.client.login(username="admin", password="pw")
+        for url in ["/admin/campaigns/org/", "/admin/campaigns/org/add/", f"/admin/campaigns/org/{org.pk}/change/",
+                    "/admin/campaigns/volunteerprofile/", "/admin/campaigns/volunteerprofile/add/"]:
+            self.assertEqual(self.client.get(url).status_code, 200, url)
+        r = self.client.post("/admin/campaigns/org/add/", {"name": "New Org", "slug": "new-org", "_save": "Save"})
+        self.assertEqual(r.status_code, 302)
+        self.assertTrue(Org.objects.filter(slug="new-org").exists())
+
+    def test_staff_without_superuser_cannot_see_orgs(self):
+        User.objects.create_user("vol", "v@example.org", "pw", is_staff=True)
+        self.client.login(username="vol", password="pw")
+        self.assertEqual(self.client.get("/admin/campaigns/org/").status_code, 403)
