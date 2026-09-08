@@ -1,14 +1,19 @@
 import base64
 import io
 import tempfile
+from datetime import timedelta
+from unittest import mock
 
 from django.core import mail
+from django.core.management import call_command
+from django.utils import timezone
 from django.test import TestCase, override_settings
 from PIL import Image
 
 from campaigns.models import Org
 
-from .models import EmailLog, Letter, Signature, SignatureField
+from .mail import retry_due
+from .models import RETRY_DELAYS, EmailLog, Letter, Signature, SignatureField
 
 
 def png_data_url():
@@ -56,7 +61,10 @@ class LetterTests(TestCase):
         self.assertEqual(self.letter.count(), 0)
         self.assertContains(r, "could not be sent")
         self.assertIn("not configured", EmailLog.objects.get().error)
-        self.assertEqual(s.confirmation, "unsent")
+        self.assertEqual(s.confirmation, "retrying")
+        self.assertEqual(s.confirm_attempts, 1)
+        self.assertAlmostEqual(s.confirm_next_retry_at, s.confirm_last_attempt_at + timedelta(hours=1),
+                               delta=timedelta(seconds=5))
 
     @override_settings(EMAIL_HOST="smtp.example.org", DEFAULT_FROM_EMAIL="letters@example.org",
                        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
@@ -127,3 +135,62 @@ class LetterTests(TestCase):
 
     def test_index_redirects_single_letter(self):
         self.assertRedirects(self.client.get("/letters/"), "/letters/test/")
+
+    def test_admin_approval_makes_signature_count(self):
+        self.client.post("/letters/test/", {**self.base, "email": "ada@example.org"})
+        s = Signature.objects.get()
+        self.assertEqual(self.letter.count(), 0)
+        s.approved = True
+        s.save()
+        self.assertTrue(s.is_valid)
+        self.assertEqual(s.confirmation, "approved")
+        self.assertEqual(self.letter.count(), 1)
+        self.assertContains(self.client.get("/letters/test/"), "Ada Lovelace")
+        self.assertEqual(self.letter.signatures.for_pdf().count(), 1)
+
+    @override_settings(EMAIL_HOST="smtp.example.org", DEFAULT_FROM_EMAIL="letters@example.org",
+                       EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_failed_mail_is_retried_with_backoff_then_gives_up(self):
+        boom = mock.patch("letters.mail.send_mail", side_effect=OSError("smtp down"))
+        with boom:
+            self.client.post("/letters/test/", {**self.base, "email": "ada@example.org"})
+        s = Signature.objects.get()
+        self.assertEqual(s.confirmation, "retrying")
+        self.assertIn("smtp down", s.confirm_last_error)
+        # not due yet: nothing happens
+        self.assertEqual(retry_due(), (0, 0))
+        # each retry fails: schedule follows RETRY_DELAYS, then gives up
+        for i, delay in enumerate(RETRY_DELAYS):
+            s.refresh_from_db()
+            self.assertAlmostEqual(s.confirm_next_retry_at, s.confirm_last_attempt_at + delay,
+                                   delta=timedelta(seconds=5))
+            with boom:
+                self.assertEqual(retry_due(now=s.confirm_next_retry_at), (0, 1))
+        s.refresh_from_db()
+        self.assertEqual(s.confirm_attempts, 1 + len(RETRY_DELAYS))
+        self.assertIsNone(s.confirm_next_retry_at)
+        self.assertEqual(s.confirmation, "gave up")
+        self.assertEqual(EmailLog.objects.filter(signature=s).count(), 1 + len(RETRY_DELAYS))
+        self.assertEqual(retry_due(now=timezone.now() + timedelta(days=30)), (0, 0))
+
+    @override_settings(EMAIL_HOST="smtp.example.org", DEFAULT_FROM_EMAIL="letters@example.org",
+                       EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+                       ACT_PUBLIC_URL="https://cooperation.org", PUBLIC_URL="https://cooperation.org")
+    def test_retry_command_sends_when_mail_recovers(self):
+        with mock.patch("letters.mail.send_mail", side_effect=OSError("smtp down")):
+            self.client.post("/letters/test/", {**self.base, "email": "ada@example.org"})
+        s = Signature.objects.get()
+        Signature.objects.filter(pk=s.pk).update(confirm_next_retry_at=timezone.now() - timedelta(minutes=1))
+        call_command("retry_confirmations")
+        s.refresh_from_db()
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn(f"https://cooperation.org/letters/test/confirm/{s.token}/", mail.outbox[0].body)
+        self.assertEqual(s.confirmation, "waiting")
+        self.assertEqual(s.confirm_sends, 1)
+        self.assertIsNone(s.confirm_next_retry_at)
+        self.assertEqual(s.confirm_last_error, "")
+        # confirming after a retry works and stops any further mail
+        self.client.get(f"/letters/test/confirm/{s.token}/")
+        self.assertEqual(self.letter.count(), 1)
+        self.assertEqual(retry_due(now=timezone.now() + timedelta(days=1)), (0, 0))
+

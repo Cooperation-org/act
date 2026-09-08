@@ -1,0 +1,12 @@
+# /etc/systemd/system/act-retry-mail.timer — every 15 minutes
+# (retries are due 1h, 6h, 24h after each failed send; see letters.models.RETRY_DELAYS)
+[Unit]
+Description=act: retry confirmation mail every 15 minutes
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=15min
+RandomizedDelaySec=60
+
+[Install]
+WantedBy=timers.target

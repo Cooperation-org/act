@@ -2,15 +2,23 @@
 
 A Letter belongs to an Org. It defines which optional fields a signer is asked
 for (SignatureField). A Signature counts once the signer has either confirmed
-their email or drawn a signature. EmailLog records every mail attempt so an
-admin can see who is stuck confirming.
+their email or drawn a signature, or an admin has ticked "approved". EmailLog
+records every mail attempt so an admin can see who is stuck confirming; a
+failed confirmation mail is retried with backoff (RETRY_DELAYS) by the
+retry_confirmations command, and the schedule lives on the Signature.
 """
 import secrets
+from datetime import timedelta
 
 from django.db import models
 from django.db.models import Q
+from django.utils import timezone
 
 from campaigns.models import Org, PublishStatus
+
+# After the n-th failed confirmation mail, wait this long before trying again.
+# After the last one fails, stop; the admin can resend or approve by hand.
+RETRY_DELAYS = [timedelta(hours=1), timedelta(hours=6), timedelta(hours=24)]
 
 
 class Letter(models.Model):
@@ -82,7 +90,12 @@ def _token():
 
 class SignatureQuerySet(models.QuerySet):
     def valid(self):
-        return self.filter(Q(confirmed_at__isnull=False) | ~Q(drawn=""))
+        return self.filter(Q(confirmed_at__isnull=False) | ~Q(drawn="") | Q(approved=True))
+
+    def due_for_retry(self, now=None):
+        """Unconfirmed email signatures whose next scheduled retry has come."""
+        now = now or timezone.now()
+        return self.exclude(email="").filter(confirmed_at__isnull=True, confirm_next_retry_at__lte=now)
 
     def for_pdf(self):
         return self.valid().filter(hidden=False, on_pdf=True).order_by("pdf_sort", "created")
@@ -102,6 +115,11 @@ class Signature(models.Model):
     confirmed_at = models.DateTimeField(null=True, blank=True)
     confirm_sent_at = models.DateTimeField(null=True, blank=True)
     confirm_sends = models.PositiveSmallIntegerField(default=0)
+    confirm_attempts = models.PositiveSmallIntegerField(default=0, help_text="Confirmation mails tried, sent or failed")
+    confirm_last_attempt_at = models.DateTimeField(null=True, blank=True)
+    confirm_last_error = models.TextField(blank=True)
+    confirm_next_retry_at = models.DateTimeField(null=True, blank=True, help_text="When the next retry is due; empty = none scheduled")
+    approved = models.BooleanField(default=False, help_text="Counts and is shown even without a confirmed email or drawn signature")
     hidden = models.BooleanField(default=False, help_text="Kept, never shown")
     on_pdf = models.BooleanField(default=True)
     pdf_sort = models.IntegerField(default=0, help_text="Lower comes first on the PDF")
@@ -122,7 +140,7 @@ class Signature(models.Model):
 
     @property
     def is_valid(self):
-        return bool(self.confirmed_at or self.drawn)
+        return bool(self.confirmed_at or self.drawn or self.approved)
 
     @property
     def confirmation(self):
@@ -130,9 +148,30 @@ class Signature(models.Model):
             return "confirmed"
         if self.drawn:
             return "drawn"
+        if self.approved:
+            return "approved"
+        if self.email and self.confirm_last_error:
+            return "retrying" if self.confirm_next_retry_at else "gave up"
         if self.email and self.confirm_sent_at:
             return "waiting"
         return "unsent"
+
+    def record_mail_attempt(self, error=""):
+        """Update the confirmation schedule after one send attempt (see mail.py)."""
+        now = timezone.now()
+        self.confirm_attempts += 1
+        self.confirm_last_attempt_at = now
+        self.confirm_last_error = error
+        if error:
+            failures = self.confirm_attempts - self.confirm_sends
+            delay = RETRY_DELAYS[failures - 1] if 0 < failures <= len(RETRY_DELAYS) else None
+            self.confirm_next_retry_at = now + delay if delay else None
+        else:
+            self.confirm_sent_at = now
+            self.confirm_sends += 1
+            self.confirm_next_retry_at = None
+        self.save(update_fields=["confirm_attempts", "confirm_last_attempt_at", "confirm_last_error",
+                                 "confirm_next_retry_at", "confirm_sent_at", "confirm_sends"])
 
     def public_extras(self):
         fields = self.letter.fields.filter(public=True)

@@ -1,0 +1,12 @@
+# /etc/systemd/system/act-retry-mail.service — run by act-retry-mail.timer
+[Unit]
+Description=act: resend failed signature-confirmation emails that are due
+After=network.target
+
+[Service]
+Type=oneshot
+User=act
+Group=act
+WorkingDirectory=/opt/apps/act
+EnvironmentFile=/opt/apps/act/.env
+ExecStart=/opt/apps/act/.venv/bin/python manage.py retry_confirmations

@@ -33,6 +33,7 @@ Live: **cooperation.org/letters/** on the civic-actions VM (10.0.0.154) since 20
   libpangoft2-1.0-0 libharfbuzz-subset0`.
 - `manage.py migrate --check` (run `migrate` with the `act_owner` credentials if pending),
   `collectstatic`. `media/` must be writable by the service user (`act`).
+- `deploy/act-retry-mail.service` + `.timer`: confirmation-mail retries (`systemctl enable --now act-retry-mail.timer`).
 - `deploy/act.service` (gunicorn 127.0.0.1:8050) and `deploy/nginx-cooperation.org.conf` (locations
   added inside the existing cooperation.org vhost) are what is live. `deploy/nginx-act.conf` is the
   own-domain variant for act.raisethevoices.org.
@@ -71,8 +72,13 @@ refused.
 
 Confirmation mail goes out over SMTP (`EMAIL_HOST`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`,
 `DEFAULT_FROM_EMAIL`). With `EMAIL_HOST` unset nothing is sent; every attempt, sent or failed,
-is an `EmailLog` row. Admin → Signatures → filter "confirmation": confirmed / drawn /
-sent, waiting / email failed / no email sent; action "Resend confirmation email".
+is an `EmailLog` row. A failed send is retried automatically 1 h, 6 h and 24 h later
+(`letters.models.RETRY_DELAYS`; `manage.py retry_confirmations` on `deploy/act-retry-mail.timer`,
+every 15 min), then it gives up. The schedule and last error live on the Signature. Admin →
+Signatures → filter "confirmation": confirmed / drawn / approved / sent, waiting / failed, retry
+scheduled / failed, gave up / no email sent; action "Resend confirmation email" starts over.
+**Approved** (checkbox in the list) makes a signature count and show even if the email never
+confirmed — for the friend who signed but never got the mail.
 
 PDF: `/letters/<slug>.pdf` is the letter with every counted signature that has `on_pdf`
 ticked, ordered by `pdf_sort` then date. In admin, filter (city, country, …), tick rows,

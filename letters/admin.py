@@ -2,7 +2,8 @@
 
 Signatures: filter by letter, confirmation state, city or country; tick which
 appear on the PDF and set their order in the list; resend a confirmation;
-export the selected rows as the PDF.
+tick "approved" to count a signature whose email never confirmed; export the
+selected rows as the PDF.
 """
 import csv
 
@@ -14,7 +15,7 @@ from django.utils.html import format_html
 
 from campaigns.admin import OrgScopedAdmin, publish
 
-from .mail import send_confirmation
+from .mail import confirm_url, send_confirmation
 from .models import EmailLog, Letter, Signature, SignatureField
 from .pdf import letter_pdf
 
@@ -67,8 +68,11 @@ class ConfirmationFilter(admin.SimpleListFilter):
         return [
             ("confirmed", "Email confirmed"),
             ("drawn", "Signed by drawing"),
+            ("approved", "Approved by admin"),
             ("waiting", "Sent, waiting"),
-            ("failed", "Email failed"),
+            ("retrying", "Email failed, retry scheduled"),
+            ("gave_up", "Email failed, gave up"),
+            ("failed", "Email failed (any)"),
             ("unsent", "No email sent"),
         ]
 
@@ -80,8 +84,14 @@ class ConfirmationFilter(admin.SimpleListFilter):
             return qs.exclude(drawn="")
         if v == "waiting":
             return qs.filter(confirmed_at__isnull=True, drawn="", confirm_sent_at__isnull=False)
+        if v == "approved":
+            return qs.filter(approved=True)
+        if v == "retrying":
+            return qs.filter(confirmed_at__isnull=True, confirm_next_retry_at__isnull=False)
+        if v == "gave_up":
+            return qs.filter(confirmed_at__isnull=True, confirm_next_retry_at__isnull=True).exclude(confirm_last_error="")
         if v == "failed":
-            return qs.filter(confirmed_at__isnull=True, emails__error__gt="").distinct()
+            return qs.filter(confirmed_at__isnull=True).exclude(confirm_last_error="")
         if v == "unsent":
             return qs.filter(confirmed_at__isnull=True, drawn="", confirm_sent_at__isnull=True)
         return qs
@@ -91,8 +101,7 @@ class ConfirmationFilter(admin.SimpleListFilter):
 def resend_confirmation(modeladmin, request, queryset):
     sent = failed = 0
     for s in queryset.exclude(email="").filter(confirmed_at__isnull=True):
-        url = request.build_absolute_uri(reverse("letters:confirm", args=[s.letter.slug, s.token]))
-        log = send_confirmation(s, url)
+        log = send_confirmation(s, confirm_url(s, request))
         if log.error:
             failed += 1
         else:
@@ -129,6 +138,11 @@ def export_csv(modeladmin, request, queryset):
     return response
 
 
+@admin.action(description="Approve: count and show without confirmation")
+def approve(modeladmin, request, queryset):
+    queryset.update(approved=True)
+
+
 @admin.action(description="Hide from page and PDF")
 def hide(modeladmin, request, queryset):
     queryset.update(hidden=True)
@@ -143,18 +157,35 @@ def show(modeladmin, request, queryset):
 class SignatureAdmin(OrgScopedAdmin):
     feature = "letters"
     org_path = "letter__org"
-    list_display = ["full_name", "email", "city", "country", "confirmation", "keep_updated",
-                    "signed", "on_pdf", "pdf_sort", "hidden", "created"]
-    list_editable = ["on_pdf", "pdf_sort", "hidden"]
-    list_filter = ["letter", ConfirmationFilter, "keep_updated", "on_pdf", "hidden", "country", "city"]
+    list_display = ["full_name", "email", "city", "country", "confirmation_status", "keep_updated",
+                    "signed", "approved", "on_pdf", "pdf_sort", "hidden", "created"]
+    list_editable = ["approved", "on_pdf", "pdf_sort", "hidden"]
+    list_filter = ["letter", ConfirmationFilter, "approved", "keep_updated", "on_pdf", "hidden", "country", "city"]
     search_fields = ["first_name", "last_name", "email", "city", "country", "extras"]
-    actions = [export_pdf, export_csv, resend_confirmation, hide, show]
-    readonly_fields = ["token", "confirmed_at", "confirm_sent_at", "confirm_sends", "ip", "created", "signed", "mail"]
-    fields = ["letter", "first_name", "last_name", "email", "city", "country", "extras", "keep_updated",
-              "drawn", "signed", "hidden", "on_pdf", "pdf_sort",
-              "confirmed_at", "confirm_sent_at", "confirm_sends", "mail", "ip", "created", "token"]
+    actions = [export_pdf, export_csv, resend_confirmation, approve, hide, show]
+    readonly_fields = ["token", "confirmed_at", "confirm_sent_at", "confirm_sends", "confirm_attempts",
+                       "confirm_last_attempt_at", "confirm_last_error", "confirm_next_retry_at",
+                       "ip", "created", "signed", "mail"]
+    fieldsets = [
+        (None, {"fields": ["letter", "first_name", "last_name", "email", "city", "country", "extras",
+                           "keep_updated", "drawn", "signed"]}),
+        ("Shown", {"fields": ["approved", "hidden", "on_pdf", "pdf_sort"]}),
+        ("Confirmation", {"fields": ["confirmed_at", "confirm_sent_at", "confirm_sends", "confirm_attempts",
+                                     "confirm_last_attempt_at", "confirm_last_error", "confirm_next_retry_at",
+                                     "mail"]}),
+        ("Record", {"fields": ["ip", "created", "token"], "classes": ["collapse"]}),
+    ]
     list_per_page = 100
     date_hierarchy = "created"
+
+    @admin.display(description="Confirmation")
+    def confirmation_status(self, obj):
+        status = obj.confirmation
+        if status == "retrying":
+            return format_html("retrying (next {})", timezone.localtime(obj.confirm_next_retry_at).strftime("%b %d %H:%M"))
+        if status == "gave up":
+            return format_html("gave up after {} tries", obj.confirm_attempts)
+        return status
 
     @admin.display(description="Drawn")
     def signed(self, obj):

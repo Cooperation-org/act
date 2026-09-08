@@ -1,10 +1,9 @@
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse
 from django.utils import timezone
 
 from .forms import SignForm
-from .mail import send_confirmation
+from .mail import confirm_url, send_confirmation
 from .markup import render as render_markdown
 from .models import Letter, Signature
 from .pdf import letter_pdf
@@ -36,8 +35,7 @@ def letter(request, slug):
             sig = form.save(ip=_client_ip(request))
             log = None
             if sig.email:
-                confirm_url = request.build_absolute_uri(reverse("letters:confirm", args=[letter.slug, sig.token]))
-                log = send_confirmation(sig, confirm_url)
+                log = send_confirmation(sig, confirm_url(sig, request))
             return render(request, "letters/signed.html", {"letter": letter, "s": sig, "mail_failed": bool(log and log.error)})
     else:
         form = SignForm(letter)
