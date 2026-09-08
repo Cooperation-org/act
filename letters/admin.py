@@ -59,7 +59,8 @@ class LetterAdmin(OrgScopedAdmin):
 
     @admin.display(description="Signatures")
     def signature_count(self, obj):
-        return obj.count()
+        url = reverse("admin:letters_signature_changelist") + f"?letter__id__exact={obj.pk}"
+        return format_html('<a href="{}">{}</a>', url, obj.count())
 
     @admin.display(description="Text")
     def locked(self, obj):
@@ -187,9 +188,11 @@ def show(modeladmin, request, queryset):
 class SignatureAdmin(OrgScopedAdmin):
     feature = "letters"
     org_path = "letter__org"
-    list_display = ["full_name", "email", "city", "country", "confirmation_status", "keep_updated",
+    list_display = ["letter", "full_name", "email", "city", "country", "confirmation_status", "keep_updated",
                     "signed", "approved", "on_pdf", "pdf_sort", "hidden", "created"]
+    list_display_links = ["full_name"]
     list_editable = ["approved", "on_pdf", "pdf_sort", "hidden"]
+    ordering = ["letter__title", "-created"]  # grouped by letter, newest first within each
     list_filter = ["letter", ConfirmationFilter, "approved", "keep_updated", "on_pdf", "hidden", "country", "city"]
     search_fields = ["first_name", "last_name", "email", "city", "country", "extras"]
     actions = [export_pdf, export_csv, resend_confirmation, approve, hide, show]

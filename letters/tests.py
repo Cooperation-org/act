@@ -221,3 +221,20 @@ class LetterTests(TestCase):
         self.assertEqual(self.letter.updates_label, "Keep me posted")
         self.assertEqual(self.letter.fields.count(), 2)
 
+    def test_admin_signatures_grouped_by_letter(self):
+        from django.contrib.auth.models import User
+        other = Letter.objects.create(org=self.letter.org, slug="alpha", title="Alpha Letter", status="published",
+                                      body="First.")
+        Signature.objects.create(letter=self.letter, first_name="Zed", last_name="Last", city="X", country="Y",
+                                 drawn="signatures/z.png")
+        Signature.objects.create(letter=other, first_name="Amy", last_name="First", city="X", country="Y",
+                                 drawn="signatures/a.png")
+        User.objects.create_superuser("admin", "a@example.org", "pw")
+        self.client.login(username="admin", password="pw")
+        html = self.client.get("/admin/letters/signature/").content.decode()
+        self.assertLess(html.index("Amy First"), html.index("Zed Last"))  # Alpha Letter's rows come first
+        self.assertIn(f"?letter__id__exact={self.letter.pk}", self.client.get("/admin/letters/letter/").content.decode())
+        r = self.client.get(f"/admin/letters/signature/?letter__id__exact={other.pk}")
+        self.assertContains(r, "Amy First")
+        self.assertNotContains(r, "Zed Last")
+
