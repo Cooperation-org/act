@@ -223,7 +223,7 @@ class LetterTests(TestCase):
 
     def test_admin_signatures_grouped_by_letter(self):
         from django.contrib.auth.models import User
-        other = Letter.objects.create(org=self.letter.org, slug="alpha", title="Alpha Letter", status="published",
+        other = Letter.objects.create(org=self.letter.org, slug="zulu", title="Zulu Letter", status="published",
                                       body="First.")
         Signature.objects.create(letter=self.letter, first_name="Zed", last_name="Last", city="X", country="Y",
                                  drawn="signatures/z.png")
@@ -232,7 +232,7 @@ class LetterTests(TestCase):
         User.objects.create_superuser("admin", "a@example.org", "pw")
         self.client.login(username="admin", password="pw")
         html = self.client.get("/admin/letters/signature/").content.decode()
-        self.assertLess(html.index("Amy First"), html.index("Zed Last"))  # Alpha Letter's rows come first
+        self.assertLess(html.index("Zed Last"), html.index("Amy First"))  # "A Letter" rows before "Zulu Letter"
         self.assertIn(f"?letter__id__exact={self.letter.pk}", self.client.get("/admin/letters/letter/").content.decode())
         r = self.client.get(f"/admin/letters/signature/?letter__id__exact={other.pk}")
         self.assertContains(r, "Amy First")
