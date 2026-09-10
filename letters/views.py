@@ -1,3 +1,4 @@
+from django.views.decorators.cache import never_cache
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -21,6 +22,7 @@ def _client_ip(request):
     return (forwarded.split(",")[0].strip() if forwarded else request.META.get("REMOTE_ADDR")) or None
 
 
+@never_cache
 def letter(request, slug):
     letter = _letter_or_404(slug, request)
     if request.method == "POST":
