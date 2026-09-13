@@ -1,4 +1,4 @@
-{% extends "letters/base.html" %}
+{% extends "letters/base.html" %}{% load static share %}
 {% block content %}
 <header class="letter-head"><h1>{{ letter.title }}</h1></header>
 <section class="notice">
@@ -16,5 +16,7 @@
   <p>Open the link sent to {{ s.email }} to add your signature.</p>
 {% endif %}
   <p><a href="{% url 'letters:letter' letter.slug %}">Back to the letter</a></p>
+  {% if s.drawn or not mail_failed %}{% share letter %}{% endif %}
 </section>
 {% endblock %}
+{% block scripts %}<script src="{% static 'letters/share.js' %}"></script>{% endblock %}

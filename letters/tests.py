@@ -45,6 +45,21 @@ class LetterTests(TestCase):
         self.assertContains(r, "Commentary")
         self.assertContains(r, "<b>0</b>")
 
+    def test_share_icons_with_prefilled_text(self):
+        r = self.client.get("/letters/test/")
+        self.assertContains(r, 'class="share"')
+        self.assertContains(r, "Would you like to consider this open letter A Letter, I have signed it.  "
+                               "What do you think? http://testserver/letters/test/")
+        for network in ("bsky.app/intent/compose?text=", "mastodonshare.com/?text=", "instagram.com",
+                        "linkedin.com/feed/?shareActive=true&amp;text=", "facebook.com/sharer/sharer.php?u=",
+                        "mailto:?subject=A%20Letter&amp;body="):
+            self.assertContains(r, network)
+        self.assertNotContains(r, "twitter.com")
+        self.assertNotContains(r, "x.com/intent")
+        r = self.client.post("/letters/test/", {**self.base, "drawn": png_data_url()})
+        self.assertContains(r, "Your signature is on the letter")
+        self.assertContains(r, 'class="share"')
+
     def test_needs_email_or_drawing(self):
         r = self.client.post("/letters/test/", self.base)
         self.assertContains(r, "Enter your email or draw your signature")

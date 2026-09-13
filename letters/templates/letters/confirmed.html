@@ -1,8 +1,10 @@
-{% extends "letters/base.html" %}
+{% extends "letters/base.html" %}{% load static share %}
 {% block content %}
 <header class="letter-head"><h1>{{ letter.title }}</h1></header>
 <section class="notice">
   <h2>Thank you, {{ s.first_name }}. Your signature is on the letter.</h2>
   <p><a href="{% url 'letters:letter' letter.slug %}">Read the letter and the signatures</a></p>
+  {% share letter %}
 </section>
 {% endblock %}
+{% block scripts %}<script src="{% static 'letters/share.js' %}"></script>{% endblock %}

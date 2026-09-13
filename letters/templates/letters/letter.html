@@ -1,4 +1,4 @@
-{% extends "letters/base.html" %}{% load static %}
+{% extends "letters/base.html" %}{% load static share %}
 {% block content %}
 <header class="letter-head">
   <h1>{{ letter.title }}</h1>
@@ -87,11 +87,15 @@
     <li class="none">Be the first to sign.</li>
   {% endfor %}
   </ol>
-  <p class="pdf"><a href="{% url 'letters:pdf' letter.slug %}">PDF with all signatures</a></p>
 </section>
 {% endif %}
+<div class="end">
+  {% if letter.show_signatures %}<p class="pdf"><a href="{% url 'letters:pdf' letter.slug %}">PDF with all signatures</a></p>{% endif %}
+  {% share letter %}
+</div>
 {% endblock %}
 {% block scripts %}
 <script src="{% static 'letters/signature_pad.umd.min.js' %}"></script>
 <script src="{% static 'letters/sign.js' %}"></script>
+<script src="{% static 'letters/share.js' %}"></script>
 {% endblock %}
