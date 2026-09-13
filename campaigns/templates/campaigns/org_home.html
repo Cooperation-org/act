@@ -1,0 +1,67 @@
+{% extends "campaigns/base.html" %}{% load markup %}
+{% block head %}
+{% if give and org.givebutter_account_id %}<script src="https://widgets.givebutter.com/latest.umd.cjs?acct={{ org.givebutter_account_id }}" defer></script>{% endif %}
+{% endblock %}
+{% block content %}
+<h1>{{ org.name }}</h1>
+{% if org.tagline %}<p class="tagline">{{ org.tagline }}</p>{% endif %}
+
+<div class="cols">
+<div>
+  {% if org.about %}{{ org.about|markdown }}{% elif user.is_staff %}<p class="meta">Visitors see nothing here until About is filled in (Edit → Orgs → {{ org.name }}) and a campaign is published.</p>{% endif %}
+
+  {% if campaigns %}
+  <h2>{% if campaigns|length == 1 %}The campaign{% else %}Campaigns{% endif %}</h2>
+  {% for c in campaigns %}
+  <div class="camp">
+    <div class="thumb">{% if c.photo %}<img src="{{ c.photo.url }}" alt="" style="width:100%;height:100%;object-fit:cover">{% else %}photo to come{% endif %}</div>
+    <div>
+      <h3><a href="/c/{{ c.slug }}/">{{ c.title }}</a></h3>
+      {% if c.summary %}<p style="font-size:.95rem">{{ c.summary }}</p>{% endif %}
+      <p><a class="btn" href="/c/{{ c.slug }}/">Give</a> &nbsp; <a class="btn ghost" href="/c/{{ c.slug }}/#help">Other ways to help</a></p>
+    </div>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {% if stream %}
+  <h2>Latest</h2>
+  {% include "campaigns/_stream.html" %}
+  <p class="meta"><a href="/updates/">All updates</a> · <a href="/updates/feed/">RSS</a></p>
+  {% endif %}
+
+  {% if people %}
+  <h2>People</h2>
+  <div class="people">
+    {% for p in people %}
+    <a class="person" href="/people/{{ p.slug }}/">
+      {% if p.photo %}<img src="{{ p.photo.url }}" alt="">{% else %}<div class="ph"></div>{% endif %}
+      <div class="name">{{ p.name }}</div>
+      {% if p.role %}<div class="meta">{{ p.role }}</div>{% endif %}
+    </a>
+    {% endfor %}
+  </div>
+  <p class="meta"><a href="/people/">Everyone</a></p>
+  {% endif %}
+
+  {% if org.has_governance %}
+  <h2>Governance</h2>
+  <p>Members govern this organisation. <a href="/governance/">How it works</a>{% if org.governance_url %} · <a href="{{ org.governance_url }}">members' dashboard</a>{% endif %}</p>
+  {% endif %}
+</div>
+
+<aside class="rail">
+  <div class="card" id="give">
+    {% if give and give.givebutter_campaign_id %}
+      <givebutter-widget id="{{ give.givebutter_campaign_id }}"></givebutter-widget>
+    {% elif give and give.simpletip_receiver %}
+      <simple-tip receiver="{{ give.simpletip_receiver }}" receiver-name="{{ give.title }}" amounts="5,10,25"></simple-tip>
+      <script src="{{ give.simpletip_api }}/../simpletip.js" data-api="{{ give.simpletip_api }}"></script>
+    {% else %}
+      <p class="meta">Giving opens soon.</p>
+    {% endif %}
+    <p class="meta" style="margin-top:.7rem">{{ donation_disclosure }}</p>
+  </div>
+</aside>
+</div>
+{% endblock %}

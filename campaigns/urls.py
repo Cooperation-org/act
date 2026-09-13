@@ -1,10 +1,14 @@
 from django.urls import path
 
 from . import views
+from .feeds import UpdatesFeed
 
 urlpatterns = [
     path("", views.home, name="home"),
     path("why/", views.why, name="why"),
+    path("updates/", views.updates, name="updates"),
+    path("updates/feed/", UpdatesFeed(), name="updates_feed"),
+    path("governance/", views.governance, name="governance"),
     path("c/<slug:slug>/", views.campaign, name="campaign"),
     path("c/<slug:slug>/act/<int:cta_id>/", views.respond, name="respond"),
     path("c/<slug:slug>/testimony/", views.add_testimony, name="testimony"),

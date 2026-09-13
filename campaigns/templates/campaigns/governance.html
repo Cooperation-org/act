@@ -1,0 +1,9 @@
+{% extends "campaigns/base.html" %}{% load markup %}
+{% block title %}Governance — {{ block.super }}{% endblock %}
+{% block content %}
+<article class="piece">
+<h1>How {{ org.name }} is governed</h1>
+{% if org.governance_text %}{{ org.governance_text|markdown }}{% endif %}
+{% if org.governance_url %}<p><a class="btn ghost" href="{{ org.governance_url }}">Members' dashboard</a></p>{% endif %}
+</article>
+{% endblock %}

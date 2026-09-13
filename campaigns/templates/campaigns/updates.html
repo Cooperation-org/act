@@ -1,0 +1,7 @@
+{% extends "campaigns/base.html" %}
+{% block title %}Updates — {{ block.super }}{% endblock %}
+{% block content %}
+<h1>Updates</h1>
+<p class="meta">Receipts, counts, milestones and posts, newest first. <a href="/updates/feed/">RSS</a></p>
+{% if stream %}{% include "campaigns/_stream.html" %}{% else %}<p class="meta">Nothing published yet.</p>{% endif %}
+{% endblock %}

@@ -22,16 +22,33 @@ class Org(models.Model):
     # Givebutter account that owns this org's campaigns (charity of record's account)
     givebutter_account_id = models.CharField(max_length=100, blank=True,
                                              help_text="Account ID from Givebutter dashboard (script embed)")
+    # Single-org site (ACT_SITE_ORG): the org's own page. All text is the org's own words.
+    tagline = models.CharField(max_length=200, blank=True, help_text="One line under the name on the home page")
+    about = models.TextField(blank=True, help_text="Markdown. The org in its own words; facts only.")
+    governance_text = models.TextField(
+        blank=True, help_text="Markdown. How members govern — the director's/members' own words. "
+                              "Shown on the Governance page when set.")
+    governance_url = models.URLField(
+        blank=True, help_text="Where governance lives (GovKit org page on dash.workers.vc, or the "
+                              "workers.vc venture page). act only links to it.")
 
     def __str__(self):
         return self.name
 
+    @property
+    def has_governance(self):
+        return bool(self.governance_text or self.governance_url)
+
 
 class VolunteerProfile(models.Model):
-    """Links a login to an org. Admin visibility is scoped to profile.org."""
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="volunteer")
+    """Links a login to an org. One row per org the person volunteers with;
+    admin visibility is scoped to those orgs."""
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="volunteer_profiles")
     org = models.ForeignKey(Org, on_delete=models.CASCADE, related_name="volunteers")
     is_approver = models.BooleanField(default=False, help_text="May publish pending content")
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["user", "org"], name="one_profile_per_user_org")]
 
     def __str__(self):
         return f"{self.user} @ {self.org.slug}"

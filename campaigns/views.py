@@ -1,18 +1,64 @@
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ImproperlyConfigured
 from django.db.models import F
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
 from .card import render_card
+from .context import site_campaigns, site_org
 from .donation_text import DONATION_DISCLOSURE
 from .forms import ResponseForm, TestimonialForm
-from .models import CTA, Campaign, ShareLink
+from .models import CTA, Campaign, ShareLink, Update
 
 
 def home(request):
-    campaigns = Campaign.objects.filter(status="published").select_related("org")
-    return render(request, "campaigns/home.html", {"campaigns": campaigns})
+    org = site_org()
+    if org:
+        return org_home(request, org)
+    if settings.SITE_ORG_SLUG:
+        raise ImproperlyConfigured(f"ACT_SITE_ORG={settings.SITE_ORG_SLUG!r}: no such org. Create it in /admin.")
+    return render(request, "campaigns/home.html", {"campaigns": site_campaigns()})
+
+
+def org_home(request, org):
+    """Single-org site home: the org in its own words, its give rail, latest, people."""
+    campaigns = site_campaigns(org).order_by("created")
+    give = campaigns.first()
+    people = org.people.filter(status="published", consent_on_record=True)[:8] if "people" in settings.ENABLED_APPS else []
+    return render(request, "campaigns/org_home.html", {
+        "org": org,
+        "campaigns": campaigns,
+        "give": give,
+        "stream": stream(org)[:6],
+        "people": people,
+        "donation_disclosure": DONATION_DISCLOSURE,
+    })
+
+
+def stream(org=None):
+    """Published campaign updates and blog posts, newest first, as one list."""
+    updates = Update.objects.filter(status="published", campaign__status="published").select_related("campaign")
+    if org:
+        updates = updates.filter(campaign__org=org)
+    items = [{"date": u.date, "kind": "update", "campaign": u.campaign, "text": u.text} for u in updates[:100]]
+    if "blog" in settings.ENABLED_APPS:
+        from blog.views import published
+        for p in published()[:100]:
+            items.append({"date": p.published_at.date(), "kind": "post", "post": p, "text": p.summary or p.title})
+    items.sort(key=lambda i: i["date"], reverse=True)
+    return items
+
+
+def updates(request):
+    return render(request, "campaigns/updates.html", {"stream": stream(site_org())[:100]})
+
+
+def governance(request):
+    org = site_org()
+    if not org or not org.has_governance:
+        raise Http404
+    return render(request, "campaigns/governance.html", {"org": org})
 
 
 def why(request):
@@ -21,6 +67,9 @@ def why(request):
 
 def _campaign_or_404(slug, request):
     c = get_object_or_404(Campaign, slug=slug)
+    org = site_org()
+    if org and c.org_id != org.pk:
+        raise Http404
     if c.status != "published" and not request.user.is_staff:
         raise Http404
     return c

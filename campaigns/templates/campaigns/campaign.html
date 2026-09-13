@@ -4,6 +4,7 @@
 {% if c.org.givebutter_account_id %}<script src="https://widgets.givebutter.com/latest.umd.cjs?acct={{ c.org.givebutter_account_id }}" defer></script>{% endif %}
 {% endblock %}
 {% block content %}
+{% if c.status != "published" %}<p class="meta" style="border:1px dashed var(--faded);padding:.4rem .7rem;display:inline-block">{{ c.get_status_display|upper }} — visible to signed-in volunteers only. An approver publishes it in <a href="/admin/campaigns/campaign/{{ c.pk }}/change/">Edit</a>.</p>{% endif %}
 <h1>{{ c.title }}</h1>
 <p class="meta">{% if c.organizer %}Organized by {{ c.organizer }}{% endif %}{% if c.location %} &middot; {{ c.location }}{% endif %}</p>
 

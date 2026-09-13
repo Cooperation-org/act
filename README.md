@@ -49,13 +49,38 @@ deployment routes and shows in admin: `campaigns` (story + calls to action, owns
 `letters` (open letters and petitions at `/letters/`). Org and volunteer accounts are shared
 and always visible.
 
-| Site | ACT_APPS | Public paths |
-|------|----------|--------------|
-| cooperation.org | `letters` | `/letters/`, `/admin/` (root forwards to `/letters/`) |
-| raisethevoices.org | `campaigns` | `/`, `/c/<slug>/`, `/admin/` |
+| Site | ACT_APPS | ACT_SITE_ORG | Public paths |
+|------|----------|--------------|--------------|
+| cooperation.org | `letters` | — | `/letters/`, `/admin/` (root forwards to `/letters/`) |
+| raisethevoices.org | `campaigns,blog,people` | — (platform: every org's published campaigns) | `/`, `/c/<slug>/`, `/updates/`, `/blog/`, `/people/`, `/admin/` |
+| Jreas Coop (domain TBD) | `campaigns,blog,people` | `jreas` | `/` (org home), `/c/jreas/`, `/updates/`, `/blog/`, `/people/`, `/governance/`, `/admin/` |
 
 New capabilities (content management, content planning, email campaigns) arrive as further
 apps in this list.
+
+## Single-org site (`ACT_SITE_ORG`)
+
+Set `ACT_SITE_ORG=<org slug>` and the deployment *is* that org: the wordmark and footer are
+the org's name, home is `campaigns/org_home.html` (tagline, `about` in Markdown, its campaigns,
+the give rail of its first published campaign with the locked Civic Works disclosure, Latest,
+People, Governance), and campaigns, posts and people of other orgs 404. Every text field is the
+org's own words, edited in /admin → Orgs (superuser). A slug with no Org row raises
+`ImproperlyConfigured` on `/` rather than silently falling back.
+
+- `/updates/` and `/updates/feed/` (RSS): published campaign updates (receipts, counts) and blog
+  posts as one stream, newest first. Home shows the latest six.
+- `/blog/`, `/blog/<slug>/`, `/blog/feed/` — `blog` app. Post: Markdown body, optional author
+  (a Person), summary for lists and feed, publish gate (`published_at` set on publish).
+- `/people/`, `/people/<slug>/` — `people` app. Person: name, role, photo, Markdown bio, links,
+  optional login. **Publishes only with `consent_on_record` ticked and an approver's publish** —
+  a name tied to funding can endanger someone; the admin action and the save hook both refuse
+  otherwise. A post's author link appears only while the author's profile is published.
+- `/governance/` — shown (and linked in nav) only when the Org has `governance_text` (Markdown,
+  the members' own words) or `governance_url`. Governance itself is not modelled here: earned
+  governance (reviewed work → voting weight, pie, votes, sortition) is GovKit
+  (Cooperation-org/govkit, dash.workers.vc); `governance_url` points at the org's page there.
+
+`seed_jreas` creates org `jreas` ("Jreas Coop") and the JREAS Hub campaign under it, as draft.
 
 ## Letters (open letters and petitions)
 
@@ -97,8 +122,10 @@ in admin when the Givebutter campaign exists.
 
 ## Volunteers
 
-Volunteer logins get `is_staff` + a `VolunteerProfile(org=...)`; admin queries are scoped to
-their org, delete is superuser-only, publishing (campaigns, testimonials, updates) is an
-approver action. LinkedTrust SSO activates when `LINKEDTRUST_CLIENT_ID/SECRET` are set
+Volunteer logins get `is_staff` + one `VolunteerProfile(org=...)` per org they work with (the
+same people volunteer on letters and on fundraisers); admin queries are scoped to those orgs,
+Org pickers offer only them, delete is superuser-only, and publishing (campaigns, testimonials,
+updates, posts, people) is an approver action **per org** — an approver for org A cannot publish
+org B's rows even when they can see them. LinkedTrust SSO activates when `LINKEDTRUST_CLIENT_ID/SECRET` are set
 (client registered at live.linkedtrust.us — see django-linkedtrust-auth README); Django
 session login always works as the fallback.

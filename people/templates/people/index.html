@@ -1,0 +1,17 @@
+{% extends "campaigns/base.html" %}
+{% block title %}People — {{ block.super }}{% endblock %}
+{% block content %}
+<h1>People</h1>
+<p class="meta">Each person here agreed to be named. Bios are their own words.</p>
+{% if people %}
+<div class="people">
+  {% for p in people %}
+  <a class="person" href="{% url 'people:person' p.slug %}">
+    {% if p.photo %}<img src="{{ p.photo.url }}" alt="">{% else %}<div class="ph"></div>{% endif %}
+    <div class="name">{{ p.name }}</div>
+    {% if p.role %}<div class="meta">{{ p.role }}</div>{% endif %}
+  </a>
+  {% endfor %}
+</div>
+{% else %}<p class="meta">No profiles published yet.</p>{% endif %}
+{% endblock %}

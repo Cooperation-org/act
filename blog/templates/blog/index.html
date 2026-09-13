@@ -1,0 +1,14 @@
+{% extends "campaigns/base.html" %}
+{% block title %}Blog — {{ block.super }}{% endblock %}
+{% block head %}<link rel="alternate" type="application/rss+xml" title="Blog" href="{% url 'blog:feed' %}">{% endblock %}
+{% block content %}
+<h1>Blog</h1>
+<p class="meta"><a href="{% url 'blog:feed' %}">RSS</a></p>
+{% for p in posts %}
+<div class="entry">
+  <h3><a href="{% url 'blog:post' p.slug %}">{{ p.title }}</a></h3>
+  <p class="meta">{{ p.published_at|date:"Y-m-d" }}{% if p.public_author %} · <a href="{% url 'people:person' p.public_author.slug %}">{{ p.public_author.name }}</a>{% endif %}{% if not site_org %} · {{ p.org.name }}{% endif %}</p>
+  {% if p.summary %}<p>{{ p.summary }}</p>{% endif %}
+</div>
+{% empty %}<p class="meta">No posts yet.</p>{% endfor %}
+{% endblock %}

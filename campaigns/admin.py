@@ -1,22 +1,30 @@
-"""Org-scoped admin: volunteers see only their org's rows; approvers publish.
+"""Org-scoped admin: volunteers see only their orgs' rows; approvers publish.
 
-Volunteers get is_staff + group 'volunteers' (created by seed command) and a
-VolunteerProfile. Superusers see everything.
+Volunteers get is_staff and one VolunteerProfile per org they work with.
+Superusers see everything. Publishing is per org: an approver for org A cannot
+publish org B's rows even when they can see them.
 """
 from django.conf import settings
-from django.contrib import admin
+from django.contrib import admin, messages
 
 from .models import CTA, Campaign, Org, Response, ShareLink, Testimonial, Update, VolunteerProfile
 
 
-def _user_org(request):
-    profile = getattr(request.user, "volunteer", None)
-    return profile.org if profile else None
+def user_orgs(user):
+    """Orgs this user volunteers with (superusers: all)."""
+    if user.is_superuser:
+        return Org.objects.all()
+    return Org.objects.filter(volunteers__user=user)
 
 
-def _is_approver(request):
-    profile = getattr(request.user, "volunteer", None)
-    return request.user.is_superuser or (profile and profile.is_approver)
+def approver_orgs(user):
+    if user.is_superuser:
+        return Org.objects.all()
+    return Org.objects.filter(volunteers__user=user, volunteers__is_approver=True)
+
+
+def _first_org(request):
+    return user_orgs(request.user).order_by("pk").first()
 
 
 class OrgScopedAdmin(admin.ModelAdmin):
@@ -42,17 +50,32 @@ class OrgScopedAdmin(admin.ModelAdmin):
         qs = super().get_queryset(request)
         if request.user.is_superuser:
             return qs
-        org = _user_org(request)
-        return qs.filter(**{self.org_path: org}) if org else qs.none()
+        return qs.filter(**{f"{self.org_path}__in": user_orgs(request.user)})
 
     def has_delete_permission(self, request, obj=None):
         return self._enabled() and request.user.is_superuser
 
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        # Org pickers only offer the editor's own orgs.
+        if db_field.remote_field.model is Org and not request.user.is_superuser:
+            kwargs["queryset"] = user_orgs(request.user)
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+
+def publishable(modeladmin, request, queryset):
+    """The rows of `queryset` the user may publish: those in orgs they approve for."""
+    return queryset.filter(**{f"{modeladmin.org_path}__in": approver_orgs(request.user)})
+
 
 @admin.action(description="Publish selected (approvers only)")
 def publish(modeladmin, request, queryset):
-    if _is_approver(request):
-        queryset.update(status="published")
+    allowed = publishable(modeladmin, request, queryset)
+    skipped = queryset.count() - allowed.count()
+    n = allowed.update(status="published")
+    if n:
+        messages.success(request, f"Published {n}.")
+    if skipped:
+        messages.warning(request, f"{skipped} not published: you are not an approver for that org.")
 
 
 class SuperuserOnlyAdmin(admin.ModelAdmin):
@@ -79,11 +102,17 @@ class SuperuserOnlyAdmin(admin.ModelAdmin):
 class OrgAdmin(SuperuserOnlyAdmin):
     list_display = ["slug", "name", "givebutter_account_id"]
     prepopulated_fields = {"slug": ["name"]}
+    fieldsets = [
+        (None, {"fields": ["name", "slug", "website", "tagline"]}),
+        ("Own words (Markdown)", {"fields": ["about", "governance_text", "governance_url"]}),
+        ("Money — charity of record's Givebutter account", {"fields": ["givebutter_account_id"]}),
+    ]
 
 
 @admin.register(VolunteerProfile)
 class VolunteerProfileAdmin(SuperuserOnlyAdmin):
     list_display = ["user", "org", "is_approver"]
+    list_filter = ["org", "is_approver"]
 
 
 class CTAInline(admin.TabularInline):
@@ -103,7 +132,7 @@ class CampaignAdmin(OrgScopedAdmin):
     readonly_fields = ["created"]
 
     def get_changeform_initial_data(self, request):
-        org = _user_org(request)
+        org = _first_org(request)
         return {"org": org.pk} if org else {}
 
 
@@ -121,6 +150,7 @@ class UpdateAdmin(OrgScopedAdmin):
     feature = "campaigns"
     org_path = "campaign__org"
     list_display = ["campaign", "date", "status"]
+    list_filter = ["status", "campaign"]
     actions = [publish]
 
 

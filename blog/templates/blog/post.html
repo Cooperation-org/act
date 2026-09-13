@@ -1,0 +1,10 @@
+{% extends "campaigns/base.html" %}{% load markup %}
+{% block title %}{{ p.title }} — {{ block.super }}{% endblock %}
+{% block content %}
+<article class="piece">
+<h1>{{ p.title }}</h1>
+<p class="byline">{{ p.published_at|date:"Y-m-d" }}{% if p.public_author %} · <a href="{% url 'people:person' p.public_author.slug %}">{{ p.public_author.name }}</a>{% endif %} · {{ p.org.name }}</p>
+{% if p.photo %}<img src="{{ p.photo.url }}" alt="" style="width:100%;border:1px solid var(--rule);margin-bottom:1.2rem">{% endif %}
+{{ p.body|markdown }}
+</article>
+{% endblock %}

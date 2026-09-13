@@ -11,6 +11,10 @@ def build_urlpatterns(enabled):
     patterns = [path("admin/", admin.site.urls)]
     if "letters" in enabled:
         patterns.append(path("letters/", include("letters.urls")))
+    if "blog" in enabled:
+        patterns.append(path("blog/", include("blog.urls")))
+    if "people" in enabled:
+        patterns.append(path("people/", include("people.urls")))
     if "campaigns" in enabled:
         patterns.append(path("", include("campaigns.urls")))
     elif "letters" in enabled:

@@ -1,18 +1,24 @@
-"""Seed the Raise the Voices org + JREAS Hub campaign (draft) with verified facts only."""
+"""Seed the Jreas Coop org + JREAS Hub campaign (draft) with verified facts only.
+
+Safe to re-run: get_or_create, never overwrites edits. The campaign is created
+under org `jreas`; a campaign that already exists under another org is moved.
+"""
 from django.core.management.base import BaseCommand
 
 from campaigns.models import CTA, Campaign, Org
 
 
 class Command(BaseCommand):
-    help = "Create RTV org + JREAS campaign (draft; publish via admin after review)"
+    help = "Create Jreas Coop org + JREAS campaign (draft; publish via admin after review)"
 
     def handle(self, *args, **opts):
         org, _ = Org.objects.get_or_create(
-            slug="rtv", defaults={"name": "Raise the Voices", "website": "https://raisethevoices.org"})
-        c, created = Campaign.objects.get_or_create(
-            org=org, slug="jreas",
-            defaults=dict(
+            slug="jreas", defaults={"name": "Jreas Coop", "website": "https://www.linkedin.com/company/jreas-lab1/"})
+        c = Campaign.objects.filter(slug="jreas").first()
+        created = c is None
+        if c is None:
+            c = Campaign.objects.create(
+                org=org, slug="jreas",
                 title="JREAS Hub — free coworking and study space in Gaza",
                 organizer="Sameh Jres",
                 location="Gaza",
@@ -25,7 +31,10 @@ class Command(BaseCommand):
                       "replacement. Receipts are posted as updates below.",
                 source_url="https://www.linkedin.com/company/jreas-lab1/",
                 status="draft",
-            ))
+            )
+        elif c.org_id != org.pk:
+            c.org = org
+            c.save(update_fields=["org"])
         if created:
             ctas = [
                 ("give", "Give", "Every route shows its cost before you pay.", "Give"),

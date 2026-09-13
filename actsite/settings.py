@@ -11,7 +11,7 @@ CSRF_TRUSTED_ORIGINS = [f"https://{h}" for h in ALLOWED_HOSTS if h not in ("loca
 
 # Which public apps this deployment serves (routes + admin). Models of every app
 # are always installed so one database can back several deployments.
-ALL_ACT_APPS = ["campaigns", "letters"]
+ALL_ACT_APPS = ["campaigns", "letters", "blog", "people"]
 ENABLED_APPS = [a.strip() for a in os.environ.get("ACT_APPS", ",".join(ALL_ACT_APPS)).split(",") if a.strip()]
 _unknown = set(ENABLED_APPS) - set(ALL_ACT_APPS)
 if _unknown or not ENABLED_APPS:
@@ -26,7 +26,14 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "campaigns",
     "letters",
+    "people",
+    "blog",
 ]
+
+# Single-org site: this deployment IS one org (e.g. ACT_SITE_ORG=jreas → the Jreas Coop
+# site). Home becomes the org's page; campaigns, posts and people are that org's only.
+# Unset = platform mode (raisethevoices lists every org's published campaigns).
+SITE_ORG_SLUG = os.environ.get("ACT_SITE_ORG", "").strip()
 
 # LinkedTrust SSO — enabled only when client credentials are configured.
 LINKEDTRUST_CLIENT_ID = os.environ.get("LINKEDTRUST_CLIENT_ID", "")
@@ -60,6 +67,7 @@ TEMPLATES = [{
         "django.template.context_processors.request",
         "django.contrib.auth.context_processors.auth",
         "django.contrib.messages.context_processors.messages",
+        "campaigns.context.site",
     ]},
 }]
 

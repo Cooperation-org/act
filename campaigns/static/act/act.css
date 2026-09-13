@@ -145,3 +145,22 @@ footer.site { margin-top: 5rem; border-top: 1px solid var(--rule); padding-top: 
 .graph-wrap { background: #fff; border: 1px solid var(--rule); border-radius: 3px; padding: 1rem; overflow-x: auto; }
 .graph-wrap svg { display: block; margin: 0 auto; }
 .graph-wrap text { font: 400 11px var(--sans); }
+
+/* org site home */
+.tagline { font: italic 400 1.15rem/1.5 var(--serif); color: var(--faded); margin: 0 0 1.5rem; max-width: 38rem; }
+
+/* updates stream */
+.stream .item { padding: .6rem 0; border-top: 1px solid var(--rule); font-size: .95rem; }
+.stream .item > .meta:first-child { display: inline-block; min-width: 6.5rem; }
+
+/* people */
+.people { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: 1.25rem; }
+.person { text-decoration: none; color: var(--ink); text-align: center; }
+.person img, .person .ph { width: 6.5rem; height: 6.5rem; border-radius: 50%; object-fit: cover; display: block;
+  margin: 0 auto .5rem; background: var(--bg-grey); border: 1px solid var(--rule); }
+.person .name { font: 700 .95rem var(--sans); }
+.portrait { width: 9rem; height: 9rem; border-radius: 50%; object-fit: cover; border: 1px solid var(--rule); margin-bottom: 1rem; }
+
+/* blog list */
+.entry { padding: 1.2rem 0; border-top: 1px solid var(--rule); max-width: 38rem; }
+.entry p { margin: .3rem 0 0; font-size: .95rem; }
