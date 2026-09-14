@@ -2,7 +2,7 @@
 from django.db import models
 from django.utils import timezone
 
-from campaigns.models import Org, PublishStatus
+from campaigns.models import Org, PublishStatus, preview_token
 from people.models import Person
 
 
@@ -17,6 +17,7 @@ class Post(models.Model):
     photo = models.ImageField(upload_to="posts/", blank=True)
     status = models.CharField(max_length=12, choices=PublishStatus.choices, default=PublishStatus.DRAFT)
     published_at = models.DateTimeField(null=True, blank=True)
+    preview_token = models.CharField(max_length=24, default=preview_token, editable=False)
     created = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -30,6 +31,10 @@ class Post(models.Model):
         if self.status == "published" and self.published_at is None:
             self.published_at = timezone.now()
         super().save(*args, **kwargs)
+
+    @property
+    def preview_path(self):
+        return f"/blog/{self.slug}/?preview={self.preview_token}"
 
     @property
     def public_author(self):

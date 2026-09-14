@@ -4,13 +4,15 @@
 {% if c.org.givebutter_account_id %}<script src="https://widgets.givebutter.com/latest.umd.cjs?acct={{ c.org.givebutter_account_id }}" defer></script>{% endif %}
 {% endblock %}
 {% block content %}
-{% if c.status != "published" %}<p class="meta" style="border:1px dashed var(--faded);padding:.4rem .7rem;display:inline-block">{{ c.get_status_display|upper }} — visible to signed-in volunteers only. An approver publishes it in <a href="/admin/campaigns/campaign/{{ c.pk }}/change/">Edit</a>.</p>{% endif %}
+{% if c.status != "published" %}<p class="meta" style="border:1px dashed var(--faded);padding:.4rem .7rem;display:inline-block">{{ c.get_status_display|upper }} — not public. Reviewers can open it with the review link in <a href="/admin/campaigns/campaign/{{ c.pk }}/change/">Edit</a>; an approver publishes it there.</p>{% endif %}
 <h1>{{ c.title }}</h1>
-<p class="meta">{% if c.organizer %}Organized by {{ c.organizer }}{% endif %}{% if c.location %} &middot; {{ c.location }}{% endif %}</p>
+<p class="meta">{% if c.organizer %}Organized by {{ c.organizer }}{% endif %}{% if c.location %} &middot; {{ c.location }}{% endif %}
+  &nbsp;&middot;&nbsp; <a href="#vouched">{{ testimonials|length }} signed testimonial{{ testimonials|length|pluralize }}</a></p>
 
 <div class="cols">
 <div>
-  {% if c.photo %}<img src="{{ c.photo.url }}" alt="" style="width:100%;border:1px solid var(--rule)">{% endif %}
+  {% if c.photo %}<img src="{{ c.photo.url }}" alt="" style="width:100%;border:1px solid var(--rule)">
+  {% elif user.is_staff %}<div class="thumb" style="aspect-ratio:16/9;display:grid;place-items:center">photo / video to come — add it in <a href="/admin/campaigns/campaign/{{ c.pk }}/change/">Edit</a></div>{% endif %}
 
   {% if c.story %}
   <h2>The story</h2>
@@ -18,8 +20,11 @@
   {% if c.source_url %}<p class="meta">source: <a href="{{ c.source_url }}">{{ c.source_url }}</a></p>{% endif %}
   {% endif %}
 
+  <h2 id="vouched">Vouched for — on the record</h2>
+  <p class="meta">Each card is a signed <a href="https://linkedtrust.us">LinkedClaim</a>. A signed claim links to the person's own record, so you can see who stands behind them.</p>
+  <p><a class="btn ghost" href="/c/{{ c.slug }}/testimony/">Add your testimony</a>
+    <span class="meta">video or text, published after review; showing your name is your choice</span></p>
   {% if testimonials %}
-  <h2>Vouched for — on the record</h2>
   <div class="vouches">
     {% for t in testimonials %}
     <div class="vouch">
@@ -27,15 +32,35 @@
       <div class="body"{% if not t.video %} style="padding-top:1rem"{% endif %}>
         <blockquote>&ldquo;{{ t.quote }}&rdquo;</blockquote>
         <div class="who">{% if t.show_identity and t.display_name %}{{ t.display_name }}{% else %}Name withheld by choice{% endif %}</div>
-        {% if t.relationship %}<div class="meta">{{ t.relationship }}</div>{% endif %}
-        {% if t.linkedclaim_uri %}<div class="chain"><a href="{{ t.linkedclaim_uri }}">signed claim</a></div>{% endif %}
+        <div class="meta">{% if t.relationship %}{{ t.relationship }} &middot; {% endif %}{% if t.video %}video{% else %}written{% endif %} &middot; {{ t.created|date:"Y-m-d" }}</div>
+        {% if t.linkedclaim_uri %}<div class="chain"><a href="{{ t.linkedclaim_uri }}">signed claim → view record</a></div>{% endif %}
       </div>
     </div>
     {% endfor %}
   </div>
+  {% else %}<p class="meta">No testimonials published yet.</p>{% endif %}
+
+  {% if graph %}
+  <h2>The trust network</h2>
+  <p class="meta">Who vouches for this campaign. Each node is a published testimonial; follow a signed one to its record.</p>
+  <div class="graph-wrap">
+    <svg viewBox="0 0 560 240" width="560" height="240" role="img" aria-label="Trust network graph">
+      <g stroke="#25646a" stroke-width="1.5" fill="none" opacity=".65">
+        {% for n in graph.nodes %}<line x1="{{ graph.cx }}" y1="{{ graph.cy }}" x2="{{ n.x }}" y2="{{ n.y }}"/>{% endfor %}
+      </g>
+      <g font-family="PT Sans, sans-serif" font-size="11" text-anchor="middle">
+        <circle cx="{{ graph.cx }}" cy="{{ graph.cy }}" r="26" fill="#25646a"/>
+        <text x="{{ graph.cx }}" y="{{ graph.cy|add:4 }}" fill="#fff" font-weight="bold">{{ graph.label }}</text>
+        {% for n in graph.nodes %}
+        {% if n.href %}<a href="{{ n.href }}">{% endif %}
+        <circle cx="{{ n.x }}" cy="{{ n.y }}" r="18" fill="#eef4f4" stroke="#25646a"/>
+        <text x="{{ n.x }}" y="{{ n.y|add:4 }}" fill="#1a1a1a">{{ n.label }}</text>
+        {% if n.href %}</a>{% endif %}
+        {% endfor %}
+      </g>
+    </svg>
+  </div>
   {% endif %}
-  <p style="margin-top:1rem"><a class="btn ghost" href="/c/{{ c.slug }}/testimony/">Add your testimony</a>
-    <span class="meta">video or text, published after review; showing your name is your choice</span></p>
 
   {% if ctas %}
   <h2 id="help">More than one way to help</h2>
@@ -43,6 +68,7 @@
     {% for cta in ctas %}{% if cta.kind != "give" %}
     <div class="way">
       <h3>{{ cta.title }}</h3>
+      {% if cta.note %}<span class="meta">{{ cta.note }}</span>{% endif %}
       {% if cta.description %}<p>{{ cta.description }}</p>{% endif %}
       <a class="btn ghost" href="/c/{{ c.slug }}/act/{{ cta.id }}/">{{ cta.button_label }}</a>
     </div>
@@ -50,24 +76,27 @@
   </div>
   {% endif %}
 
-  {% if updates %}
   <h2>Updates & receipts</h2>
-  {% for u in updates %}<p class="meta">{{ u.date }} — {{ u.text }}</p>{% endfor %}
-  {% endif %}
+  {% for u in updates %}<p class="meta">{{ u.date }} — {{ u.text }}</p>{% empty %}<p class="meta">No updates posted yet. Receipts and counts appear here as the campaign posts them.</p>{% endfor %}
+  <p class="meta"><a href="/updates/feed/">RSS</a></p>
 </div>
 
 <aside class="rail">
-  <div class="card">
+  <div class="card" id="give">
     {% if c.givebutter_campaign_id %}
       <givebutter-widget id="{{ c.givebutter_campaign_id }}"></givebutter-widget>
-    {% elif c.simpletip_receiver %}
-      <simple-tip receiver="{{ c.simpletip_receiver }}" receiver-name="{{ c.title }}" amounts="5,10,25"></simple-tip>
-      <script src="{{ c.simpletip_api }}/../simpletip.js" data-api="{{ c.simpletip_api }}"></script>
     {% else %}
       <p class="meta">Giving opens soon.</p>
     {% endif %}
     <p class="meta" style="margin-top:.7rem">{{ donation_disclosure }}</p>
   </div>
+  {% if c.simpletip_receiver %}
+  <div class="card" style="margin-top:1rem">
+    <h3 style="font-size:.95rem">Tip</h3>
+    <simple-tip receiver="{{ c.simpletip_receiver }}" receiver-name="{{ c.title }}" amounts="5,10,25"></simple-tip>
+    <script src="{{ c.simpletip_api }}/../simpletip.js" data-api="{{ c.simpletip_api }}"></script>
+  </div>
+  {% endif %}
   <div class="card" style="margin-top:1rem">
     <h3 style="font-size:.95rem">Tell someone</h3>
     <p class="meta" style="margin:.3rem 0 .6rem">Share the page — your words, our facts.</p>
@@ -84,6 +113,8 @@
     </div>
     {% if user.is_authenticated %}
       <a class="btn ghost" style="width:100%;margin-top:.5rem" href="/c/{{ c.slug }}/share/">My counted share link</a>
+    {% else %}
+      <p class="meta">Signed-in volunteers get a share link that counts the people who give through it.</p>
     {% endif %}
   </div>
 </aside>

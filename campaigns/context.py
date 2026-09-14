@@ -21,7 +21,7 @@ def site_campaigns(org=None):
 
 def site(request):
     org = site_org()
-    give = site_campaigns(org).order_by("created").first() if org else None
+    give = site_campaigns(org).order_by("created").first()
     return {
         "site_org": org,
         "site_give_campaign": give,

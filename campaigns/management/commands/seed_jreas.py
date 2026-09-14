@@ -46,9 +46,16 @@ class Command(BaseCommand):
                  "Pair with the team for a fundraiser night, a talk, or a livestream from the hub.", "Pair up"),
                 ("ama", "Ask Me Anything",
                  "Live session with the organizers — how the hub runs, what changes month to month.", "Get a reminder"),
+                ("podcast", "Podcast tie-in",
+                 "Run a show? Book a live segment from the hub; your listeners give directly during the episode.",
+                 "Book a segment"),
                 ("subscribe", "Get updates", "Occasional email updates from the campaign.", "Subscribe"),
             ]
             for i, (kind, title, desc, label) in enumerate(ctas):
                 CTA.objects.create(campaign=c, kind=kind, title=title, description=desc,
                                    button_label=label, sort=i)
+        elif not c.ctas.filter(kind="podcast").exists():
+            CTA.objects.create(campaign=c, kind="podcast", title="Podcast tie-in", button_label="Book a segment",
+                               description="Run a show? Book a live segment from the hub; your listeners give "
+                                           "directly during the episode.", sort=5)
         self.stdout.write(f"org={org.slug} campaign={c.slug} created={created}")

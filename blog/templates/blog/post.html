@@ -2,9 +2,16 @@
 {% block title %}{{ p.title }} — {{ block.super }}{% endblock %}
 {% block content %}
 <article class="piece">
+{% if p.status != "published" %}<p class="meta" style="border:1px dashed var(--faded);padding:.4rem .7rem;display:inline-block">{{ p.get_status_display|upper }} — not public.</p>{% endif %}
 <h1>{{ p.title }}</h1>
 <p class="byline">{{ p.published_at|date:"Y-m-d" }}{% if p.public_author %} · <a href="{% url 'people:person' p.public_author.slug %}">{{ p.public_author.name }}</a>{% endif %} · {{ p.org.name }}</p>
 {% if p.photo %}<img src="{{ p.photo.url }}" alt="" style="width:100%;border:1px solid var(--rule);margin-bottom:1.2rem">{% endif %}
 {{ p.body|markdown }}
+{% if tip %}
+<h2>Tip this article</h2>
+<p class="meta">One tip, split between the writer and {{ tip.campaign.title }}. You set the split.</p>
+<simple-tip receiver="{{ tip.writer.simpletip_receiver }}" receiver-name="{{ tip.writer.name }}" subject="{{ tip.campaign.simpletip_receiver }}" subject-label="{{ tip.campaign.title }}" amounts="1,3,5"></simple-tip>
+<script src="{{ tip.campaign.simpletip_api }}/../simpletip.js" data-api="{{ tip.campaign.simpletip_api }}"></script>
+{% endif %}
 </article>
 {% endblock %}

@@ -6,6 +6,7 @@ publish org B's rows even when they can see them.
 """
 from django.conf import settings
 from django.contrib import admin, messages
+from django.utils.html import format_html
 
 from .models import CTA, Campaign, Org, Response, ShareLink, Testimonial, Update, VolunteerProfile
 
@@ -124,12 +125,19 @@ class CTAInline(admin.TabularInline):
 class CampaignAdmin(OrgScopedAdmin):
     feature = "campaigns"
     org_path = "org"
-    list_display = ["slug", "title", "org", "status"]
+    list_display = ["slug", "title", "org", "status", "preview"]
     list_filter = ["status"]
     prepopulated_fields = {"slug": ["title"]}
     inlines = [CTAInline]
     actions = [publish]
-    readonly_fields = ["created"]
+    readonly_fields = ["created", "preview"]
+
+    @admin.display(description="Review link")
+    def preview(self, obj):
+        if not obj.pk:
+            return ""
+        url = f"{settings.PUBLIC_URL}{obj.preview_path}"
+        return format_html('<a href="{}" target="_blank">{}</a>', url, "open draft" if obj.status != "published" else "open")
 
     def get_changeform_initial_data(self, request):
         org = _first_org(request)

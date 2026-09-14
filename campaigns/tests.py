@@ -148,3 +148,22 @@ class MultiOrgVolunteerTests(TestCase):
         self.assertContains(r, "Campaign A")
         self.assertContains(r, "Campaign B")
         self.assertNotContains(r, "Campaign C")
+
+
+class PreviewTests(TestCase):
+    def test_draft_campaign_opens_with_preview_token_only(self):
+        call_command("seed_jreas")
+        c = Campaign.objects.get(slug="jreas")
+        self.assertEqual(self.client.get("/c/jreas/").status_code, 404)
+        self.assertEqual(self.client.get("/c/jreas/?preview=wrong").status_code, 404)
+        r = self.client.get(c.preview_path)
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "DRAFT")
+
+    def test_draft_post_opens_with_preview_token_only(self):
+        from blog.models import Post
+        org = Org.objects.create(slug="o", name="O")
+        p = Post.objects.create(org=org, slug="d", title="Draft Post", body="x")
+        self.assertEqual(self.client.get("/blog/d/").status_code, 404)
+        self.assertEqual(self.client.get("/blog/d/?preview=nope").status_code, 404)
+        self.assertContains(self.client.get(p.preview_path), "Draft Post")

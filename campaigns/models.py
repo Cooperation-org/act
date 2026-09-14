@@ -9,6 +9,10 @@ from django.conf import settings
 from django.db import models
 
 
+def preview_token():
+    return secrets.token_urlsafe(12)
+
+
 class PublishStatus(models.TextChoices):
     DRAFT = "draft", "Draft"
     PENDING = "pending", "Pending review"
@@ -70,10 +74,16 @@ class Campaign(models.Model):
                                              help_text="Widget ID from Givebutter dashboard → Developers → Widgets")
     simpletip_receiver = models.SlugField(blank=True)
     simpletip_api = models.URLField(blank=True)
+    preview_token = models.CharField(max_length=24, default=preview_token, editable=False,
+                                     help_text="Draft is viewable at ?preview=<token> without a login")
     created = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return self.title
+
+    @property
+    def preview_path(self):
+        return f"/c/{self.slug}/?preview={self.preview_token}"
 
 
 class CTA(models.Model):
@@ -83,6 +93,7 @@ class CTA(models.Model):
         HIRE = "hire", "Hire someone"
         EVENT = "event", "Host an event"
         AMA = "ama", "Ask Me Anything"
+        PODCAST = "podcast", "Podcast tie-in"
         SUBSCRIBE = "subscribe", "Get updates"
 
     campaign = models.ForeignKey(Campaign, on_delete=models.CASCADE, related_name="ctas")
@@ -90,6 +101,7 @@ class CTA(models.Model):
     title = models.CharField(max_length=120)
     description = models.TextField(blank=True)
     button_label = models.CharField(max_length=40, default="Sign up")
+    note = models.CharField(max_length=120, blank=True, help_text='Small line above the text, e.g. "Next: 2026-10-01 18:00 UTC"')
     sort = models.PositiveSmallIntegerField(default=0)
     enabled = models.BooleanField(default=True)
 
@@ -148,6 +160,8 @@ class Update(models.Model):
 
 def _share_code():
     return secrets.token_urlsafe(6)
+
+
 
 
 class ShareLink(models.Model):

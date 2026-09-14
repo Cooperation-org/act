@@ -1,7 +1,9 @@
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ImproperlyConfigured
-from django.db.models import F
+import math
+
+from django.db.models import Count, F, Q
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
@@ -18,12 +20,19 @@ def home(request):
         return org_home(request, org)
     if settings.SITE_ORG_SLUG:
         raise ImproperlyConfigured(f"ACT_SITE_ORG={settings.SITE_ORG_SLUG!r}: no such org. Create it in /admin.")
-    return render(request, "campaigns/home.html", {"campaigns": site_campaigns()})
+    return render(request, "campaigns/home.html", {"campaigns": _with_counts(site_campaigns())})
+
+
+def _with_counts(campaigns):
+    return campaigns.annotate(
+        vouches=Count("testimonials", filter=Q(testimonials__status="published"), distinct=True),
+        videos=Count("testimonials", filter=Q(testimonials__status="published") & ~Q(testimonials__video=""),
+                     distinct=True))
 
 
 def org_home(request, org):
     """Single-org site home: the org in its own words, its give rail, latest, people."""
-    campaigns = site_campaigns(org).order_by("created")
+    campaigns = _with_counts(site_campaigns(org)).order_by("created")
     give = campaigns.first()
     people = org.people.filter(status="published", consent_on_record=True)[:8] if "people" in settings.ENABLED_APPS else []
     return render(request, "campaigns/org_home.html", {
@@ -70,7 +79,8 @@ def _campaign_or_404(slug, request):
     org = site_org()
     if org and c.org_id != org.pk:
         raise Http404
-    if c.status != "published" and not request.user.is_staff:
+    if c.status != "published" and not request.user.is_staff \
+            and request.GET.get("preview", "") != c.preview_token:
         raise Http404
     return c
 
@@ -79,10 +89,12 @@ def campaign(request, slug):
     c = _campaign_or_404(slug, request)
     share_url = f"{settings.PUBLIC_URL}/c/{c.slug}/"
     via = request.GET.get("via", "")
+    testimonials = list(c.testimonials.filter(status="published"))
     return render(request, "campaigns/campaign.html", {
         "c": c,
         "ctas": c.ctas.filter(enabled=True),
-        "testimonials": c.testimonials.filter(status="published"),
+        "testimonials": testimonials,
+        "graph": trust_graph(c, testimonials),
         "updates": c.updates.filter(status="published")[:10],
         "share_url": share_url,
         "via": via,
@@ -140,3 +152,19 @@ def share_card(request, slug, kind):
     resp = HttpResponse(png, content_type="image/png")
     resp["Content-Disposition"] = f'attachment; filename="{c.slug}-{kind}.png"'
     return resp
+
+
+def trust_graph(campaign, testimonials):
+    """Nodes and edges for the trust-network SVG: the campaign in the middle, one node
+    per published testimonial around it. Drawn from rows that exist; nothing invented."""
+    n = len(testimonials)
+    if not n:
+        return None
+    cx, cy, r = 280, 120, 90
+    nodes = []
+    for i, t in enumerate(testimonials):
+        a = 2 * math.pi * i / n - math.pi / 2
+        label = t.display_name if (t.show_identity and t.display_name) else (t.relationship or "vouch")
+        nodes.append({"x": round(cx + r * math.cos(a)), "y": round(cy + r * math.sin(a)),
+                      "label": label[:14], "href": t.linkedclaim_uri})
+    return {"cx": cx, "cy": cy, "label": campaign.title[:12], "nodes": nodes}

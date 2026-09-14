@@ -14,15 +14,16 @@
   {% if site_org %}<a class="wordmark" href="/">{{ site_org.name }}</a>{% else %}<a class="wordmark" href="/">act.<span>raisethevoices</span>.org</a>{% endif %}
   <nav>
     {% if site_org %}
-      {% if site_give_campaign %}<a href="/c/{{ site_give_campaign.slug }}/">Give</a>{% endif %}
+      {% if site_give_campaign %}<a href="/c/{{ site_give_campaign.slug }}/#give">Give</a><a href="/c/{{ site_give_campaign.slug }}/#help">Ways to help</a>{% endif %}
       <a href="/updates/">Updates</a>
-      {% if "blog" in enabled_apps %}<a href="/blog/">Blog</a>{% endif %}
+      {% if "blog" in enabled_apps %}<a href="/blog/">Articles</a>{% endif %}
       {% if "people" in enabled_apps %}<a href="/people/">People</a>{% endif %}
       {% if site_org.has_governance %}<a href="/governance/">Governance</a>{% endif %}
     {% else %}
-      <a href="/">Campaigns</a>
+      <a href="/">Fundraisers</a>
+      {% if site_give_campaign %}<a href="/c/{{ site_give_campaign.slug }}/#help">Ways to help</a>{% endif %}
       <a href="/updates/">Updates</a>
-      {% if "blog" in enabled_apps %}<a href="/blog/">Blog</a>{% endif %}
+      {% if "blog" in enabled_apps %}<a href="/blog/">Articles</a>{% endif %}
       {% if "people" in enabled_apps %}<a href="/people/">People</a>{% endif %}
       <a href="/why/">Why</a>
     {% endif %}

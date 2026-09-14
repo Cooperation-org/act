@@ -30,7 +30,7 @@ class PersonAdmin(OrgScopedAdmin):
     readonly_fields = ["created"]
     fieldsets = [
         (None, {"fields": ["org", "name", "slug", "role", "photo", "sort"]}),
-        ("Own words (Markdown)", {"fields": ["bio", "links"]}),
+        ("Own words (Markdown)", {"fields": ["bio", "links", "simpletip_receiver"]}),
         ("Publishing", {"fields": ["consent_on_record", "status", "user", "created"]}),
     ]
 

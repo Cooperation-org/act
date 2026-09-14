@@ -1,5 +1,7 @@
+from django.conf import settings
 from django.contrib import admin, messages
 from django.utils import timezone
+from django.utils.html import format_html
 
 from campaigns.admin import OrgScopedAdmin, _first_org, publishable
 
@@ -22,15 +24,22 @@ def publish_posts(modeladmin, request, queryset):
 class PostAdmin(OrgScopedAdmin):
     feature = "blog"
     org_path = "org"
-    list_display = ["title", "org", "author", "status", "published_at"]
+    list_display = ["title", "org", "author", "status", "published_at", "preview"]
     list_filter = ["status", "org"]
     prepopulated_fields = {"slug": ["title"]}
     actions = [publish_posts]
-    readonly_fields = ["created"]
+    readonly_fields = ["created", "preview"]
+
+    @admin.display(description="Review link")
+    def preview(self, obj):
+        if not obj.pk:
+            return ""
+        url = f"{settings.PUBLIC_URL}{obj.preview_path}"
+        return format_html('<a href="{}" target="_blank">{}</a>', url, "open draft" if obj.status != "published" else "open")
     fieldsets = [
         (None, {"fields": ["org", "title", "slug", "author", "photo"]}),
         ("Text (Markdown)", {"fields": ["summary", "body"]}),
-        ("Publishing", {"fields": ["status", "published_at", "created"]}),
+        ("Publishing", {"fields": ["status", "published_at", "preview", "created"]}),
     ]
 
     def get_changeform_initial_data(self, request):

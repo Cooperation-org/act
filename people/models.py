@@ -20,6 +20,8 @@ class Person(models.Model):
     links = models.TextField(blank=True, help_text="One URL per line (site, LinkedIn, Bluesky…)")
     user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
                              related_name="person_profiles", help_text="Login this profile belongs to, if any")
+    simpletip_receiver = models.SlugField(
+        blank=True, help_text="SimpleTip receiver id: readers can tip this person's posts (split with the campaign)")
     consent_on_record = models.BooleanField(
         default=False, help_text="The person agreed, in writing, to be named on this site. Required to publish.")
     status = models.CharField(max_length=12, choices=PublishStatus.choices, default=PublishStatus.DRAFT)
