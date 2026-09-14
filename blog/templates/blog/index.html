@@ -7,7 +7,7 @@
 {% for p in posts %}
 <div class="entry">
   <h3><a href="{% url 'blog:post' p.slug %}">{{ p.title }}</a></h3>
-  <p class="meta">{{ p.published_at|date:"Y-m-d" }}{% if p.public_author %} · <a href="{% url 'people:person' p.public_author.slug %}">{{ p.public_author.name }}</a>{% endif %}{% if not site_org %} · {{ p.org.name }}{% endif %}</p>
+  <p class="meta">{{ p.published_at|date:"Y-m-d" }}{% if p.public_author %} · {% if "people" in enabled_apps %}<a href="{% url 'people:person' p.public_author.slug %}">{{ p.public_author.name }}</a>{% else %}{{ p.public_author.name }}{% endif %}{% endif %}{% if not site_org %} · {{ p.org.name }}{% endif %}</p>
   {% if p.summary %}<p>{{ p.summary }}</p>{% endif %}
 </div>
 {% empty %}<p class="meta">No posts yet.</p>{% endfor %}

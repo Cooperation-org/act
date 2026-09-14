@@ -1,24 +1,28 @@
 """Seed the Jreas Coop org + JREAS Hub campaign (draft) with verified facts only.
 
 Safe to re-run: get_or_create, never overwrites edits. The campaign is created
-under org `jreas`; a campaign that already exists under another org is moved.
+under org `jreas-coop`; a campaign that already exists under another org is moved.
 """
 from django.core.management.base import BaseCommand
 
 from campaigns.models import CTA, Campaign, Org
+
+SLUG = "jreas-coop"  # org and campaign slug: /c/jreas-coop/, ACT_SITE_ORG=jreas-coop
 
 
 class Command(BaseCommand):
     help = "Create Jreas Coop org + JREAS campaign (draft; publish via admin after review)"
 
     def handle(self, *args, **opts):
+        Org.objects.filter(slug="jreas").update(slug=SLUG)  # earlier seeds used "jreas"
+        Campaign.objects.filter(slug="jreas").update(slug=SLUG)
         org, _ = Org.objects.get_or_create(
-            slug="jreas", defaults={"name": "Jreas Coop", "website": "https://www.linkedin.com/company/jreas-lab1/"})
-        c = Campaign.objects.filter(slug="jreas").first()
+            slug=SLUG, defaults={"name": "Jreas Coop", "website": "https://www.linkedin.com/company/jreas-lab1/"})
+        c = Campaign.objects.filter(slug=SLUG).first()
         created = c is None
         if c is None:
             c = Campaign.objects.create(
-                org=org, slug="jreas",
+                org=org, slug=SLUG,
                 title="JREAS Hub — free coworking and study space in Gaza",
                 organizer="Sameh Jres",
                 location="Gaza",

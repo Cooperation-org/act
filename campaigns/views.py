@@ -6,6 +6,7 @@ import math
 from django.db.models import Count, F, Q
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 
 from .card import render_card
 from .context import site_campaigns, site_org
@@ -142,7 +143,7 @@ def my_share_link(request, slug):
 def share_redirect(request, code):
     link = get_object_or_404(ShareLink, code=code)
     ShareLink.objects.filter(pk=link.pk).update(clicks=F("clicks") + 1)
-    return redirect(f"/c/{link.campaign.slug}/?via={link.code}")
+    return redirect(reverse("campaign", args=[link.campaign.slug]) + f"?via={link.code}")
 
 
 def share_card(request, slug, kind):

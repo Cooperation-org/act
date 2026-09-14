@@ -7,7 +7,7 @@
 <p class="byline">{% if p.role %}{{ p.role }} · {% endif %}{{ p.org.name }}</p>
 {{ p.bio|markdown }}
 {% if p.link_list %}<p class="meta">{% for u in p.link_list %}<a href="{{ u }}">{{ u }}</a>{% if not forloop.last %} · {% endif %}{% endfor %}</p>{% endif %}
-{% if posts %}
+{% if posts and "blog" in enabled_apps %}
 <h2>Posts</h2>
 {% for post in posts %}<p><a href="{% url 'blog:post' post.slug %}">{{ post.title }}</a> <span class="meta">{{ post.published_at|date:"Y-m-d" }}</span></p>{% endfor %}
 {% endif %}

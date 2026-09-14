@@ -10,7 +10,7 @@ from .models import Post
 class BlogTests(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.org = Org.objects.create(slug="jreas", name="Jreas Coop")
+        cls.org = Org.objects.create(slug="jreas-coop", name="Jreas Coop")
         cls.author = Person.objects.create(org=cls.org, slug="s", name="S Author", status="published",
                                            consent_on_record=True)
 
@@ -48,7 +48,7 @@ class BlogTests(TestCase):
         self.assertEqual(p.status, "published")
         self.assertIsNotNone(p.published_at)
 
-    @override_settings(SITE_ORG_SLUG="jreas")
+    @override_settings(SITE_ORG_SLUG="jreas-coop")
     def test_site_mode_scopes_posts(self):
         other = Org.objects.create(slug="other", name="Other")
         Post.objects.create(org=other, slug="o", title="Other Post", body="x", status="published")

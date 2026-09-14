@@ -5,7 +5,7 @@
 <script src="{{ lt_embed }}/badge.js" defer></script>
 {% endblock %}
 {% block content %}
-{% if c.status != "published" %}<p class="meta" style="border:1px dashed var(--faded);padding:.4rem .7rem;display:inline-block">{{ c.get_status_display|upper }} — not public. Reviewers can open it with the review link in <a href="/admin/campaigns/campaign/{{ c.pk }}/change/">Edit</a>; an approver publishes it there.</p>{% endif %}
+{% if c.status != "published" %}<p class="meta" style="border:1px dashed var(--faded);padding:.4rem .7rem;display:inline-block">{{ c.get_status_display|upper }} — not public. Reviewers can open it with the review link in <a href="{% url 'admin:campaigns_campaign_change' c.pk %}">Edit</a>; an approver publishes it there.</p>{% endif %}
 <h1>{{ c.title }}</h1>
 <p class="meta">{% if c.organizer %}Organized by {{ c.organizer }}{% endif %}{% if c.location %} &middot; {{ c.location }}{% endif %}
   &nbsp;&middot;&nbsp; <a href="#vouched">{{ testimonials|length }} signed testimonial{{ testimonials|length|pluralize }}</a></p>
@@ -13,7 +13,7 @@
 <div class="cols">
 <div>
   {% if c.photo %}<img src="{{ c.photo.url }}" alt="" style="width:100%;border:1px solid var(--rule)">
-  {% elif user.is_staff %}<div class="thumb" style="aspect-ratio:16/9;display:grid;place-items:center">photo / video to come — add it in <a href="/admin/campaigns/campaign/{{ c.pk }}/change/">Edit</a></div>{% endif %}
+  {% elif user.is_staff %}<div class="thumb" style="aspect-ratio:16/9;display:grid;place-items:center">photo / video to come — add it in <a href="{% url 'admin:campaigns_campaign_change' c.pk %}">Edit</a></div>{% endif %}
 
   {% if c.story %}
   <h2>The story</h2>
@@ -23,7 +23,7 @@
 
   <h2 id="vouched">Vouched for — on the record</h2>
   <p class="meta">Each card is a signed <a href="https://linkedtrust.us">LinkedClaim</a>. A signed claim links to the person's own record, so you can see who stands behind them.</p>
-  <p><a class="btn ghost" href="/c/{{ c.slug }}/testimony/">Add your testimony</a>
+  <p><a class="btn ghost" href="{% url 'testimony' c.slug %}">Add your testimony</a>
     <span class="meta">video or text, published after review; showing your name is your choice</span></p>
   {% if testimonials %}
   <div class="vouches">
@@ -73,7 +73,7 @@
       <h3>{{ cta.title }}</h3>
       {% if cta.note %}<span class="meta">{{ cta.note }}</span>{% endif %}
       {% if cta.description %}<p>{{ cta.description }}</p>{% endif %}
-      <a class="btn ghost" href="/c/{{ c.slug }}/act/{{ cta.id }}/">{{ cta.button_label }}</a>
+      <a class="btn ghost" href="{% url 'respond' c.slug cta.id %}">{{ cta.button_label }}</a>
     </div>
     {% endif %}{% endfor %}
   </div>
@@ -81,7 +81,7 @@
 
   <h2>Updates & receipts</h2>
   {% for u in updates %}<p class="meta">{{ u.date }} — {{ u.text }}</p>{% empty %}<p class="meta">No updates posted yet. Receipts and counts appear here as the campaign posts them.</p>{% endfor %}
-  <p class="meta"><a href="/updates/feed/">RSS</a></p>
+  <p class="meta"><a href="{% url 'updates_feed' %}">RSS</a></p>
 </div>
 
 <aside class="rail">
@@ -111,11 +111,11 @@
       <a href="https://www.facebook.com/sharer/sharer.php?u={{ share_url|urlencode }}">Facebook</a>
       <a href="https://www.linkedin.com/sharing/share-offsite/?url={{ share_url|urlencode }}">LinkedIn</a>
       <a href="mailto:?body={{ share_url|urlencode }}">Email</a>
-      <a href="/c/{{ c.slug }}/card/story.png">Instagram story card (download)</a>
-      <a href="/c/{{ c.slug }}/card/post.png">Instagram post card (download)</a>
+      <a href="{% url 'card' c.slug 'story' %}">Instagram story card (download)</a>
+      <a href="{% url 'card' c.slug 'post' %}">Instagram post card (download)</a>
     </div>
     {% if user.is_authenticated %}
-      <a class="btn ghost" style="width:100%;margin-top:.5rem" href="/c/{{ c.slug }}/share/">My counted share link</a>
+      <a class="btn ghost" style="width:100%;margin-top:.5rem" href="{% url 'share' c.slug %}">My counted share link</a>
     {% else %}
       <p class="meta">Signed-in volunteers get a share link that counts the people who give through it.</p>
     {% endif %}

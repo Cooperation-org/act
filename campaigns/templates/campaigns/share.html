@@ -5,7 +5,7 @@
 <p><code>{{ share_url }}</code></p>
 <p class="meta">{{ link.clicks }} visits so far through your link. Put it anywhere — including your
 Instagram bio (up to 5 links) or a story link sticker. Write your own words; the link carries the facts.</p>
-<p><a class="btn ghost" href="/c/{{ c.slug }}/card/story.png">Download story card</a>
-   <a class="btn ghost" href="/c/{{ c.slug }}/card/post.png">Download post card</a></p>
+<p><a class="btn ghost" href="{% url 'card' c.slug 'story' %}">Download story card</a>
+   <a class="btn ghost" href="{% url 'card' c.slug 'post' %}">Download post card</a></p>
 </article>
 {% endblock %}

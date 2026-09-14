@@ -53,7 +53,7 @@ and always visible.
 |------|----------|--------------|--------------|
 | cooperation.org | `letters` | — | `/letters/`, `/admin/` (root forwards to `/letters/`) |
 | raisethevoices.org | `campaigns,blog,people` | — (platform: every org's published campaigns) | `/`, `/c/<slug>/`, `/updates/`, `/blog/`, `/people/`, `/admin/` |
-| Jreas Coop (domain TBD) | `campaigns,blog,people` | `jreas` | `/` (org home), `/c/jreas/`, `/updates/`, `/blog/`, `/people/`, `/governance/`, `/admin/` |
+| Jreas Coop (domain TBD) | `campaigns,blog,people` | `jreas-coop` | `/` (org home), `/c/jreas-coop/`, `/updates/`, `/blog/`, `/people/`, `/governance/`, `/admin/` |
 
 New capabilities (content management, content planning, email campaigns) arrive as further
 apps in this list.
@@ -80,7 +80,7 @@ org's own words, edited in /admin → Orgs (superuser). A slug with no Org row r
   governance (reviewed work → voting weight, pie, votes, sortition) is GovKit
   (Cooperation-org/govkit, dash.workers.vc); `governance_url` points at the org's page there.
 
-`seed_jreas` creates org `jreas` ("Jreas Coop") and the JREAS Hub campaign under it, as draft.
+`seed_jreas` creates org `jreas-coop` ("Jreas Coop") and the JREAS Hub campaign under it, as draft.
 
 ## Letters (open letters and petitions)
 

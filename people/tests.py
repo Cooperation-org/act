@@ -9,7 +9,7 @@ from .models import Person
 class PeopleTests(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.org = Org.objects.create(slug="jreas", name="Jreas Coop")
+        cls.org = Org.objects.create(slug="jreas-coop", name="Jreas Coop")
         cls.other = Org.objects.create(slug="other", name="Other")
 
     def test_only_consented_published_profiles_are_public(self):
@@ -53,7 +53,7 @@ class PeopleTests(TestCase):
         self.assertEqual(mine.status, "published")
         self.assertEqual(theirs.status, "draft")
 
-    @override_settings(SITE_ORG_SLUG="jreas")
+    @override_settings(SITE_ORG_SLUG="jreas-coop")
     def test_site_mode_hides_other_orgs_people(self):
         Person.objects.create(org=self.other, slug="x", name="Elsewhere", status="published", consent_on_record=True)
         self.assertNotContains(self.client.get("/people/"), "Elsewhere")

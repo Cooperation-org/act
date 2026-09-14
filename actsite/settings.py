@@ -116,7 +116,7 @@ MEDIA_URL = f"{BASE_PATH}/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-LOGIN_URL = "/admin/login/"
+LOGIN_URL = "admin:login"  # a URL name, so it resolves under ACT_BASE_PATH too
 
 PUBLIC_URL = os.environ.get("ACT_PUBLIC_URL", "http://localhost:8000")
 
