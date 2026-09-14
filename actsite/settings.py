@@ -120,6 +120,15 @@ LOGIN_URL = "/admin/login/"
 
 PUBLIC_URL = os.environ.get("ACT_PUBLIC_URL", "http://localhost:8000")
 
+# LinkedTrust claims (testimonials are signed LinkedClaims). Same pattern as workers.vc:
+# the browser records video with <linked-video-recorder> (uploads to LinkedTrust storage),
+# act's backend POSTs the claim with client credentials. Without LT_CLIENT_ID/SECRET a
+# claim would be written with no issuer and could never be edited, so act refuses to sign.
+LT_API = os.environ.get("LT_API", "https://live.linkedtrust.us")
+LT_EMBED = os.environ.get("LT_EMBED", "https://demos.linkedtrust.us/embed")
+LT_CLIENT_ID = os.environ.get("LT_CLIENT_ID", "")
+LT_CLIENT_SECRET = os.environ.get("LT_CLIENT_SECRET", "")
+
 # Outgoing mail (signature confirmations). Unset EMAIL_HOST means nothing is
 # sent; each attempt is still logged for the admin (letters.mail).
 EMAIL_HOST = os.environ.get("EMAIL_HOST", "")

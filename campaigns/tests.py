@@ -167,3 +167,54 @@ class PreviewTests(TestCase):
         self.assertEqual(self.client.get("/blog/d/").status_code, 404)
         self.assertEqual(self.client.get("/blog/d/?preview=nope").status_code, 404)
         self.assertContains(self.client.get(p.preview_path), "Draft Post")
+
+
+class LinkedClaimTests(TestCase):
+    def setUp(self):
+        call_command("seed_jreas")
+        self.c = Campaign.objects.get(slug="jreas")
+        Campaign.objects.filter(pk=self.c.pk).update(status="published")
+        User.objects.create_superuser("admin", "a@example.org", "pw")
+        self.client.login(username="admin", password="pw")
+
+    def test_testimony_form_carries_recorder_and_video_url(self):
+        r = self.client.get("/c/jreas/testimony/")
+        self.assertContains(r, "<linked-video-recorder")
+        self.assertContains(r, "video-recorder.js")
+        self.client.post("/c/jreas/testimony/", {"quote": "Seen it.", "video_url": "https://f.example/v.webm"})
+        t = self.c.testimonials.get()
+        self.assertEqual(t.video_url, "https://f.example/v.webm")
+        self.assertEqual(t.status, "pending")
+
+    def test_publish_without_credentials_refuses_to_sign_but_publishes(self):
+        from .models import Testimonial
+        t = Testimonial.objects.create(campaign=self.c, quote="q")
+        self.client.post("/admin/campaigns/testimonial/", {"action": "sign_and_publish", "_selected_action": [t.pk]})
+        t.refresh_from_db()
+        self.assertEqual(t.status, "published")
+        self.assertIsNone(t.claim_id)
+        self.assertIn("LT_CLIENT_ID", t.sign_error)
+        self.assertContains(self.client.get("/c/jreas/"), "not yet signed")
+
+    @override_settings(LT_CLIENT_ID="id", LT_CLIENT_SECRET="s", LT_API="https://lt.example", PUBLIC_URL="https://act.example")
+    def test_sign_posts_claim_and_renders_badge(self):
+        from unittest.mock import patch, MagicMock
+        from .models import Testimonial
+        t = Testimonial.objects.create(campaign=self.c, quote="I know this is real.", video_url="https://f.example/v.webm",
+                                       display_name="Secret Name", show_identity=False)
+        resp = MagicMock(ok=True, status_code=201); resp.json.return_value = {"id": 4242}
+        with patch("campaigns.linkedtrust.requests.post", return_value=resp) as post:
+            self.client.post("/admin/campaigns/testimonial/", {"action": "sign_and_publish", "_selected_action": [t.pk]})
+        args, kwargs = post.call_args
+        self.assertEqual(args[0], "https://lt.example/api/claims")
+        self.assertEqual(kwargs["headers"]["x-lt-client-id"], "id")
+        body = kwargs["json"]
+        self.assertEqual(body["subject"], "https://act.example/c/jreas/")
+        self.assertEqual(body["claim"], "ENDORSES")
+        self.assertEqual(body["videoUrl"], "https://f.example/v.webm")
+        self.assertNotIn("name", body)  # identity not opted in
+        t.refresh_from_db()
+        self.assertEqual(t.claim_id, 4242)
+        self.assertEqual(t.linkedclaim_uri, "https://lt.example/claims/4242")
+        self.assertEqual(t.status, "published")
+        self.assertContains(self.client.get("/c/jreas/"), '<linked-badge claim-id="4242"')

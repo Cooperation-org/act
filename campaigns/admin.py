@@ -8,6 +8,7 @@ from django.conf import settings
 from django.contrib import admin, messages
 from django.utils.html import format_html
 
+from .linkedtrust import sign_testimonial
 from .models import CTA, Campaign, Org, Response, ShareLink, Testimonial, Update, VolunteerProfile
 
 
@@ -144,13 +145,45 @@ class CampaignAdmin(OrgScopedAdmin):
         return {"org": org.pk} if org else {}
 
 
+@admin.action(description="Sign as LinkedClaim and publish (approvers only)")
+def sign_and_publish(modeladmin, request, queryset):
+    allowed = publishable(modeladmin, request, queryset)
+    signed = failed = 0
+    for t in allowed:
+        if not t.claim_id:
+            ok, msg = sign_testimonial(t)
+            if ok:
+                signed += 1
+            else:
+                failed += 1
+                messages.warning(request, f"#{t.pk} not signed: {msg}")
+    n = allowed.update(status="published")
+    messages.success(request, f"Published {n}; signed {signed} new claim{'s' if signed != 1 else ''}.")
+    if failed:
+        messages.warning(request, f"{failed} published unsigned — fix the cause and run “Sign as LinkedClaim” again.")
+    if queryset.count() - allowed.count():
+        messages.warning(request, "Some rows skipped: you are not an approver for that org.")
+
+
+@admin.action(description="Sign as LinkedClaim (approvers only)")
+def sign_only(modeladmin, request, queryset):
+    for t in publishable(modeladmin, request, queryset).filter(claim_id__isnull=True):
+        ok, msg = sign_testimonial(t)
+        (messages.success if ok else messages.warning)(request, f"#{t.pk}: {msg}")
+
+
 @admin.register(Testimonial)
 class TestimonialAdmin(OrgScopedAdmin):
     feature = "campaigns"
     org_path = "campaign__org"
-    list_display = ["campaign", "relationship", "show_identity", "status", "created"]
+    list_display = ["campaign", "relationship", "show_identity", "has_video", "claim_id", "status", "created"]
     list_filter = ["status"]
-    actions = [publish]
+    actions = [sign_and_publish, sign_only]
+    readonly_fields = ["claim_id", "linkedclaim_uri", "signed_at", "sign_error", "created"]
+
+    @admin.display(boolean=True, description="Video")
+    def has_video(self, obj):
+        return bool(obj.video_src)
 
 
 @admin.register(Update)

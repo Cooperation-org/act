@@ -111,6 +111,22 @@ ticked, ordered by `pdf_sort` then date. In admin, filter (city, country, …), 
 action "PDF of the letter with the selected signatures". WeasyPrint renders the same
 templates; static and media files are read from disk.
 
+## Testimonials are LinkedClaims
+
+Same mechanism as workers.vc (`doorway/claims.py`) and `LinkedClaims/docs/embedding.md`:
+
+1. `/c/<slug>/testimony/` embeds `<linked-video-recorder>` from `LT_EMBED`; the browser uploads the
+   video to LinkedTrust storage and the returned `videoUrl` lands in the form's hidden field.
+2. The testimonial sits **pending**. In admin an approver runs "Sign as LinkedClaim and publish":
+   `campaigns/linkedtrust.py` POSTs `{subject: campaign page, claim: ENDORSES, statement, videoUrl,
+   name only if opted in}` to `LT_API/api/claims` with `x-lt-client-id/secret`, stores `claim_id`,
+   `linkedclaim_uri`, `signed_at`, or `sign_error`.
+3. The campaign page renders each signed testimonial as `<linked-badge claim-id=…>` (badge.js from
+   `LT_EMBED`); unsigned ones render as plain cards marked "not yet signed".
+
+`LT_CLIENT_ID`/`LT_CLIENT_SECRET` are issued per site by whoever runs live.linkedtrust.us; without
+them signing is refused (an issuer-less claim is permanent damage), publishing still works.
+
 ## Money boundary
 
 act never touches funds. The give rail embeds the Givebutter widget for the org's

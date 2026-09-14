@@ -1,12 +1,23 @@
 {% extends "campaigns/base.html" %}
+{% block head %}<script src="{{ lt_embed }}/video-recorder.js" defer></script>{% endblock %}
 {% block content %}
 <article class="piece">
 <h1>Add your testimony for {{ c.title }}</h1>
-<p class="meta">Published after review. Showing your name is entirely your choice — testimony with the
-name withheld is still valuable.</p>
-<form method="post" enctype="multipart/form-data">{% csrf_token %}
+<p class="meta">Published after review, and signed as a <a href="https://linkedtrust.us">LinkedClaim</a> you can point to.
+Showing your name is entirely your choice — testimony with the name withheld is still valuable.</p>
+<form method="post" id="testimony">{% csrf_token %}
+<h2>Record a video (optional)</h2>
+<p class="meta">Up to 90 seconds. Say how you know them and what you have seen. The video is stored by LinkedTrust.</p>
+<linked-video-recorder api-base="{{ lt_api }}" max-duration="90"{% if form.video_url.value %} video-url="{{ form.video_url.value }}"{% endif %}></linked-video-recorder>
+<h2>Or write it</h2>
 {{ form.as_p }}
 <button class="btn" type="submit">Submit for review</button>
 </form>
+<script>
+  const rec = document.querySelector('linked-video-recorder');
+  const field = document.querySelector('#id_video_url');
+  rec.addEventListener('video-uploaded', e => { field.value = e.detail.videoUrl; });
+  rec.addEventListener('video-removed', () => { field.value = ''; });
+</script>
 </article>
 {% endblock %}

@@ -131,18 +131,26 @@ class Testimonial(models.Model):
     campaign = models.ForeignKey(Campaign, on_delete=models.CASCADE, related_name="testimonials")
     author = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
     quote = models.TextField()
-    video = models.FileField(upload_to="testimony/", blank=True)
+    video = models.FileField(upload_to="testimony/", blank=True, help_text="Local file (fallback)")
+    video_url = models.URLField(blank=True, help_text="Recorded in the browser and stored by LinkedTrust")
     display_name = models.CharField(max_length=200, blank=True,
                                     help_text="Shown publicly ONLY if show_identity is on")
     show_identity = models.BooleanField(default=False,
                                         help_text="Opt-in. Names/faces tied to funding can endanger people.")
     relationship = models.CharField(max_length=200, blank=True, help_text="e.g. 'donor since June'")
     linkedclaim_uri = models.URLField(blank=True, help_text="Signed LinkedClaim for this testimony")
+    claim_id = models.PositiveIntegerField(null=True, blank=True, help_text="LinkedTrust claim id (renders the badge)")
+    signed_at = models.DateTimeField(null=True, blank=True)
+    sign_error = models.CharField(max_length=300, blank=True)
     status = models.CharField(max_length=12, choices=PublishStatus.choices, default=PublishStatus.PENDING)
     created = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"testimony for {self.campaign.slug} ({self.status})"
+
+    @property
+    def video_src(self):
+        return self.video_url or (self.video.url if self.video else "")
 
 
 class Update(models.Model):

@@ -95,6 +95,7 @@ def campaign(request, slug):
         "ctas": c.ctas.filter(enabled=True),
         "testimonials": testimonials,
         "graph": trust_graph(c, testimonials),
+        "lt_embed": settings.LT_EMBED,
         "updates": c.updates.filter(status="published")[:10],
         "share_url": share_url,
         "via": via,
@@ -126,7 +127,8 @@ def add_testimony(request, slug):
         t.save()
         return render(request, "campaigns/thanks.html",
                       {"c": c, "note": "Your testimony is in — it appears after review."})
-    return render(request, "campaigns/testimony.html", {"c": c, "form": form})
+    return render(request, "campaigns/testimony.html",
+                  {"c": c, "form": form, "lt_api": settings.LT_API, "lt_embed": settings.LT_EMBED})
 
 
 @login_required

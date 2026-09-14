@@ -164,3 +164,12 @@ footer.site { margin-top: 5rem; border-top: 1px solid var(--rule); padding-top: 
 /* blog list */
 .entry { padding: 1.2rem 0; border-top: 1px solid var(--rule); max-width: 38rem; }
 .entry p { margin: .3rem 0 0; font-size: .95rem; }
+
+/* plain Django forms (testimony, calls to action) */
+form p { margin: 0 0 1rem; }
+form p label { display: block; font: 700 .85rem var(--sans); margin-bottom: .25rem; }
+form p input[type=text], form p input[type=email], form p input[type=url], form p textarea, form p select {
+  width: 100%; max-width: 32rem; font: 400 1rem var(--serif); padding: .5rem .6rem; border: 1px solid var(--rule); border-radius: 2px; background: #fff; }
+form p input[type=checkbox] { margin-right: .4rem; }
+form p .helptext { display: block; font: 400 .8rem/1.5 var(--sans); color: var(--faded); margin-top: .25rem; }
+form p:has(input[type=checkbox]) label { display: inline; font-weight: 400; font-size: 1rem; font-family: var(--serif); }
