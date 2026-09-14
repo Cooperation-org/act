@@ -1,12 +1,13 @@
 {% extends "campaigns/base.html" %}{% load markup %}
 {% block title %}{{ p.title }} · {{ block.super }}{% endblock %}
 {% block content %}
-<article class="piece">
+<article class="piece" dir="auto">
 {% if p.status != "published" %}<p class="meta" style="border:1px dashed var(--faded);padding:.4rem .7rem;display:inline-block">{{ p.get_status_display|upper }}: not public.</p>{% endif %}
 <h1>{{ p.title }}</h1>
 <p class="byline">{{ p.published_at|date:"Y-m-d" }}{% if p.public_author %} · {% if "people" in enabled_apps %}<a href="{% url 'people:person' p.public_author.slug %}">{{ p.public_author.name }}</a>{% else %}{{ p.public_author.name }}{% endif %}{% endif %} · {{ p.org.name }}</p>
 {% if p.photo %}<img src="{{ p.photo.url }}" alt="" style="width:100%;border:1px solid var(--rule);margin-bottom:1.2rem">{% endif %}
 {{ p.body|markdown }}
+{% if p.source_url %}<p class="meta">First published at <a href="{{ p.source_url }}">{{ p.source_url|truncatechars:60 }}</a></p>{% endif %}
 {% if tip %}
 <h2>Tip this article</h2>
 <p class="meta">One tip, split between the writer and {{ tip.campaign.title }}. You set the split.</p>

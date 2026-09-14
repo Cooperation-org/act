@@ -15,6 +15,7 @@ class Post(models.Model):
     summary = models.CharField(max_length=300, blank=True, help_text="One or two sentences for lists and the feed")
     body = models.TextField(help_text="Markdown")
     photo = models.ImageField(upload_to="posts/", blank=True)
+    source_url = models.URLField(blank=True, help_text="Where these words were first published (e.g. the LinkedIn post)")
     status = models.CharField(max_length=12, choices=PublishStatus.choices, default=PublishStatus.DRAFT)
     published_at = models.DateTimeField(null=True, blank=True)
     preview_token = models.CharField(max_length=24, default=preview_token, editable=False)

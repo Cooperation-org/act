@@ -38,7 +38,7 @@ class PostAdmin(OrgScopedAdmin):
         return format_html('<a href="{}" target="_blank">{}</a>', url, "open draft" if obj.status != "published" else "open")
     fieldsets = [
         (None, {"fields": ["org", "title", "slug", "author", "photo"]}),
-        ("Text (Markdown)", {"fields": ["summary", "body"]}),
+        ("Text (Markdown)", {"fields": ["summary", "body", "source_url"]}),
         ("Publishing", {"fields": ["status", "published_at", "preview", "created"]}),
     ]
 

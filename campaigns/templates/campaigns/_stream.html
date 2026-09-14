@@ -1,6 +1,6 @@
 <div class="stream">
 {% for i in stream %}
-  <div class="item">
+  <div class="item" dir="auto">
     <span class="meta">{{ i.date|date:"Y-m-d" }}</span>
     {% if i.kind == "post" %}<a href="{% url 'blog:post' i.post.slug %}">{{ i.post.title }}</a>{% if i.post.summary %} <span class="meta">{{ i.post.summary }}</span>{% endif %}
     {% else %}{{ i.text }} <span class="meta"><a href="{% url 'campaign' i.campaign.slug %}">{{ i.campaign.title }}</a></span>{% endif %}
