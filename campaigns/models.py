@@ -1,4 +1,4 @@
-"""act data model — see projects repo Active/raise-the-voices/act-design.md.
+"""act data model, see projects repo Active/raise-the-voices/act-design.md.
 
 Boundaries: money is NEVER handled here (Givebutter or SimpleTip embeds only);
 testimonials reference LinkedClaims by URI; subscribers sync to the CRM (not yet wired).
@@ -30,7 +30,7 @@ class Org(models.Model):
     tagline = models.CharField(max_length=200, blank=True, help_text="One line under the name on the home page")
     about = models.TextField(blank=True, help_text="Markdown. The org in its own words; facts only.")
     governance_text = models.TextField(
-        blank=True, help_text="Markdown. How members govern — the director's/members' own words. "
+        blank=True, help_text="Markdown. How members govern, in the director's/members' own words. "
                               "Shown on the Governance page when set.")
     governance_url = models.URLField(
         blank=True, help_text="Where governance lives (GovKit org page on dash.workers.vc, or the "
@@ -69,7 +69,7 @@ class Campaign(models.Model):
     photo = models.ImageField(upload_to="campaigns/", blank=True)
     source_url = models.URLField(blank=True, help_text="Where the story facts come from")
     status = models.CharField(max_length=12, choices=PublishStatus.choices, default=PublishStatus.DRAFT)
-    # money embeds — the page only WRAPS these; act never touches funds
+    # money embeds, the page only WRAPS these; act never touches funds
     givebutter_campaign_id = models.CharField(max_length=100, blank=True,
                                              help_text="Widget ID from Givebutter dashboard → Developers → Widgets")
     simpletip_receiver = models.SlugField(blank=True)

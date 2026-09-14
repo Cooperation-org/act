@@ -10,7 +10,7 @@ from .views import published
 class PostFeed(Feed):
     def title(self):
         org = site_org()
-        return f"{org.name} — blog" if org else "Blog"
+        return f"{org.name}: blog" if org else "Blog"
 
     def link(self):
         return f"{settings.PUBLIC_URL}/blog/"

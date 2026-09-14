@@ -1,5 +1,5 @@
 {% extends "campaigns/base.html" %}{% load markup %}
-{% block title %}{{ p.name }} — {{ block.super }}{% endblock %}
+{% block title %}{{ p.name }} · {{ block.super }}{% endblock %}
 {% block content %}
 <article class="piece">
 {% if p.photo %}<img class="portrait" src="{{ p.photo.url }}" alt="">{% endif %}

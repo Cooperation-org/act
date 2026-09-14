@@ -51,8 +51,8 @@ and always visible.
 
 | Site | ACT_APPS | ACT_SITE_ORG | Public paths |
 |------|----------|--------------|--------------|
-| cooperation.org | `letters` | — | `/letters/`, `/admin/` (root forwards to `/letters/`) |
-| raisethevoices.org | `campaigns,blog,people` | — (platform: every org's published campaigns) | `/`, `/c/<slug>/`, `/updates/`, `/blog/`, `/people/`, `/admin/` |
+| cooperation.org | `letters` |, | `/letters/`, `/admin/` (root forwards to `/letters/`) |
+| raisethevoices.org | `campaigns,blog,people` |, (platform: every org's published campaigns) | `/`, `/c/<slug>/`, `/updates/`, `/blog/`, `/people/`, `/admin/` |
 | Jreas Coop (domain TBD) | `campaigns,blog,people` | `jreas-coop` | `/` (org home), `/c/jreas-coop/`, `/updates/`, `/blog/`, `/people/`, `/governance/`, `/admin/` |
 
 New capabilities (content management, content planning, email campaigns) arrive as further
@@ -69,13 +69,13 @@ org's own words, edited in /admin → Orgs (superuser). A slug with no Org row r
 
 - `/updates/` and `/updates/feed/` (RSS): published campaign updates (receipts, counts) and blog
   posts as one stream, newest first. Home shows the latest six.
-- `/blog/`, `/blog/<slug>/`, `/blog/feed/` — `blog` app. Post: Markdown body, optional author
+- `/blog/`, `/blog/<slug>/`, `/blog/feed/`, `blog` app. Post: Markdown body, optional author
   (a Person), summary for lists and feed, publish gate (`published_at` set on publish).
-- `/people/`, `/people/<slug>/` — `people` app. Person: name, role, photo, Markdown bio, links,
-  optional login. **Publishes only with `consent_on_record` ticked and an approver's publish** —
+- `/people/`, `/people/<slug>/`, `people` app. Person: name, role, photo, Markdown bio, links,
+  optional login. **Publishes only with `consent_on_record` ticked and an approver's publish** , 
   a name tied to funding can endanger someone; the admin action and the save hook both refuse
   otherwise. A post's author link appears only while the author's profile is published.
-- `/governance/` — shown (and linked in nav) only when the Org has `governance_text` (Markdown,
+- `/governance/`, shown (and linked in nav) only when the Org has `governance_text` (Markdown,
   the members' own words) or `governance_url`. Governance itself is not modelled here: earned
   governance (reviewed work → voting weight, pie, votes, sortition) is GovKit
   (Cooperation-org/govkit, dash.workers.vc); `governance_url` points at the org's page there.
@@ -104,7 +104,7 @@ every 15 min), then it gives up. The schedule and last error live on the Signatu
 Signatures → filter "confirmation": confirmed / drawn / approved / sent, waiting / failed, retry
 scheduled / failed, gave up / no email sent; action "Resend confirmation email" starts over.
 **Approved** (checkbox in the list) makes a signature count and show even if the email never
-confirmed — for the friend who signed but never got the mail.
+confirmed, for the friend who signed but never got the mail.
 
 PDF: `/letters/<slug>.pdf` is the letter with every counted signature that has `on_pdf`
 ticked, ordered by `pdf_sort` then date. In admin, filter (city, country, …), tick rows,
@@ -130,7 +130,7 @@ them signing is refused (an issuer-less claim is permanent damage), publishing s
 ## Money boundary
 
 act never touches funds. The give rail embeds the Givebutter widget for the org's
-Givebutter account (charity of record: Civic Works — receipts and discretion-and-control
+Givebutter account (charity of record: Civic Works, receipts and discretion-and-control
 disclosure are locked text in `campaigns/donation_text.py`, deliberately not DB-editable;
 see projects repo `Active/raise-the-voices/legal/fundraising-compliance.md`) or a
 `<simple-tip>` element. Set `Org.givebutter_account_id` + `Campaign.givebutter_campaign_id`
@@ -141,7 +141,7 @@ in admin when the Givebutter campaign exists.
 Volunteer logins get `is_staff` + one `VolunteerProfile(org=...)` per org they work with (the
 same people volunteer on letters and on fundraisers); admin queries are scoped to those orgs,
 Org pickers offer only them, delete is superuser-only, and publishing (campaigns, testimonials,
-updates, posts, people) is an approver action **per org** — an approver for org A cannot publish
+updates, posts, people) is an approver action **per org**, an approver for org A cannot publish
 org B's rows even when they can see them. LinkedTrust SSO activates when `LINKEDTRUST_CLIENT_ID/SECRET` are set
-(client registered at live.linkedtrust.us — see django-linkedtrust-auth README); Django
+(client registered at live.linkedtrust.us, see django-linkedtrust-auth README); Django
 session login always works as the fallback.

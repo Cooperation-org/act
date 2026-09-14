@@ -19,7 +19,7 @@ class TestimonialForm(forms.ModelForm):
             "quote": "Your testimony, in your words",
             "relationship": "How you know them (e.g. donor since June, partner org)",
             "display_name": "Name to show, if you choose to be named",
-            "show_identity": "Show my name publicly (your choice — leave off to stay unnamed)",
+            "show_identity": "Show my name publicly (your choice; leave off to stay unnamed)",
         }
         help_texts = {
             "relationship": "",

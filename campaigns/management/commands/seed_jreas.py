@@ -23,14 +23,14 @@ class Command(BaseCommand):
         if c is None:
             c = Campaign.objects.create(
                 org=org, slug=SLUG,
-                title="JREAS Hub — free coworking and study space in Gaza",
+                title="JREAS Hub: free coworking and study space in Gaza",
                 organizer="Sameh Jres",
                 location="Gaza",
-                summary="A free coworking and study space with stable internet and electricity — "
+                summary="A free coworking and study space with stable internet and electricity, "
                         "running since December 2024, 390+ operating days, 3,500+ people served.",
                 story="JREAS Hub is a free coworking and study space in Gaza with stable internet "
-                      "and electricity — running since December 2024, 390+ operating days, 3,500+ "
-                      "people served.\n\n[Full story in JREAS's own words to come — being collected "
+                      "and electricity, running since December 2024, 390+ operating days, 3,500+ "
+                      "people served.\n\n[Full story in JREAS's own words to come, being collected "
                       "by volunteers.]\n\nMonthly costs are connectivity, fuel and equipment "
                       "replacement. Receipts are posted as updates below.",
                 source_url="https://www.linkedin.com/company/jreas-lab1/",
@@ -49,7 +49,7 @@ class Command(BaseCommand):
                 ("event", "Host an event",
                  "Pair with the team for a fundraiser night, a talk, or a livestream from the hub.", "Pair up"),
                 ("ama", "Ask Me Anything",
-                 "Live session with the organizers — how the hub runs, what changes month to month.", "Get a reminder"),
+                 "Live session with the organizers: how the hub runs, what changes month to month.", "Get a reminder"),
                 ("podcast", "Podcast tie-in",
                  "Run a show? Book a live segment from the hub; your listeners give directly during the episode.",
                  "Book a segment"),

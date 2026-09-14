@@ -9,7 +9,7 @@ class UpdatesFeed(Feed):
 
     def title(self):
         org = site_org()
-        return f"{org.name} — updates" if org else "Updates"
+        return f"{org.name}: updates" if org else "Updates"
 
     def link(self):
         return f"{settings.PUBLIC_URL}/updates/"
@@ -23,7 +23,7 @@ class UpdatesFeed(Feed):
     def item_title(self, item):
         if item["kind"] == "post":
             return item["post"].title
-        return f"{item['campaign'].title} — {item['date']}"
+        return f"{item['campaign'].title}, {item['date']}"
 
     def item_description(self, item):
         return item["text"]

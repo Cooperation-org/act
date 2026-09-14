@@ -1,4 +1,4 @@
-"""LinkedTrust SSO user handler (used only when SSO env vars are set — see settings)."""
+"""LinkedTrust SSO user handler (used only when SSO env vars are set, see settings)."""
 from django.contrib.auth import get_user_model
 
 

@@ -5,7 +5,7 @@
 <script src="{{ lt_embed }}/badge.js" defer></script>
 {% endblock %}
 {% block content %}
-{% if c.status != "published" %}<p class="meta" style="border:1px dashed var(--faded);padding:.4rem .7rem;display:inline-block">{{ c.get_status_display|upper }} — not public. Reviewers can open it with the review link in <a href="{% url 'admin:campaigns_campaign_change' c.pk %}">Edit</a>; an approver publishes it there.</p>{% endif %}
+{% if c.status != "published" %}<p class="meta" style="border:1px dashed var(--faded);padding:.4rem .7rem;display:inline-block">{{ c.get_status_display|upper }}: not public. Reviewers can open it with the review link in <a href="{% url 'admin:campaigns_campaign_change' c.pk %}">Edit</a>; an approver publishes it there.</p>{% endif %}
 <h1>{{ c.title }}</h1>
 <p class="meta">{% if c.organizer %}Organized by {{ c.organizer }}{% endif %}{% if c.location %} &middot; {{ c.location }}{% endif %}
   &nbsp;&middot;&nbsp; <a href="#vouched">{{ testimonials|length }} signed testimonial{{ testimonials|length|pluralize }}</a></p>
@@ -13,7 +13,7 @@
 <div class="cols">
 <div>
   {% if c.photo %}<img src="{{ c.photo.url }}" alt="" style="width:100%;border:1px solid var(--rule)">
-  {% elif user.is_staff %}<div class="thumb" style="aspect-ratio:16/9;display:grid;place-items:center">photo / video to come — add it in <a href="{% url 'admin:campaigns_campaign_change' c.pk %}">Edit</a></div>{% endif %}
+  {% elif user.is_staff %}<div class="thumb" style="aspect-ratio:16/9;display:grid;place-items:center">photo / video to come. Add it in <a href="{% url 'admin:campaigns_campaign_change' c.pk %}">Edit</a></div>{% endif %}
 
   {% if c.story %}
   <h2>The story</h2>
@@ -21,7 +21,7 @@
   {% if c.source_url %}<p class="meta">source: <a href="{{ c.source_url }}">{{ c.source_url }}</a></p>{% endif %}
   {% endif %}
 
-  <h2 id="vouched">Vouched for — on the record</h2>
+  <h2 id="vouched">Vouched for, on the record</h2>
   <p class="meta">Each card is a signed <a href="https://linkedtrust.us">LinkedClaim</a>. A signed claim links to the person's own record, so you can see who stands behind them.</p>
   <p><a class="btn ghost" href="{% url 'testimony' c.slug %}">Add your testimony</a>
     <span class="meta">video or text, published after review; showing your name is your choice</span></p>
@@ -80,7 +80,7 @@
   {% endif %}
 
   <h2>Updates & receipts</h2>
-  {% for u in updates %}<p class="meta">{{ u.date }} — {{ u.text }}</p>{% empty %}<p class="meta">No updates posted yet. Receipts and counts appear here as the campaign posts them.</p>{% endfor %}
+  {% for u in updates %}<p class="meta">{{ u.date }} · {{ u.text }}</p>{% empty %}<p class="meta">No updates posted yet. Receipts and counts appear here as the campaign posts them.</p>{% endfor %}
   <p class="meta"><a href="{% url 'updates_feed' %}">RSS</a></p>
 </div>
 
@@ -102,7 +102,7 @@
   {% endif %}
   <div class="card" style="margin-top:1rem">
     <h3 style="font-size:.95rem">Tell someone</h3>
-    <p class="meta" style="margin:.3rem 0 .6rem">Share the page — your words, our facts.</p>
+    <p class="meta" style="margin:.3rem 0 .6rem">Share the page. Your words, our facts.</p>
     <div class="methods">
       <a href="https://wa.me/?text={{ share_url|urlencode }}">WhatsApp</a>
       <a href="https://t.me/share/url?url={{ share_url|urlencode }}">Telegram</a>

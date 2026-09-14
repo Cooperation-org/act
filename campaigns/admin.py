@@ -107,7 +107,7 @@ class OrgAdmin(SuperuserOnlyAdmin):
     fieldsets = [
         (None, {"fields": ["name", "slug", "website", "tagline"]}),
         ("Own words (Markdown)", {"fields": ["about", "governance_text", "governance_url"]}),
-        ("Money — charity of record's Givebutter account", {"fields": ["givebutter_account_id"]}),
+        ("Money: charity of record's Givebutter account", {"fields": ["givebutter_account_id"]}),
     ]
 
 
@@ -160,7 +160,7 @@ def sign_and_publish(modeladmin, request, queryset):
     n = allowed.update(status="published")
     messages.success(request, f"Published {n}; signed {signed} new claim{'s' if signed != 1 else ''}.")
     if failed:
-        messages.warning(request, f"{failed} published unsigned — fix the cause and run “Sign as LinkedClaim” again.")
+        messages.warning(request, f"{failed} published unsigned. Fix the cause and run “Sign as LinkedClaim” again.")
     if queryset.count() - allowed.count():
         messages.warning(request, "Some rows skipped: you are not an approver for that org.")
 

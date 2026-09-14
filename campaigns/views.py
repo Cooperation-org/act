@@ -127,7 +127,7 @@ def add_testimony(request, slug):
         t.status = "pending"
         t.save()
         return render(request, "campaigns/thanks.html",
-                      {"c": c, "note": "Your testimony is in — it appears after review."})
+                      {"c": c, "note": "Your testimony is in. It appears after review."})
     return render(request, "campaigns/testimony.html",
                   {"c": c, "form": form, "lt_api": settings.LT_API, "lt_embed": settings.LT_EMBED})
 

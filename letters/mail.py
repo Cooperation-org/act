@@ -29,7 +29,7 @@ def send_confirmation(signature, confirm_url):
     else:
         try:
             send_mail(subject, body, settings.DEFAULT_FROM_EMAIL, [signature.email], fail_silently=False)
-        except Exception as e:  # noqa: BLE001 — the error text is the point
+        except Exception as e:  # noqa: BLE001, the error text is the point
             log.error = f"{type(e).__name__}: {e}"[:2000]
     log.save()
     signature.record_mail_attempt(log.error)

@@ -1,4 +1,4 @@
-"""act — Django settings. Config via environment (see .env.example)."""
+"""act, Django settings. Config via environment (see .env.example)."""
 import os
 from pathlib import Path
 
@@ -35,13 +35,13 @@ INSTALLED_APPS = [
 # Unset = platform mode (raisethevoices lists every org's published campaigns).
 SITE_ORG_SLUG = os.environ.get("ACT_SITE_ORG", "").strip()
 
-# LinkedTrust SSO — enabled only when client credentials are configured.
+# LinkedTrust SSO, enabled only when client credentials are configured.
 LINKEDTRUST_CLIENT_ID = os.environ.get("LINKEDTRUST_CLIENT_ID", "")
 LINKEDTRUST_CLIENT_SECRET = os.environ.get("LINKEDTRUST_CLIENT_SECRET", "")
 LINKEDTRUST_SSO_ENABLED = bool(LINKEDTRUST_CLIENT_ID and LINKEDTRUST_CLIENT_SECRET)
 if LINKEDTRUST_SSO_ENABLED:
     INSTALLED_APPS.append("linkedtrust_auth")
-    LINKEDTRUST_URL = "https://live.linkedtrust.us"  # live issuer only — never dev
+    LINKEDTRUST_URL = "https://live.linkedtrust.us"  # live issuer only, never dev
     LINKEDTRUST_FRONTEND_URL = os.environ.get("ACT_PUBLIC_URL", "http://localhost:8000")
     LINKEDTRUST_FRONTEND_CALLBACK = "/oauth/callback"
     LINKEDTRUST_USER_HANDLER = "campaigns.auth.get_or_create_user"
