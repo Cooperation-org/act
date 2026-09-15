@@ -1,19 +1,10 @@
 # act
 
-> ## STOP — read before touching any database
->
-> **NEVER `loaddata`, restore a dump, or copy a SQLite file into a deployed act database.**
->
-> The `act` database on VM 100 holds the LIVE open letters and their signatures
-> (cooperation.org/letters). Every deployment's rows carry their own primary keys, so a dump
-> from another deployment **overwrites live rows by id**. A dump of the Jreas demo was created
-> and destroyed on 2026-09-15 for exactly this reason (golda: "the letters are VERY IMPORTANT").
->
-> Content moves by re-importing from source or by typing it in /admin. **Every deployment gets
-> its OWN database** (golda, 2026-09-15). The voluntask/Raise the Voices deployment does NOT
-> share `act`. Never create a database without asking golda for the name.
->
-> Backup of the live letters rows: golda's `~/work/9-15-2026-act-letters-backup.sql` on VM 200.
+## Principles
+
+- One deployment, one database. Deployments never share.
+- Data moves between deployments by importing from its source, never by restoring a dump.
+- Ask the project owner before creating a database.
 
 Story + calls-to-action app for volunteer orgs. Campaign pages where money is ONE way to help:
 give (wrapped Givebutter widget, or SimpleTip), mentor, hire, host an event, AMA, subscribe.
