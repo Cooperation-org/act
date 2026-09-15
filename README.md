@@ -9,8 +9,9 @@
 > from another deployment **overwrites live rows by id**. A dump of the Jreas demo was created
 > and destroyed on 2026-09-15 for exactly this reason (golda: "the letters are VERY IMPORTANT").
 >
-> Content moves by re-importing from source or by typing it in /admin. **A new deployment gets
-> its OWN database** unless golda says otherwise. Never create a database without asking her.
+> Content moves by re-importing from source or by typing it in /admin. **Every deployment gets
+> its OWN database** (golda, 2026-09-15). The voluntask/Raise the Voices deployment does NOT
+> share `act`. Never create a database without asking golda for the name.
 >
 > Backup of the live letters rows: golda's `~/work/9-15-2026-act-letters-backup.sql` on VM 200.
 
