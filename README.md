@@ -27,6 +27,12 @@ Live: **cooperation.org/letters/** on the civic-actions VM (10.0.0.154) since 20
 `/letters/`, `/admin/`, `/static/`, `/media/` are routed there. Later: act.raisethevoices.org
 (VM 513) for the campaign pages.
 
+- **NEVER `loaddata`, restore a dump, or copy a SQLite file into a deployed database.** Each
+  deployment's rows carry their own primary keys; a dump from another deployment overwrites rows
+  by id. The `act` database on VM 100 holds the LIVE cooperation.org/letters letters and
+  signatures. A dump of the Jreas demo was destroyed on 2026-09-15 for exactly this reason
+  (golda). Content moves by re-import or by typing it in /admin. A new deployment gets its OWN
+  database unless golda says otherwise.
 - `.env` from `.env.example` (mode 600). Postgres: database `act` on VM 100 (roles `act_owner` for
   migrations, `act_user` for the running app). `ACT_BASE_PATH`/`SCRIPT_NAME` empty at a domain root.
 - Python 3.12 venv, `pip install -r requirements.txt`. WeasyPrint needs `libpango-1.0-0
