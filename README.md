@@ -1,5 +1,19 @@
 # act
 
+> ## STOP — read before touching any database
+>
+> **NEVER `loaddata`, restore a dump, or copy a SQLite file into a deployed act database.**
+>
+> The `act` database on VM 100 holds the LIVE open letters and their signatures
+> (cooperation.org/letters). Every deployment's rows carry their own primary keys, so a dump
+> from another deployment **overwrites live rows by id**. A dump of the Jreas demo was created
+> and destroyed on 2026-09-15 for exactly this reason (golda: "the letters are VERY IMPORTANT").
+>
+> Content moves by re-importing from source or by typing it in /admin. **A new deployment gets
+> its OWN database** unless golda says otherwise. Never create a database without asking her.
+>
+> Backup of the live letters rows: golda's `~/work/9-15-2026-act-letters-backup.sql` on VM 200.
+
 Story + calls-to-action app for volunteer orgs. Campaign pages where money is ONE way to help:
 give (wrapped Givebutter widget, or SimpleTip), mentor, hire, host an event, AMA, subscribe.
 Testimonials from named-or-anonymous vouchers (LinkedClaim URI per testimony, publish-gated),
@@ -27,12 +41,6 @@ Live: **cooperation.org/letters/** on the civic-actions VM (10.0.0.154) since 20
 `/letters/`, `/admin/`, `/static/`, `/media/` are routed there. Later: act.raisethevoices.org
 (VM 513) for the campaign pages.
 
-- **NEVER `loaddata`, restore a dump, or copy a SQLite file into a deployed database.** Each
-  deployment's rows carry their own primary keys; a dump from another deployment overwrites rows
-  by id. The `act` database on VM 100 holds the LIVE cooperation.org/letters letters and
-  signatures. A dump of the Jreas demo was destroyed on 2026-09-15 for exactly this reason
-  (golda). Content moves by re-import or by typing it in /admin. A new deployment gets its OWN
-  database unless golda says otherwise.
 - `.env` from `.env.example` (mode 600). Postgres: database `act` on VM 100 (roles `act_owner` for
   migrations, `act_user` for the running app). `ACT_BASE_PATH`/`SCRIPT_NAME` empty at a domain root.
 - Python 3.12 venv, `pip install -r requirements.txt`. WeasyPrint needs `libpango-1.0-0
