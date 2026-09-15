@@ -1,10 +1,11 @@
 # act
 
-## Principles
+## Deployments and data
 
-- One deployment, one database. Deployments never share.
-- Data moves between deployments by importing from its source, never by restoring a dump.
-- Ask the project owner before creating a database.
+A deployment is better off with its own database. Rows carry their own ids, so restoring one
+deployment's dump into another's database can overwrite live rows. Where deployments do share,
+move content by importing it from its source rather than by restoring a dump, and check with
+the project owner first.
 
 Story + calls-to-action app for volunteer orgs. Campaign pages where money is ONE way to help:
 give (wrapped Givebutter widget, or SimpleTip), mentor, hire, host an event, AMA, subscribe.
