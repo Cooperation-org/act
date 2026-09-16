@@ -8,7 +8,7 @@
 {% if c.status != "published" %}<p class="meta" style="border:1px dashed var(--faded);padding:.4rem .7rem;display:inline-block">{{ c.get_status_display|upper }}: not public. Reviewers can open it with the review link in <a href="{% url 'admin:campaigns_campaign_change' c.pk %}">Edit</a>; an approver publishes it there.</p>{% endif %}
 <h1>{{ c.title }}</h1>
 <p class="meta">{% if c.organizer %}Organized by {{ c.organizer }}{% endif %}{% if c.location %} &middot; {{ c.location }}{% endif %}
-  &nbsp;&middot;&nbsp; <a href="#vouched">{{ testimonials|length }} signed testimonial{{ testimonials|length|pluralize }}</a></p>
+  {% if testimonials %}&nbsp;&middot;&nbsp; <a href="#vouched">{{ testimonials|length }} signed testimonial{{ testimonials|length|pluralize }}</a>{% endif %}</p>
 
 <div class="cols">
 <div>
@@ -21,11 +21,9 @@
   {% if c.source_url %}<p class="meta">source: <a href="{{ c.source_url }}">{{ c.source_url }}</a></p>{% endif %}
   {% endif %}
 
+  {% if testimonials %}
   <h2 id="vouched">Vouched for, on the record</h2>
   <p class="meta">Each card is a signed <a href="https://linkedtrust.us">LinkedClaim</a>. A signed claim links to the person's own record, so you can see who stands behind them.</p>
-  <p><a class="btn ghost" href="{% url 'testimony' c.slug %}">Add your testimony</a>
-    <span class="meta">video or text, published after review; showing your name is your choice</span></p>
-  {% if testimonials %}
   <div class="vouches">
     {% for t in testimonials %}
     {% if t.claim_id %}<linked-badge claim-id="{{ t.claim_id }}" layout="card"></linked-badge>{% else %}
@@ -41,7 +39,7 @@
     {% endif %}
     {% endfor %}
   </div>
-  {% else %}<p class="meta">No testimonials published yet.</p>{% endif %}
+  {% endif %}
 
   {% if graph %}
   <h2>The trust network</h2>

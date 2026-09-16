@@ -90,6 +90,7 @@ class CTA(models.Model):
     class Kind(models.TextChoices):
         GIVE = "give", "Give"
         MENTOR = "mentor", "Mentor / practice English"
+        NETWORKING = "networking", "Open your network"
         HIRE = "hire", "Hire someone"
         EVENT = "event", "Host an event"
         AMA = "ama", "Ask Me Anything"
@@ -182,3 +183,21 @@ class ShareLink(models.Model):
 
     def __str__(self):
         return f"/s/{self.code} → {self.campaign.slug} ({self.clicks})"
+
+
+class SsoIdentity(models.Model):
+    """A stable OIDC subject (`sub`) → local user link.
+
+    SSO re-logins match on the subject, not the email, so a privileged account can
+    never be taken over by someone who merely asserts its email at an identity
+    provider (see campaigns.auth). One user may hold several (across providers)."""
+    provider = models.CharField(max_length=40, default="linkedtrust")
+    sub = models.CharField(max_length=255)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="sso_identities")
+    created = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["provider", "sub"], name="uniq_provider_sub")]
+
+    def __str__(self):
+        return f"{self.provider}:{self.sub} → {self.user}"

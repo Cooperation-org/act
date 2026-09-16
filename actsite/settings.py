@@ -45,6 +45,10 @@ if LINKEDTRUST_SSO_ENABLED:
     LINKEDTRUST_FRONTEND_URL = os.environ.get("ACT_PUBLIC_URL", "http://localhost:8000")
     LINKEDTRUST_FRONTEND_CALLBACK = "/oauth/callback"
     LINKEDTRUST_USER_HANDLER = "campaigns.auth.get_or_create_user"
+    # This app's slug for invite scoping, and the shared HMAC secret that signs invites
+    # (same value on every app that honours the same invite links).
+    LINKEDTRUST_APP_SLUG = "act"
+    LINKEDTRUST_INVITE_SECRET = os.environ.get("LINKEDTRUST_INVITE_SECRET", "")
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
