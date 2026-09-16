@@ -107,7 +107,7 @@ def campaign(request, slug):
 def respond(request, slug, cta_id):
     c = _campaign_or_404(slug, request)
     cta = get_object_or_404(CTA, pk=cta_id, campaign=c, enabled=True)
-    form = ResponseForm(request.POST or None)
+    form = ResponseForm(request.POST or None, cta_kind=cta.kind)
     if request.method == "POST" and form.is_valid():
         r = form.save(commit=False)
         r.cta = cta

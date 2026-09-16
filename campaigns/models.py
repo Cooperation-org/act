@@ -121,6 +121,8 @@ class Response(models.Model):
     name = models.CharField(max_length=200)
     email = models.EmailField()
     message = models.TextField(blank=True)
+    # Per-CTA answers (the fields differ by kind: hiring role, availability, event date…).
+    details = models.JSONField(default=dict, blank=True)
     handled = models.BooleanField(default=False)
     created = models.DateTimeField(auto_now_add=True)
 

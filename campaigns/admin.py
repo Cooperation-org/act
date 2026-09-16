@@ -202,6 +202,7 @@ class ResponseAdmin(OrgScopedAdmin):
     list_display = ["name", "email", "cta", "handled", "created"]
     list_filter = ["handled", "cta__kind"]
     list_editable = ["handled"]
+    readonly_fields = ["details", "created"]
 
 
 @admin.register(ShareLink)
