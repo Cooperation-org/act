@@ -1,7 +1,7 @@
 {% extends "campaigns/base.html" %}
 {% block title %}{{ c.title }}{% endblock %}
 {% block head %}
-{% if c.org.givebutter_account_id %}<script src="https://widgets.givebutter.com/latest.umd.cjs?acct={{ c.org.givebutter_account_id }}" defer></script>{% endif %}
+{% if c.org.givebutter_account_id %}<script async src="https://widgets.givebutter.com/latest.umd.cjs?acct={{ c.org.givebutter_account_id }}"></script>{% endif %}
 <script src="{{ lt_embed }}/badge.js" defer></script>
 {% endblock %}
 {% block content %}
