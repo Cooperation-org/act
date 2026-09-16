@@ -1,0 +1,10 @@
+{% extends "campaigns/base.html" %}
+{% block title %}{{ page_title }}{% endblock %}
+{% block content %}
+<article class="piece">
+  <h1>{{ page_title }}</h1>
+  <p>{{ message }}</p>
+  <p class="meta">Tip: a private / incognito window is the quickest way to sign in as a different account.</p>
+  <p><a class="btn" href="/">Back to the campaign</a></p>
+</article>
+{% endblock %}

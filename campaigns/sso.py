@@ -10,11 +10,40 @@ from urllib.parse import urlparse
 from django.conf import settings
 from django.contrib.auth import login
 from django.http import HttpResponseRedirect
+from django.shortcuts import render
 from django.urls import reverse
 
 from linkedtrust_auth.views import CallbackView
 
 from .auth import SsoError, upsert_sso_user
+
+
+# The linkedtrust_auth callback redirects failures to {frontend}/login?error=<code>.
+# Without this route that URL 404s; here it becomes a plain-language help page.
+_LOGIN_MESSAGES = {
+    "invite_invalid": (
+        "This invite is for a different account",
+        "You're signed in to LinkedTrust as a different account than this invitation is for. "
+        "Open your invite link again in a private / incognito window — or sign out at "
+        "live.linkedtrust.us first — then reopen the link with the right account."),
+    "invite_required": (
+        "An invitation is required",
+        "This site is invite-only. Ask an organiser for your own invite link."),
+    "auth_failed": (
+        "Sign-in didn't finish",
+        "Something interrupted the sign-in. Please open your invite link and try again."),
+    "state_mismatch": (
+        "That sign-in link expired",
+        "The sign-in attempt timed out or was already used. Please open your invite link again."),
+}
+
+
+def login_help(request):
+    """Friendly page for the SSO failure redirect (/login?error=<code>)."""
+    title, message = _LOGIN_MESSAGES.get(
+        request.GET.get("error", ""),
+        ("Sign-in didn't finish", "Please open your invite link and try again."))
+    return render(request, "campaigns/login_help.html", {"page_title": title, "message": message})
 
 
 class SessionCallbackView(CallbackView):

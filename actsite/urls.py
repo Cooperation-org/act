@@ -24,10 +24,13 @@ def build_urlpatterns(enabled):
 
 urlpatterns = build_urlpatterns(settings.ENABLED_APPS)
 if settings.LINKEDTRUST_SSO_ENABLED:
-    from campaigns.sso import SessionCallbackView
+    from campaigns.sso import SessionCallbackView, login_help
     # Our session-login callback must shadow the package's token-only default, so it is
     # registered on the same path BEFORE the package include (first match wins).
     urlpatterns.insert(1, path("api/v1/auth/linkedtrust/callback", SessionCallbackView.as_view()))
     urlpatterns.insert(2, path("api/v1/auth/linkedtrust/", include("linkedtrust_auth.urls")))
+    # Landing page for the callback's failure redirect ({frontend}/login?error=…), which
+    # would otherwise 404. Adds a route only; the success path is untouched.
+    urlpatterns.insert(3, path("login", login_help, name="login_help"))
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
