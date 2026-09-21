@@ -27,7 +27,7 @@
   <p><a class="btn ghost" href="{% url 'vouch' c.slug %}">Vouch for {{ c.org.name }}</a></p>
   <div class="vouches">
     {% for t in testimonials %}
-    {% if t.claim_id %}<linked-badge claim-id="{{ t.claim_id }}" layout="card"></linked-badge>{% else %}
+    {% if t.claim_id %}<linked-badge claim-id="{{ t.claim_id }}" layout="row" theme="light"></linked-badge>{% else %}
     <div class="vouch">
       {% if t.video_src %}<video class="vid" controls preload="metadata" src="{{ t.video_src }}"></video>{% endif %}
       <div class="body"{% if not t.video_src %} style="padding-top:1rem"{% endif %}>
