@@ -20,11 +20,7 @@
     <textarea id="id_statement" name="statement" rows="4">{{ form.statement }}</textarea>
   </p>
 
-  <div id="video-recorder" data-lt-video-url-target="#id_video_url" style="margin:0 0 1rem">
-    <button type="button" class="btn ghost" data-lt-video-record>🎥 Record your words</button>
-    <span class="meta" data-lt-video-status style="margin-left:.5rem"></span>
-    <video controls data-lt-video-preview style="width:100%;margin-top:.5rem;display:none"></video>
-  </div>
+  <div id="video-recorder" data-lt-video-url-target="#id_video_url" data-lt-max="60" style="margin:0 0 1rem"></div>
   <input type="hidden" id="id_video_url" name="video_url" value="{{ form.video_url }}">
 
   {% if not signed_in_as %}
