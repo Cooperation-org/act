@@ -15,26 +15,30 @@
 {% if errors %}<ul class="meta" style="color:#b00">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
 
 <form method="post" id="vouch">{% csrf_token %}
-  <label for="id_statement">Your words</label>
-  <textarea id="id_statement" name="statement" rows="4" style="width:100%;margin:.2rem 0 .8rem">{{ form.statement }}</textarea>
+  <p>
+    <label for="id_statement">Your words</label>
+    <textarea id="id_statement" name="statement" rows="4">{{ form.statement }}</textarea>
+  </p>
 
-  <div id="video-recorder" data-lt-video-url-target="#id_video_url" style="margin:0 0 .8rem">
-    <button type="button" class="btn ghost" data-lt-video-record>🎥 Record a video</button>
-    <button type="button" class="btn ghost" data-lt-video-upload>Upload a video</button>
-    <input type="file" accept="video/*" data-lt-video-file hidden>
-    <span class="meta" data-lt-video-status></span>
+  <div id="video-recorder" data-lt-video-url-target="#id_video_url" style="margin:0 0 1rem">
+    <button type="button" class="btn ghost" data-lt-video-record>🎥 Record your words</button>
+    <span class="meta" data-lt-video-status style="margin-left:.5rem"></span>
     <video controls data-lt-video-preview style="width:100%;margin-top:.5rem;display:none"></video>
   </div>
   <input type="hidden" id="id_video_url" name="video_url" value="{{ form.video_url }}">
 
   {% if not signed_in_as %}
-  <label for="id_name">Your name (optional)</label>
-  <input id="id_name" name="name" value="{{ form.name }}" style="width:100%;margin:.2rem 0 .8rem" autocomplete="name">
-  <label for="id_link">A link where people can find you (optional)</label>
-  <input id="id_link" name="link" value="{{ form.link }}" style="width:100%;margin:.2rem 0 .8rem" inputmode="url" placeholder="your LinkedIn or site">
+  <p>
+    <label for="id_name">Your name (optional)</label>
+    <input type="text" id="id_name" name="name" value="{{ form.name }}" autocomplete="name">
+  </p>
+  <p>
+    <label for="id_link">A link where people can find you (optional)</label>
+    <input type="url" id="id_link" name="link" value="{{ form.link }}" inputmode="url" placeholder="your LinkedIn or site">
+  </p>
   {% endif %}
 
-  <p class="meta"><label><input type="checkbox" name="show_identity"{% if form.show_identity %} checked{% endif %}> Show my name publicly</label></p>
+  <p><label><input type="checkbox" name="show_identity"{% if form.show_identity %} checked{% endif %}> Show my name publicly</label></p>
 
   <button class="btn" type="submit">Post my vouch</button>
 </form>
