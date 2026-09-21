@@ -57,7 +57,9 @@ class SessionCallbackView(CallbackView):
         return HttpResponseRedirect(self._safe_next(request))
 
     def _safe_next(self, request):
-        nxt = request.GET.get("next") or ""
+        # A page that started sign-in (e.g. the vouch form) stashes where to return in the
+        # session, since the IdP round-trip drops any ?next on our redirect endpoint.
+        nxt = request.session.pop("act_post_login_next", "") or request.GET.get("next") or ""
         # Only allow same-site relative paths, never an open redirect.
         if nxt.startswith("/") and not nxt.startswith("//") and not urlparse(nxt).netloc:
             return nxt

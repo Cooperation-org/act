@@ -72,8 +72,20 @@ class Campaign(models.Model):
     # money embeds, the page only WRAPS these; act never touches funds
     givebutter_campaign_id = models.CharField(max_length=100, blank=True,
                                              help_text="Widget ID from Givebutter dashboard → Developers → Widgets")
+    # A Givebutter "goal"/thermometer widget ID (a second widget in the same dashboard).
+    # The raised/goal numbers live in Givebutter; we only embed their bar above the donate box.
+    givebutter_goal_id = models.CharField(max_length=100, blank=True,
+                                          help_text="Optional Givebutter goal/progress widget ID, shown above the donate box.")
+    # The public Givebutter campaign page, linked as small text under the widget so people
+    # can open the real campaign on Givebutter. Blank hides the link.
+    givebutter_campaign_url = models.URLField(blank=True,
+                                              help_text="Public Givebutter campaign URL (e.g. https://givebutter.com/your-campaign).")
     simpletip_receiver = models.SlugField(blank=True)
     simpletip_api = models.URLField(blank=True)
+    # Off = a vouch appears on the page as soon as it is made. On = new vouches wait
+    # as "pending" until an approver publishes them (turn on if the page gets harassed).
+    moderate_vouches = models.BooleanField(default=False,
+                                           help_text="Hold new vouches for review before they show on the page.")
     preview_token = models.CharField(max_length=24, default=preview_token, editable=False,
                                      help_text="Draft is viewable at ?preview=<token> without a login")
     created = models.DateTimeField(auto_now_add=True)
@@ -143,6 +155,10 @@ class Testimonial(models.Model):
     relationship = models.CharField(max_length=200, blank=True, help_text="e.g. 'donor since June'")
     linkedclaim_uri = models.URLField(blank=True, help_text="Signed LinkedClaim for this testimony")
     claim_id = models.PositiveIntegerField(null=True, blank=True, help_text="LinkedTrust claim id (renders the badge)")
+    # The voucher's identity: sourceURI of the ENDORSES claim (their LinkedTrust user URI when
+    # signed in, the link they gave, or an anonymous anchor). act issues the claim, so the issuer
+    # is always act; the source is the person. Lets an approver hide every vouch from one source.
+    source_uri = models.CharField(max_length=300, blank=True)
     signed_at = models.DateTimeField(null=True, blank=True)
     sign_error = models.CharField(max_length=300, blank=True)
     status = models.CharField(max_length=12, choices=PublishStatus.choices, default=PublishStatus.PENDING)

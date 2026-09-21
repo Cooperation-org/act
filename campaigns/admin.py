@@ -10,6 +10,7 @@ from django.utils.html import format_html
 
 from .linkedtrust import sign_testimonial
 from .models import CTA, Campaign, Org, Response, ShareLink, Testimonial, Update, VolunteerProfile
+from .vouch_sync import pull_vouches
 
 
 def user_orgs(user):
@@ -126,12 +127,22 @@ class CTAInline(admin.TabularInline):
 class CampaignAdmin(OrgScopedAdmin):
     feature = "campaigns"
     org_path = "org"
-    list_display = ["slug", "title", "org", "status", "preview"]
+    list_display = ["slug", "title", "org", "status", "moderate_vouches", "preview"]
     list_filter = ["status"]
     prepopulated_fields = {"slug": ["title"]}
     inlines = [CTAInline]
-    actions = [publish]
+    actions = [publish, "pull_vouches_now"]
     readonly_fields = ["created", "preview"]
+
+    @admin.action(description="Pull new vouches from LinkedTrust now")
+    def pull_vouches_now(self, request, queryset):
+        allowed = queryset.filter(org__in=approver_orgs(request.user))
+        total = 0
+        for c in allowed:
+            total += len(pull_vouches(c))
+        messages.success(request, f"Mirrored {total} new vouch{'es' if total != 1 else ''}.")
+        if queryset.count() - allowed.count():
+            messages.warning(request, "Some campaigns skipped: you are not an approver for that org.")
 
     @admin.display(description="Review link")
     def preview(self, obj):
@@ -172,14 +183,35 @@ def sign_only(modeladmin, request, queryset):
         (messages.success if ok else messages.warning)(request, f"#{t.pk}: {msg}")
 
 
+@admin.action(description="Hide from the page (approvers only)")
+def hide_from_page(modeladmin, request, queryset):
+    """Pull a vouch off the public page without deleting it or the underlying claim."""
+    n = publishable(modeladmin, request, queryset).update(status="pending")
+    messages.success(request, f"Hid {n} from the page. They stay in LinkedTrust; publish to show again.")
+
+
+@admin.action(description="Hide every vouch from this source (approvers only)")
+def hide_source(modeladmin, request, queryset):
+    """Harassment control: hide all vouches sharing a source (the voucher) with any selected row."""
+    allowed = publishable(modeladmin, request, queryset)
+    sources = {s for s in allowed.values_list("source_uri", flat=True) if s}
+    if not sources:
+        messages.warning(request, "No source on the selected rows (only vouches carry one).")
+        return
+    hidden = Testimonial.objects.filter(
+        campaign__org__in=approver_orgs(request.user), source_uri__in=sources
+    ).update(status="pending")
+    messages.success(request, f"Hid {hidden} vouch{'es' if hidden != 1 else ''} from {len(sources)} source(s).")
+
+
 @admin.register(Testimonial)
 class TestimonialAdmin(OrgScopedAdmin):
     feature = "campaigns"
     org_path = "campaign__org"
-    list_display = ["campaign", "relationship", "show_identity", "has_video", "claim_id", "status", "created"]
+    list_display = ["campaign", "relationship", "show_identity", "has_video", "claim_id", "source_uri", "status", "created"]
     list_filter = ["status"]
-    actions = [sign_and_publish, sign_only]
-    readonly_fields = ["claim_id", "linkedclaim_uri", "signed_at", "sign_error", "created"]
+    actions = [sign_and_publish, sign_only, hide_from_page, hide_source]
+    readonly_fields = ["claim_id", "linkedclaim_uri", "source_uri", "signed_at", "sign_error", "created"]
 
     @admin.display(boolean=True, description="Video")
     def has_video(self, obj):

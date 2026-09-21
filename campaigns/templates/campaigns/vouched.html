@@ -1,0 +1,17 @@
+{% extends "campaigns/base.html" %}
+{% block title %}Thank you{% endblock %}
+{% block content %}
+<article class="piece">
+<h1>Thank you for vouching</h1>
+{% if held %}
+<p>Your vouch is in. The team reviews new vouches before they show on the page, so it
+will appear shortly.</p>
+{% elif count %}
+<p>Your vouch is on the page now. Thank you for putting your name to this work.</p>
+{% else %}
+<p>Thank you. If you have just vouched on LinkedTrust and do not see it yet, give it a
+moment and reload the campaign page.</p>
+{% endif %}
+<p><a class="btn ghost" href="{% url 'campaign' c.slug %}#vouched">See it on {{ c.title }}</a></p>
+</article>
+{% endblock %}

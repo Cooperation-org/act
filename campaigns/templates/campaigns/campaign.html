@@ -24,6 +24,7 @@
   {% if testimonials %}
   <h2 id="vouched">Vouched for, on the record</h2>
   <p class="meta">Each card is a signed <a href="https://linkedtrust.us">LinkedClaim</a>. A signed claim links to the person's own record, so you can see who stands behind them.</p>
+  <p><a class="btn ghost" href="{% url 'vouch' c.slug %}">Vouch for {{ c.org.name }}</a></p>
   <div class="vouches">
     {% for t in testimonials %}
     {% if t.claim_id %}<linked-badge claim-id="{{ t.claim_id }}" layout="card"></linked-badge>{% else %}
@@ -39,6 +40,10 @@
     {% endif %}
     {% endfor %}
   </div>
+  {% else %}
+  <h2 id="vouched">Vouch for {{ c.org.name }}</h2>
+  <p class="meta">Know this work? Put your name to it as a signed <a href="https://linkedtrust.us">LinkedClaim</a>.</p>
+  <p><a class="btn ghost" href="{% url 'vouch' c.slug %}">Be the first to vouch</a></p>
   {% endif %}
 
   {% if graph %}
@@ -84,10 +89,16 @@
 
 <aside class="rail">
   <div class="card" id="give">
+    {% if c.givebutter_goal_id %}
+      <givebutter-widget id="{{ c.givebutter_goal_id }}"></givebutter-widget>
+    {% endif %}
     {% if c.givebutter_campaign_id %}
       <givebutter-widget id="{{ c.givebutter_campaign_id }}"></givebutter-widget>
     {% else %}
       <p class="meta">Giving opens soon.</p>
+    {% endif %}
+    {% if c.givebutter_campaign_url %}
+      <p class="meta" style="margin-top:.5rem"><a href="{{ c.givebutter_campaign_url }}">See the full campaign on Givebutter</a></p>
     {% endif %}
     <p class="meta" style="margin-top:.7rem">{{ donation_disclosure }}</p>
   </div>

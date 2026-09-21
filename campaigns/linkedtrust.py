@@ -30,6 +30,49 @@ def claim_url(claim_id):
     return f"{settings.LT_API}/claims/{claim_id}"
 
 
+def create_endorsement(*, campaign_url, statement, source_uri, name="", video_url="",
+                        second_hand=False):
+    """Post an ENDORSES claim about a campaign, attributed to the voucher.
+
+    Same plumbing as the workers.vc doorway: act issues the claim with its client
+    credentials (so LinkedTrust stamps a real issuer, never a null one), while the
+    PERSON is the sourceURI and the subject is the campaign. FIRST_HAND when the
+    voucher speaks for themselves, SECOND_HAND when they vouch for someone else.
+
+    Returns (claim_id, error). claim_id is None on failure; error is a short message.
+    Never raises: the caller shows the message.
+    """
+    if not configured():
+        return None, "LT_CLIENT_ID / LT_CLIENT_SECRET not set"
+    payload = {
+        "subject": campaign_url,
+        "claim": VERB,
+        "statement": statement,
+        "howKnown": "SECOND_HAND" if second_hand else "FIRST_HAND",
+        "sourceURI": source_uri or campaign_url,
+        "effectiveDate": date.today().isoformat(),
+        "confidence": 1.0,
+    }
+    if name:  # only when the voucher chose to be named — the claim is public
+        payload["name"] = name
+    if video_url:
+        payload["videoUrl"] = video_url
+    headers = {"x-lt-client-id": settings.LT_CLIENT_ID, "x-lt-client-secret": settings.LT_CLIENT_SECRET}
+    try:
+        r = requests.post(f"{settings.LT_API}/api/claims", json=payload, headers=headers, timeout=30)
+        if not r.ok:
+            logger.error("linkedtrust: endorsement POST -> %s: %s", r.status_code, r.text[:200])
+            return None, f"{r.status_code}: {r.text[:120]}"
+        body = r.json()
+        cid = body.get("id") or (body.get("claim") or {}).get("id")
+        if not cid:
+            return None, "no claim id in response"
+        return int(cid), ""
+    except (requests.RequestException, ValueError) as e:
+        logger.exception("linkedtrust: endorsement POST failed")
+        return None, str(e)[:200]
+
+
 def sign_testimonial(t):
     """POST the claim; on success store claim_id/URI on the testimonial.
     Returns (ok, message). Never raises: the admin shows the message."""

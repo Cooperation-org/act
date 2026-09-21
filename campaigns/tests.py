@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.management import call_command
 from django.test import TestCase, override_settings
@@ -18,16 +19,17 @@ class ActTests(TestCase):
     def test_published_campaign_renders_with_disclosure_and_ctas(self):
         Campaign.objects.filter(pk=self.campaign.pk).update(status="published")
         r = self.client.get("/c/jreas-coop/")
-        self.assertContains(r, "JREAS Hub")
+        self.assertContains(r, "JREAS Coop Center")
         self.assertContains(r, "complete discretion and control")  # locked language present
         self.assertContains(r, "Mentor")
-        self.assertContains(r, "Add your testimony")
+        self.assertContains(r, "Vouch for")
 
     def test_respond_creates_response(self):
         Campaign.objects.filter(pk=self.campaign.pk).update(status="published")
         cta = self.campaign.ctas.get(kind="mentor")
         r = self.client.post(f"/c/jreas-coop/act/{cta.id}/",
-                             {"name": "A Person", "email": "a@example.org", "message": "hi"})
+                             {"name": "A Person", "email": "a@example.org", "message": "hi",
+                              "offer": "English practice"})  # mentor CTA requires its own field
         self.assertEqual(r.status_code, 200)
         self.assertEqual(cta.responses.count(), 1)
 
@@ -38,7 +40,7 @@ class ActTests(TestCase):
         User.objects.create_user("vol", password="x")
         self.client.login(username="vol", password="x")
         self.client.post("/c/jreas-coop/testimony/", {"quote": "I know this is real.", "show_identity": ""})
-        t = self.campaign.testimonials.get()
+        t = self.campaign.testimonials.get(author__isnull=False)  # the one just posted (seed rows have none)
         self.assertEqual(t.status, "pending")
         self.assertFalse(t.show_identity)
 
@@ -70,18 +72,19 @@ class SiteModeTests(TestCase):
     def test_platform_mode_lists_every_org(self):
         Campaign.objects.filter(slug="jreas-coop").update(status="published")
         r = self.client.get("/")
-        self.assertContains(r, "JREAS Hub")
+        self.assertContains(r, "JREAS Coop Center")
         self.assertContains(r, "Elsewhere Campaign")
 
     @override_settings(SITE_ORG_SLUG="jreas-coop")
     def test_org_home_brands_and_scopes(self):
-        self.org.tagline = "A tagline"; self.org.about = "About **us**"; self.org.save()
+        self.org.tagline = "A tagline"; self.org.about = "About **us**"
+        self.org.governance_text = ""; self.org.governance_url = ""  # this scenario has no governance
+        self.org.save()
         Campaign.objects.filter(slug="jreas-coop").update(status="published")
         r = self.client.get("/")
-        self.assertContains(r, "Jreas Coop")
+        self.assertContains(r, "JREAS Coop Center")
         self.assertContains(r, "A tagline")
         self.assertContains(r, "About <strong>us</strong>")
-        self.assertContains(r, "JREAS Hub")
         self.assertNotContains(r, "Elsewhere Campaign")
         self.assertContains(r, "complete discretion and control")
         self.assertContains(r, 'href="/c/jreas-coop/"')  # Give in nav
@@ -92,10 +95,11 @@ class SiteModeTests(TestCase):
     def test_org_home_without_published_campaign(self):
         r = self.client.get("/")
         self.assertContains(r, "Giving opens soon")
-        self.assertNotContains(r, "JREAS Hub")
+        self.assertNotContains(r, "3,500+")  # the campaign's summary/story must not show
 
     @override_settings(SITE_ORG_SLUG="jreas-coop")
     def test_governance_page_only_when_set(self):
+        self.org.governance_text = ""; self.org.governance_url = ""; self.org.save()  # seed set draft text
         self.assertEqual(self.client.get("/governance/").status_code, 404)
         self.org.governance_text = "Members vote."; self.org.governance_url = "https://dash.workers.vc/o/jreas/about/"
         self.org.save()
@@ -182,7 +186,7 @@ class LinkedClaimTests(TestCase):
         self.assertContains(r, "<linked-video-recorder")
         self.assertContains(r, "video-recorder.js")
         self.client.post("/c/jreas-coop/testimony/", {"quote": "Seen it.", "video_url": "https://f.example/v.webm"})
-        t = self.c.testimonials.get()
+        t = self.c.testimonials.get(video_url="https://f.example/v.webm")  # the one just posted
         self.assertEqual(t.video_url, "https://f.example/v.webm")
         self.assertEqual(t.status, "pending")
 
@@ -240,3 +244,71 @@ class BasePathTests(TestCase):
                 bad = [h for h in re.findall(r'(?:href|src|action)="(/[^"]*)"', r.content.decode())
                        if not h.startswith("/act/")]
                 self.assertEqual(bad, [], f"{path}: links without /act prefix")
+
+
+
+class VouchTests(TestCase):
+    """act's own vouch form posts an ENDORSES claim (person = source) and records it locally."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.org = Org.objects.create(slug="o", name="JREAS Coop Center")
+        cls.c = Campaign.objects.create(org=cls.org, slug="jc", title="JREAS Coop Center",
+                                        status="published")
+
+    def _post(self, claim_id=555, **data):
+        """POST the vouch form with create_endorsement stubbed to a given claim id."""
+        from unittest import mock
+        with mock.patch("campaigns.views.create_endorsement", return_value=(claim_id, "")) as m:
+            r = self.client.post(f"/c/{self.c.slug}/vouch/", data)
+        return r, m
+
+    def test_form_renders_walkup_friendly(self):
+        r = self.client.get(f"/c/{self.c.slug}/vouch/")
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Vouch for JREAS Coop Center")
+        self.assertContains(r, "linked-video-recorder")   # video enabled
+        self.assertContains(r, 'name="statement"')
+
+    def test_walkup_vouch_posts_endorsement_and_records_row(self):
+        r, m = self._post(statement="Real work.", name="Amina", show_identity="on")
+        self.assertEqual(r.status_code, 200)
+        kw = m.call_args.kwargs
+        self.assertEqual(kw["campaign_url"], f"{settings.PUBLIC_URL}/c/{self.c.slug}/")
+        self.assertEqual(kw["statement"], "Real work.")
+        self.assertEqual(kw["name"], "Amina")             # named because show_identity
+        t = self.c.testimonials.get()
+        self.assertEqual(t.claim_id, 555)
+        self.assertEqual(t.status, "published")           # auto-publish when not moderated
+        self.assertTrue(t.source_uri)                     # anonymous anchor when walk-up
+
+    def test_unnamed_vouch_does_not_send_name_to_claim(self):
+        r, m = self._post(statement="I vouch.", name="Amina")  # show_identity unchecked
+        self.assertEqual(m.call_args.kwargs["name"], "")       # no public name without consent
+        self.assertFalse(self.c.testimonials.get().show_identity)
+
+    def test_moderation_gate_holds_new_vouch(self):
+        Campaign.objects.filter(pk=self.c.pk).update(moderate_vouches=True)
+        self._post(statement="hold me")
+        self.assertEqual(self.c.testimonials.get().status, "pending")
+
+    def test_empty_vouch_is_rejected(self):
+        r, m = self._post()  # no statement, no video
+        m.assert_not_called()
+        self.assertContains(r, "Add a few words")
+        self.assertEqual(self.c.testimonials.count(), 0)
+
+    def test_pull_backstop_lands_pending(self):
+        from unittest import mock
+        subject = f"{settings.PUBLIC_URL}/c/{self.c.slug}/"
+        claims = [
+            {"id": 101, "subject": subject, "claim": "ENDORSES", "statement": "hi",
+             "sourceURI": "https://live.linkedtrust.us/users/7", "images": []},
+            {"id": 104, "subject": subject, "claim": "RATED", "statement": "nope"},
+        ]
+        from campaigns.vouch_sync import pull_vouches
+        with mock.patch("campaigns.vouch_sync._fetch_claims", return_value=claims):
+            new = pull_vouches(self.c)
+        self.assertEqual({t.claim_id for t in new}, {101})     # only the ENDORSES
+        self.assertEqual(self.c.testimonials.get().status, "pending")  # reconcile = always pending
+        self.assertEqual(self.c.testimonials.get().source_uri, "https://live.linkedtrust.us/users/7")

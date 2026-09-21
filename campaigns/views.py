@@ -8,11 +8,18 @@ from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
+import secrets
+
+from django.utils import timezone
+from django.utils.text import slugify
+
 from .card import render_card
 from .context import site_campaigns, site_org
 from .donation_text import DONATION_DISCLOSURE
 from .forms import ResponseForm, TestimonialForm
-from .models import CTA, Campaign, ShareLink, Update
+from .linkedtrust import claim_url, create_endorsement
+from .models import CTA, Campaign, ShareLink, Testimonial, Update
+from .vouch_sync import notify_new_vouches, subject_uri
 
 
 def home(request):
@@ -114,6 +121,81 @@ def respond(request, slug, cta_id):
         r.save()
         return render(request, "campaigns/thanks.html", {"c": c, "cta": cta})
     return render(request, "campaigns/respond.html", {"c": c, "cta": cta, "form": form})
+
+
+def _voucher_identity(request):
+    """(source_uri, default_name) for whoever is vouching.
+
+    Signed in: their LinkedTrust user URI (a real, checkable source) and profile name.
+    Walk-up: no source yet — the caller falls back to a link they gave or an anonymous
+    anchor. Nobody is required to sign in; life is hard enough."""
+    user = request.user
+    if user.is_authenticated:
+        ident = user.sso_identities.first()
+        source = f"{settings.LT_API}/users/{ident.sub}" if ident else ""
+        return source, (user.get_full_name() or user.first_name or "")
+    return "", ""
+
+
+def vouch(request, slug):
+    """act's own vouch form: write a few words and/or record a short video, and act posts
+    an ENDORSES claim about the campaign with the person as its source (workers.vc's
+    plumbing, our front end). Works walk-up on a phone; signing in is encouraged, not
+    required, and only strengthens the source. The video recorder uploads to LinkedTrust
+    storage and hands back a URL we attach to the claim."""
+    c = _campaign_or_404(slug, request)
+    source_uri, default_name = _voucher_identity(request)
+    form = {"statement": "", "name": default_name, "link": "", "video_url": "", "show_identity": True}
+    errors = []
+    if request.method == "POST":
+        for k in ("statement", "name", "link", "video_url"):
+            form[k] = (request.POST.get(k) or "").strip()
+        form["show_identity"] = bool(request.POST.get("show_identity"))
+        if not form["statement"] and not form["video_url"]:
+            errors.append("Add a few words or record a short video.")
+        link = form["link"]
+        if link and not link.startswith(("http://", "https://")):
+            link = "https://" + link
+        # Source: signed-in identity wins; else a link they gave; else an anonymous anchor
+        # under the campaign, so the claim always has a valid source URI and no name leaks.
+        source = source_uri or link or f"{subject_uri(c)}#voucher-{secrets.token_urlsafe(6)}"
+        name = form["name"] or default_name
+        if not errors:
+            claim_id, err = create_endorsement(
+                campaign_url=subject_uri(c),
+                statement=form["statement"] or "Vouches for this work.",
+                source_uri=source,
+                name=name if form["show_identity"] else "",  # public claim: name only with consent
+                video_url=form["video_url"],
+            )
+            if claim_id:
+                status = "pending" if c.moderate_vouches else "published"
+                t = Testimonial.objects.create(
+                    campaign=c, author=request.user if request.user.is_authenticated else None,
+                    quote=form["statement"], display_name=name, show_identity=form["show_identity"],
+                    video_url=form["video_url"], source_uri=source, claim_id=claim_id,
+                    linkedclaim_uri=claim_url(claim_id), signed_at=timezone.now(), status=status)
+                notify_new_vouches(c, [t], status)
+                return render(request, "campaigns/vouched.html",
+                              {"c": c, "count": 1, "held": c.moderate_vouches})
+            errors.append(f"We could not post your vouch just now. Please try again. ({err})")
+    return render(request, "campaigns/vouch.html",
+                  {"c": c, "form": form, "errors": errors,
+                   "signed_in_as": default_name if request.user.is_authenticated else "",
+                   "sso_enabled": settings.LINKEDTRUST_SSO_ENABLED,
+                   "lt_api": settings.LT_API, "lt_embed": settings.LT_EMBED})
+
+
+def vouch_signin(request, slug):
+    """Start LinkedTrust sign-in and come back to this campaign's vouch page.
+
+    Optional convenience: stashes the return path so the callback (campaigns.sso) lands
+    the person back on the form, not in /admin. Only reachable when SSO is configured."""
+    c = _campaign_or_404(slug, request)
+    if not settings.LINKEDTRUST_SSO_ENABLED:
+        return redirect("vouch", slug=c.slug)
+    request.session["act_post_login_next"] = reverse("vouch", args=[c.slug])
+    return redirect("/api/v1/auth/linkedtrust/redirect")
 
 
 @login_required
