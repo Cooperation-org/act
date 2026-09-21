@@ -183,7 +183,7 @@ class LinkedClaimTests(TestCase):
 
     def test_testimony_form_carries_recorder_and_video_url(self):
         r = self.client.get("/c/jreas-coop/testimony/")
-        self.assertContains(r, "<linked-video-recorder")
+        self.assertContains(r, "data-lt-video-record")
         self.assertContains(r, "video-recorder.js")
         self.client.post("/c/jreas-coop/testimony/", {"quote": "Seen it.", "video_url": "https://f.example/v.webm"})
         t = self.c.testimonials.get(video_url="https://f.example/v.webm")  # the one just posted
@@ -267,7 +267,8 @@ class VouchTests(TestCase):
         r = self.client.get(f"/c/{self.c.slug}/vouch/")
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, "Vouch for JREAS Coop Center")
-        self.assertContains(r, "linked-video-recorder")   # video enabled
+        self.assertContains(r, "data-lt-video-record")     # self-hosted video recorder present
+        self.assertContains(r, "video-recorder.js")
         self.assertContains(r, 'name="statement"')
 
     def test_walkup_vouch_posts_endorsement_and_records_row(self):
