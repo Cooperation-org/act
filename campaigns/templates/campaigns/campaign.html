@@ -23,7 +23,6 @@
 
   {% if testimonials %}
   <h2 id="vouched">Vouched for, on the record</h2>
-  <p class="meta">Each card is a signed <a href="https://linkedtrust.us">LinkedClaim</a>. A signed claim links to the person's own record, so you can see who stands behind them.</p>
   <p><a class="btn ghost" href="{% url 'vouch' c.slug %}">Vouch for {{ c.org.name }}</a></p>
   <div class="vouches">
     {% for t in testimonials %}
