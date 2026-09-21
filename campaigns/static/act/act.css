@@ -95,7 +95,7 @@ header.site nav a { font: 400 .9rem var(--sans); text-decoration: none; }
 .methods .fee.zero { color: var(--good); font-weight: 700; }
 
 /* testimony cards */
-.vouches { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 1.25rem; }
+.vouches { display: flex; flex-direction: column; gap: 1rem; max-width: 42rem; }
 .vouch { background: #fff; border: 1px solid var(--rule); border-radius: 3px; overflow: hidden; }
 .vouch .vid {
   aspect-ratio: 16/9; background: #2b3231; color: #fafafa; display: grid; place-items: center;
