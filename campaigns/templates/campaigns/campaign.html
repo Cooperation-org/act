@@ -46,28 +46,6 @@
   <p><a class="btn ghost" href="{% url 'vouch' c.slug %}">Be the first to vouch</a></p>
   {% endif %}
 
-  {% if graph %}
-  <h2>The trust network</h2>
-  <p class="meta">Who vouches for this campaign. Each node is a published testimonial; follow a signed one to its record.</p>
-  <div class="graph-wrap">
-    <svg viewBox="0 0 560 240" width="560" height="240" role="img" aria-label="Trust network graph">
-      <g stroke="#25646a" stroke-width="1.5" fill="none" opacity=".65">
-        {% for n in graph.nodes %}<line x1="{{ graph.cx }}" y1="{{ graph.cy }}" x2="{{ n.x }}" y2="{{ n.y }}"/>{% endfor %}
-      </g>
-      <g font-family="PT Sans, sans-serif" font-size="11" text-anchor="middle">
-        <circle cx="{{ graph.cx }}" cy="{{ graph.cy }}" r="26" fill="#25646a"/>
-        <text x="{{ graph.cx }}" y="{{ graph.cy|add:4 }}" fill="#fff" font-weight="bold">{{ graph.label }}</text>
-        {% for n in graph.nodes %}
-        {% if n.href %}<a href="{{ n.href }}">{% endif %}
-        <circle cx="{{ n.x }}" cy="{{ n.y }}" r="18" fill="#eef4f4" stroke="#25646a"/>
-        <text x="{{ n.x }}" y="{{ n.y|add:4 }}" fill="#1a1a1a">{{ n.label }}</text>
-        {% if n.href %}</a>{% endif %}
-        {% endfor %}
-      </g>
-    </svg>
-  </div>
-  {% endif %}
-
   {% if ctas %}
   <h2 id="help">More than one way to help</h2>
   <div class="ways">
