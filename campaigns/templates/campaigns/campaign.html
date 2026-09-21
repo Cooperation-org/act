@@ -1,8 +1,9 @@
 {% extends "campaigns/base.html" %}
+{% load static %}
 {% block title %}{{ c.title }}{% endblock %}
 {% block head %}
 {% if c.org.givebutter_account_id %}<script async src="https://widgets.givebutter.com/latest.umd.cjs?acct={{ c.org.givebutter_account_id }}"></script>{% endif %}
-<script src="{{ lt_embed }}/badge.js" defer></script>
+<script src="{% static 'act/embed/badge.js' %}" defer></script>
 {% endblock %}
 {% block content %}
 {% if c.status != "published" %}<p class="meta" style="border:1px dashed var(--faded);padding:.4rem .7rem;display:inline-block">{{ c.get_status_display|upper }}: not public. Reviewers can open it with the review link in <a href="{% url 'admin:campaigns_campaign_change' c.pk %}">Edit</a>; an approver publishes it there.</p>{% endif %}
