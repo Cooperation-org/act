@@ -1,5 +1,5 @@
 {% extends "campaigns/base.html" %}
-{% load static %}
+{% block head %}<script src="{{ lt_api }}/video-recorder.js" defer></script>{% endblock %}
 {% block content %}
 <article class="piece">
 <h1>Add your testimony for {{ c.title }}</h1>
@@ -8,12 +8,15 @@ Showing your name is entirely your choice; testimony with the name withheld is s
 <form method="post" id="testimony">{% csrf_token %}
 <h2>Record a video (optional)</h2>
 <p class="meta">Up to 90 seconds. Say how you know them and what you have seen. The video is stored by LinkedTrust.</p>
-<div id="video-recorder" data-lt-video-url-target="#id_video_url" data-lt-max="90"></div>
+<linked-video-recorder id="lvr" api-base="{{ lt_api }}" max-duration="90" style="--lvr-accent:#25646a;display:block"{% if form.video_url.value %} video-url="{{ form.video_url.value }}"{% endif %}></linked-video-recorder>
 <h2>Or write it</h2>
 {{ form.as_p }}
 <button class="btn" type="submit">Submit for review</button>
 </form>
-<script src="{% static 'act/embed/video-recorder.js' %}"></script>
-<script>LTVideo.attach(document.getElementById('video-recorder'), {ltApi: '{{ lt_api|escapejs }}'});</script>
+<script>
+  var lvr = document.getElementById('lvr'), f = document.getElementById('id_video_url');
+  lvr.addEventListener('video-uploaded', function (e) { f.value = (e.detail && e.detail.videoUrl) || ''; });
+  lvr.addEventListener('video-removed', function () { f.value = ''; });
+</script>
 </article>
 {% endblock %}

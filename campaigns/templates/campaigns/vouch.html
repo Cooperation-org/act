@@ -1,6 +1,6 @@
 {% extends "campaigns/base.html" %}
-{% load static %}
 {% block title %}Vouch for {{ c.org.name }}{% endblock %}
+{% block head %}<script src="{{ lt_api }}/video-recorder.js" defer></script>{% endblock %}
 {% block content %}
 <article class="piece">
 <h1>Vouch for {{ c.org.name }}</h1>
@@ -20,7 +20,7 @@
     <textarea id="id_statement" name="statement" rows="4">{{ form.statement }}</textarea>
   </p>
 
-  <div id="video-recorder" data-lt-video-url-target="#id_video_url" data-lt-max="60" style="margin:0 0 1rem"></div>
+  <linked-video-recorder id="lvr" api-base="{{ lt_api }}" max-duration="60" style="--lvr-accent:#0d9488;display:block;margin:0 0 1rem"{% if form.video_url %} video-url="{{ form.video_url }}"{% endif %}></linked-video-recorder>
   <input type="hidden" id="id_video_url" name="video_url" value="{{ form.video_url }}">
 
   {% if not signed_in_as %}
@@ -41,6 +41,9 @@
 
 <p class="meta"><a href="{% url 'campaign' c.slug %}">Back to {{ c.title }}</a></p>
 </article>
-<script src="{% static 'act/embed/video-recorder.js' %}"></script>
-<script>LTVideo.attach(document.getElementById('video-recorder'), {ltApi: '{{ lt_api|escapejs }}'});</script>
+<script>
+  var lvr = document.getElementById('lvr'), f = document.getElementById('id_video_url');
+  lvr.addEventListener('video-uploaded', function (e) { f.value = (e.detail && e.detail.videoUrl) || ''; });
+  lvr.addEventListener('video-removed', function () { f.value = ''; });
+</script>
 {% endblock %}
