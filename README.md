@@ -61,9 +61,39 @@ and always visible.
 | cooperation.org | `letters` |, | `/letters/`, `/admin/` (root forwards to `/letters/`) |
 | raisethevoices.org | `campaigns,blog,people` |, (platform: every org's published campaigns) | `/`, `/c/<slug>/`, `/updates/`, `/blog/`, `/people/`, `/admin/` |
 | Jreas Coop (domain TBD) | `campaigns,blog,people` | `jreas-coop` | `/` (org home), `/c/jreas-coop/`, `/updates/`, `/blog/`, `/people/`, `/governance/`, `/admin/` |
+| Story Kit (not deployed) | `artifacts` |, | `/` → `/kit/`, `/start/`, `/ways/`, `/send/`, `/library/`, `/collections/`, `/stories/<slug>/`, `/admin/` |
 
 New capabilities (content management, content planning, email campaigns) arrive as further
 apps in this list.
+
+## Story Kit (`artifacts`)
+
+Raw material from many sources lands in one place per org, then becomes stories. Design:
+projects repo `Ideas/inbound-artifacts/` (the flow) and `Ideas/story-kit/` (the app).
+
+- **Start** (`/start/`): a signed-in person names their org (and optionally its website). That
+  creates the Org, makes them its approver, and opens **Ways to send** (`/ways/`).
+- **Ways in** (each makes Artifacts; the source stays the original, we keep a copy):
+  - phone or computer: `/send/` (camera, video, voice, files, drag and drop). Installed to the
+    home screen, the web app is in the phone's Share menu (`manifest.webmanifest` share target → `/share/`).
+  - email: each org has an address on its Email source (`manage.py set_intake_address <org> <address>`);
+    `manage.py poll_email` reads the intake mailbox over IMAP (Migadu) and files each message under the
+    org it was sent to: attachments become artifacts, the body is the sender's words. Run it on a timer.
+  - Google Drive: paste a folder shared "Anyone with the link"; it is copied in the background, subfolders
+    included, Google Docs skipped. Without `ACT_GOOGLE_API_KEY` it reads Drive's public folder view; with
+    it, the Drive API (adds owner and photo dates). `manage.py check_sources` re-copies new files.
+  - LinkedClaims: claims whose subject is the org's site (`GET {LT_API}/api/claims/subject/<url>`).
+  - a link, with what it shows.
+- One Artifact per item per org (sha256 of the file, or of the URL). The sender's words are kept
+  exactly; photo dates come from EXIF (location tags are never read).
+- **What we have** (`/library/`): filter by kind, label, way in, person, dates; label, hide, collect,
+  start a story. **Collections** are hand-picked sets or a saved filter.
+- **Stories**: `/stories/<slug>/edit/` orders pieces (drag, works by touch), adds captions and
+  paragraphs; publish makes `/stories/<slug>/` public. Drafts are visible to the org only.
+  The AI helper ("Draft from this collection") appears only with `ANTHROPIC_API_KEY`; it uses only the
+  pieces' own words and marks every line it writes until a person edits it.
+- Files: an S3-compatible bucket (Backblaze B2) when `ACT_STORAGE_BUCKET` is set, else `media/`.
+  Set `ACT_STORAGE_SIGNED_URLS=0` and `ACT_STORAGE_PUBLIC_HOST` only for a public bucket.
 
 ## Single-org site (`ACT_SITE_ORG`)
 
