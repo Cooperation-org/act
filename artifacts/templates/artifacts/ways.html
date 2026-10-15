@@ -1,0 +1,82 @@
+{% extends "artifacts/base.html" %}
+{% block title %}Ways to send · Story Kit{% endblock %}
+{% block content %}
+<h1>Ways to send us things</h1>
+<p class="lede">Use whichever is easiest. Everything ends up in <a href="{% url 'artifacts:library' %}">What we have</a>{% if count %} ({{ count }} so far){% endif %}, with who sent it and when.</p>
+
+<ul class="ways">
+  <li>
+    <span class="icon" aria-hidden="true">📱</span>
+    <div>
+      <h3>From your phone</h3>
+      <p>Open this page on your phone. Take a photo or video, or pick from your camera roll, and add a sentence about it.</p>
+      <div class="copy"><code id="send-url">{{ send_url }}</code><button type="button" class="quiet" data-copy="send-url">Copy link</button><a class="btn" href="{% url 'artifacts:send' %}">Open</a></div>
+      <p class="muted">Tip: on the phone, choose "Add to Home Screen". Then Story Kit shows up in your phone's Share menu, next to Messages and Mail.</p>
+    </div>
+  </li>
+  <li>
+    <span class="icon" aria-hidden="true">✉️</span>
+    <div>
+      <h3>By email</h3>
+      {% if email_address %}
+      <p>Email photos, videos and files to this address. Write a line about them in the email. Anyone on your team can use it.</p>
+      <div class="copy"><code id="email-addr">{{ email_address }}</code><button type="button" class="quiet" data-copy="email-addr">Copy address</button></div>
+      {% else %}
+      <p>Email photos, videos and files to your own address and they land here.</p>
+      <p class="pending">Your email address is being set up. It will appear here.</p>
+      {% endif %}
+    </div>
+  </li>
+  <li>
+    <span class="icon" aria-hidden="true">📁</span>
+    <div>
+      <h3>From a Google Drive folder</h3>
+      <p>In Google Drive, open the folder, choose Share, set "Anyone with the link", copy the link, and paste it here. We copy what is in it; we never change your folder.</p>
+      <form method="post" action="{% url 'artifacts:add_drive' %}" class="row">{% csrf_token %}
+        <input type="url" name="folder" placeholder="https://drive.google.com/drive/folders/…" aria-label="Drive folder link" required>
+        <button type="submit">Add folder</button>
+      </form>
+      {% if not drive_on %}<p class="muted">Copying from Drive is not switched on yet. Folders you add now are copied once it is.</p>{% endif %}
+      {% if drive_sources %}<ul class="sourcelist">{% for s in drive_sources %}<li><a href="{{ s.config.folder_url }}">Drive folder</a> · {% if s.last_checked %}checked {{ s.last_checked|timesince }} ago{% else %}not copied yet{% endif %}{% if s.last_error %} · <span class="pending">{{ s.last_error }}</span>{% endif %}
+        {% if drive_on %}<form method="post" action="{% url 'artifacts:check_source' s.pk %}" style="display:inline">{% csrf_token %}<button class="quiet" type="submit">Copy new files now</button></form>{% endif %}</li>{% endfor %}</ul>{% endif %}
+    </div>
+  </li>
+  <li>
+    <span class="icon" aria-hidden="true">🔗</span>
+    <div>
+      <h3>A link</h3>
+      <p>An article, a post, a report online. Paste it and say what it shows.</p>
+      <form method="post" action="{% url 'artifacts:add_link' %}">{% csrf_token %}
+        <input type="url" name="url" placeholder="https://…" aria-label="Link" required>
+        <textarea name="words" placeholder="What does this show? (optional)" aria-label="What it shows" style="margin-top:.5rem;min-height:3.5rem"></textarea>
+        <p><button type="submit">Save link</button></p>
+      </form>
+    </div>
+  </li>
+  <li>
+    <span class="icon" aria-hidden="true">✅</span>
+    <div>
+      <h3>LinkedClaims about you</h3>
+      <p>Endorsements and claims people have signed about your work, on LinkedTrust. Give the web address they are about, and we bring them in.</p>
+      {% if claim_sources %}<ul class="sourcelist">{% for s in claim_sources %}<li>{{ s.config.subject }} · {% if s.last_checked %}checked {{ s.last_checked|timesince }} ago{% else %}not checked yet{% endif %}{% if s.last_error %} · <span class="pending">{{ s.last_error }}</span>{% endif %}
+        <form method="post" action="{% url 'artifacts:check_source' s.pk %}" style="display:inline">{% csrf_token %}<button class="quiet" type="submit">Check now</button></form></li>{% endfor %}</ul>{% endif %}
+      <form method="post" action="{% url 'artifacts:add_claims' %}" class="row">{% csrf_token %}
+        <input type="url" name="subject" placeholder="{{ org.website|default:'https://yourorg.org' }}" aria-label="Web address the claims are about" required>
+        <button type="submit">Bring them in</button>
+      </form>
+    </div>
+  </li>
+</ul>
+{% endblock %}
+{% block scripts %}
+<script>
+document.querySelectorAll('[data-copy]').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var t = document.getElementById(b.dataset.copy).textContent.trim();
+    (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(function () {
+      var was = b.textContent; b.textContent = 'Copied'; setTimeout(function () { b.textContent = was; }, 1500);
+    }).catch(function () { window.prompt('Copy this:', t); });
+  });
+});
+</script>
+{% endblock %}

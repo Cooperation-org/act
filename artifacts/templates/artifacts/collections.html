@@ -1,0 +1,9 @@
+{% extends "artifacts/base.html" %}
+{% block title %}Collections · Story Kit{% endblock %}
+{% block content %}
+<h1>Collections</h1>
+<p class="lede">Sets of items that go together: a cohort, an event, a person's journey. Make one in <a href="{% url 'artifacts:library' %}">What we have</a> by ticking items or filtering, then "Collect".</p>
+{% if collections %}
+<ul class="list">{% for c in collections %}<li><span><a href="{% url 'artifacts:collection' c.pk %}"><strong>{{ c.name }}</strong></a>{% if c.description %} · {{ c.description|truncatechars:80 }}{% endif %}</span><small>{{ c.artifacts.count }} {{ c.artifacts.count|pluralize:"item,items" }}</small></li>{% endfor %}</ul>
+{% else %}<div class="empty"><p>No collections yet.</p><a class="btn" href="{% url 'artifacts:library' %}">Go to What we have</a></div>{% endif %}
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends "artifacts/base.html" %}
+{% block title %}{{ a }} · Story Kit{% endblock %}
+{% block head %}{% if a.claim_id %}<script src="{{ lt_embed }}/badge.js" defer></script>{% endif %}{% endblock %}
+{% block content %}
+<p><a href="{% url 'artifacts:library' %}">← What we have</a></p>
+<div class="detail">
+  <div>
+    <div class="media">
+      {% if a.is_image %}<img src="{{ a.file.url }}" alt="{{ a.title|default:a.words|truncatechars:120 }}">
+      {% elif a.is_video %}<video src="{{ a.file.url }}" controls playsinline preload="metadata"></video>
+      {% elif a.is_audio %}<audio src="{{ a.file.url }}" controls style="width:100%"></audio>
+      {% elif a.claim_id %}<linked-badge claim-id="{{ a.claim_id }}" layout="row" theme="light"></linked-badge>
+      {% elif a.file %}<p><a class="btn" href="{{ a.file.url }}">Open {{ a.filename }}</a></p>
+      {% elif a.source_url %}<p><a class="btn" href="{{ a.source_url }}" rel="noopener">Open the link</a></p>{% endif %}
+    </div>
+    {% if a.words %}<h2>In their words</h2><div class="words">{{ a.words }}</div>{% endif %}
+  </div>
+  <div>
+    <form method="post">{% csrf_token %}
+      <label for="title">Title <span class="muted">(optional)</span></label>
+      <input type="text" id="title" name="title" value="{{ a.title }}">
+      <label for="about">Who or what it is about</label>
+      <input type="text" id="about" name="about" value="{{ a.about }}" placeholder="A person, a business, a program">
+      <label for="tags">Labels <span class="muted">(comma separated)</span></label>
+      <input type="text" id="tags" name="tags" value="{{ tag_text }}">
+      <label class="row" style="font-weight:400"><input type="checkbox" name="consent"{% if a.consent %} checked{% endif %}> Everyone shown agreed to be in it</label>
+      <p><button type="submit">Save</button></p>
+    </form>
+    <h2>Where it came from</h2>
+    <dl class="facts">
+      <dt>Kind</dt><dd>{{ a.get_kind_display }}</dd>
+      <dt>Happened</dt><dd>{{ a.happened_at|date:"j M Y, H:i"|default:"not known" }}</dd>
+      <dt>Came in</dt><dd>{{ a.received_at|date:"j M Y, H:i" }}{% if a.source %} · {{ a.source.get_kind_display }}{% endif %}</dd>
+      {% if a.sent_by %}<dt>Sent by</dt><dd>{{ a.sent_by }}</dd>{% endif %}
+      {% if a.source_url %}<dt>Original</dt><dd><a href="{{ a.source_url }}" rel="noopener">{{ a.source_url|truncatechars:60 }}</a></dd>{% endif %}
+      {% if a.filename %}<dt>File</dt><dd>{{ a.filename }} · {{ a.size|filesizeformat }}</dd>{% endif %}
+      {% if a.claim_id %}<dt>LinkedClaim</dt><dd><a href="{{ a.claim_url }}">{{ a.claim_url }}</a></dd>{% endif %}
+      {% for c in a.collections.all %}{% if forloop.first %}<dt>In</dt><dd>{% endif %}<a href="{% url 'artifacts:collection' c.pk %}">{{ c.name }}</a>{% if not forloop.last %}, {% else %}</dd>{% endif %}{% endfor %}
+    </dl>
+  </div>
+</div>
+{% endblock %}

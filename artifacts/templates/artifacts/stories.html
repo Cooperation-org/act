@@ -1,0 +1,9 @@
+{% extends "artifacts/base.html" %}
+{% block title %}Stories · Story Kit{% endblock %}
+{% block content %}
+<h1>Stories</h1>
+<p class="lede">Start a story from a <a href="{% url 'artifacts:collections' %}">collection</a>, or tick items in <a href="{% url 'artifacts:library' %}">What we have</a> and choose "Story from ticked".</p>
+{% if stories %}
+<ul class="list">{% for s in stories %}<li><span><a href="{% url 'artifacts:story_edit' s.slug %}"><strong>{{ s.title }}</strong></a> · {{ s.get_status_display }}</span><span>{% if s.status == "published" %}<a href="{% url 'artifacts:story' s.slug %}">View</a> · {% endif %}<small>edited {{ s.updated|timesince }} ago</small></span></li>{% endfor %}</ul>
+{% else %}<div class="empty"><p>No stories yet.</p></div>{% endif %}
+{% endblock %}

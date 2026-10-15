@@ -1,0 +1,41 @@
+{% extends "artifacts/base.html" %}
+{% block title %}Send · Story Kit{% endblock %}
+{% block content %}
+<h1>Send a photo, video or voice note</h1>
+<p class="lede">Add as many as you like. A sentence about them helps later.</p>
+<form method="post" enctype="multipart/form-data" class="narrow" id="send">{% csrf_token %}
+  <div class="picks">
+    <label><input type="file" name="files" accept="image/*" capture="environment" multiple><span class="btn">📷 Take photo</span></label>
+    <label><input type="file" name="files" accept="video/*" capture="environment" multiple><span class="btn">🎥 Record video</span></label>
+    <label><input type="file" name="files" accept="audio/*" capture multiple><span class="btn">🎙 Voice note</span></label>
+  </div>
+  <label class="drop" id="drop">
+    <strong>Or choose files</strong>
+    <span class="muted">Photos, videos, voice notes, PDFs, documents. Drop them here on a computer.</span>
+    <input type="file" name="files" multiple id="pick">
+  </label>
+  <p class="chosen" id="chosen" aria-live="polite"></p>
+  <label for="words">What is this? <span class="muted">(your own words, kept exactly)</span></label>
+  <textarea id="words" name="words" placeholder="Who is in it, what happened, why it matters"></textarea>
+  <label for="happened_on">When did it happen? <span class="muted">(photos usually know; leave as is if unsure)</span></label>
+  <input type="date" id="happened_on" name="happened_on" max="{{ today }}">
+  <p style="margin-top:1.4rem"><button type="submit" class="big" id="go">Send</button></p>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  var form = document.getElementById('send'), chosen = document.getElementById('chosen'), drop = document.getElementById('drop'), pick = document.getElementById('pick');
+  function show() {
+    var n = 0, names = [];
+    form.querySelectorAll('input[type=file]').forEach(function (i) { for (var f of i.files) { n++; names.push(f.name); } });
+    chosen.textContent = n ? n + (n === 1 ? ' item ready: ' : ' items ready: ') + names.slice(0, 4).join(', ') + (n > 4 ? '…' : '') : '';
+  }
+  form.addEventListener('change', show);
+  ['dragenter', 'dragover'].forEach(function (e) { drop.addEventListener(e, function (ev) { ev.preventDefault(); drop.classList.add('over'); }); });
+  ['dragleave', 'drop'].forEach(function (e) { drop.addEventListener(e, function () { drop.classList.remove('over'); }); });
+  drop.addEventListener('drop', function (ev) { ev.preventDefault(); pick.files = ev.dataTransfer.files; show(); });
+  form.addEventListener('submit', function () { var b = document.getElementById('go'); b.textContent = 'Sending…'; b.disabled = true; });
+})();
+</script>
+{% endblock %}

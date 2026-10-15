@@ -1,0 +1,15 @@
+{% extends "artifacts/base.html" %}
+{% block title %}Start · Story Kit{% endblock %}
+{% block content %}
+<h1>Set up your organization</h1>
+<p class="lede">One question. You can change it later.</p>
+{% if orgs %}<p class="muted">You already work with {% for o in orgs %}<a href="{% url 'artifacts:switch_org' o.pk %}">{{ o.name }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}.</p>{% endif %}
+<form method="post" class="narrow">{% csrf_token %}
+  {% if error %}<p class="pending" role="alert">{{ error }}</p>{% endif %}
+  <label for="name">Your organization's name</label>
+  <input type="text" id="name" name="name" required autocomplete="organization" autofocus>
+  <label for="website">Website <span class="muted">(optional, used to find LinkedClaims about you)</span></label>
+  <input type="text" id="website" name="website" inputmode="url" placeholder="yourorg.org">
+  <p style="margin-top:1.4rem"><button type="submit" class="big">Continue</button></p>
+</form>
+{% endblock %}

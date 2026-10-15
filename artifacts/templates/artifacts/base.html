@@ -1,0 +1,37 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>{% block title %}Story Kit{% endblock %}</title>
+<link rel="stylesheet" href="{% static 'artifacts/kit.css' %}">
+<link rel="manifest" href="{% url 'artifacts:manifest' %}">
+<meta name="theme-color" content="#00718f">
+<link rel="icon" href="{% static 'artifacts/icon-192.png' %}">
+<link rel="apple-touch-icon" href="{% static 'artifacts/icon-192.png' %}">
+{% block head %}{% endblock %}
+</head>
+<body>
+<div class="wrap">
+<header class="kit">
+  <a class="mark" href="{% url 'artifacts:home' %}">Story Kit{% if org %} <span>· {{ org.name }}</span>{% endif %}</a>
+  {% if org %}
+  <nav aria-label="Main">
+    <a href="{% url 'artifacts:ways' %}"{% if nav == "ways" %} aria-current="page"{% endif %}>Ways to send</a>
+    <a href="{% url 'artifacts:send' %}"{% if nav == "send" %} aria-current="page"{% endif %}>Send</a>
+    <a href="{% url 'artifacts:library' %}"{% if nav == "library" %} aria-current="page"{% endif %}>What we have</a>
+    <a href="{% url 'artifacts:collections' %}"{% if nav == "collections" %} aria-current="page"{% endif %}>Collections</a>
+    <a href="{% url 'artifacts:stories' %}"{% if nav == "stories" %} aria-current="page"{% endif %}>Stories</a>
+  </nav>
+  {% endif %}
+</header>
+{% if messages %}<ul class="flash" role="status">{% for m in messages %}<li class="{{ m.tags }}">{{ m }}</li>{% endfor %}</ul>{% endif %}
+{% block content %}{% endblock %}
+</div>
+<script>
+if ('serviceWorker' in navigator) { navigator.serviceWorker.register('{% url "artifacts:sw" %}').catch(function(){}); }
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

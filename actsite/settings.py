@@ -11,7 +11,7 @@ CSRF_TRUSTED_ORIGINS = [f"https://{h}" for h in ALLOWED_HOSTS if h not in ("loca
 
 # Which public apps this deployment serves (routes + admin). Models of every app
 # are always installed so one database can back several deployments.
-ALL_ACT_APPS = ["campaigns", "letters", "blog", "people"]
+ALL_ACT_APPS = ["campaigns", "letters", "blog", "people", "artifacts"]
 ENABLED_APPS = [a.strip() for a in os.environ.get("ACT_APPS", ",".join(ALL_ACT_APPS)).split(",") if a.strip()]
 _unknown = set(ENABLED_APPS) - set(ALL_ACT_APPS)
 if _unknown or not ENABLED_APPS:
@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     "letters",
     "people",
     "blog",
+    "artifacts",
 ]
 
 # Single-org site: this deployment IS one org (e.g. ACT_SITE_ORG=jreas → the Jreas Coop
@@ -118,6 +119,35 @@ STORAGES = {
 }
 MEDIA_URL = f"{BASE_PATH}/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+
+# Uploaded files (Story Kit artifacts, photos) go to an S3-compatible bucket when one is
+# configured (Backblaze B2: endpoint https://s3.us-east-005.backblazeb2.com), else media/.
+# A bucket is this app's own (ACT_STORAGE_*), even when it shares keys with another app.
+ACT_STORAGE_BUCKET = os.environ.get("ACT_STORAGE_BUCKET", "")
+if ACT_STORAGE_BUCKET:
+    STORAGES["default"] = {"BACKEND": "storages.backends.s3.S3Storage", "OPTIONS": {
+        "bucket_name": ACT_STORAGE_BUCKET,
+        "endpoint_url": os.environ.get("ACT_STORAGE_ENDPOINT", ""),
+        "access_key": os.environ.get("ACT_STORAGE_KEY", ""),
+        "secret_key": os.environ.get("ACT_STORAGE_SECRET", ""),
+        "region_name": os.environ.get("ACT_STORAGE_REGION", "us-east-005"),
+        "custom_domain": os.environ.get("ACT_STORAGE_PUBLIC_HOST", "") or None,
+        "querystring_auth": os.environ.get("ACT_STORAGE_SIGNED_URLS", "1") == "1",
+        "file_overwrite": False,
+        "default_acl": None,
+    }}
+# Phone videos are large; Django streams uploads above this to a temp file.
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
+DATA_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024
+
+# Story Kit spouts. Unset = that way in is shown as "not switched on yet".
+ACT_INTAKE_IMAP_HOST = os.environ.get("ACT_INTAKE_IMAP_HOST", "imap.migadu.com")
+ACT_INTAKE_IMAP_USER = os.environ.get("ACT_INTAKE_IMAP_USER", "")
+ACT_INTAKE_IMAP_PASSWORD = os.environ.get("ACT_INTAKE_IMAP_PASSWORD", "")
+ACT_GOOGLE_API_KEY = os.environ.get("ACT_GOOGLE_API_KEY", "")
+# AI helper (collection → story draft). Unset = the button is not shown.
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+ACT_AI_MODEL = os.environ.get("ACT_AI_MODEL", "claude-sonnet-5-5")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 LOGIN_URL = "admin:login"  # a URL name, so it resolves under ACT_BASE_PATH too

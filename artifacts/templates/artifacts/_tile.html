@@ -1,0 +1,13 @@
+<div class="tile">
+  {% if pickable %}<label class="pick"><input type="checkbox" name="ids" value="{{ a.pk }}" form="{{ form_id|default:'bulk' }}" aria-label="Select"></label>{% endif %}
+  <a class="open" href="{% url 'artifacts:artifact' a.pk %}">
+    <div class="media">{% include "artifacts/_media.html" %}</div>
+    <div class="body">
+      <span class="kind">{{ a.get_kind_display }}</span>
+      {% if a.title %}<h3>{{ a.title }}</h3>{% endif %}
+      {% if a.words %}<p>{{ a.words }}</p>{% elif a.filename %}<p class="muted">{{ a.filename }}</p>{% elif a.source_url %}<p class="muted">{{ a.source_url }}</p>{% endif %}
+      <small>{{ a.when|date:"j M Y" }}{% if a.sent_by %} · {{ a.sent_by|truncatechars:32 }}{% endif %}</small>
+      <div>{% for t in a.tags.all %}<span class="tag">{{ t.name }}</span>{% endfor %}</div>
+    </div>
+  </a>
+</div>

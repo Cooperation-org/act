@@ -1,0 +1,6 @@
+{% extends "artifacts/base.html" %}
+{% block content %}
+<h1>Collect your stories as they happen.</h1>
+<p class="lede">Send photos, videos, voice notes, links and files from your phone, your email or a Google Drive folder. Everything lands in one place, with who sent it and when. Then put the pieces together into a story you can share.</p>
+<p><a class="btn big" href="{% url 'artifacts:signin' %}?next={% url 'artifacts:start' %}">Sign in to start</a></p>
+{% endblock %}

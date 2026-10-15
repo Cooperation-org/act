@@ -1,0 +1,69 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ s.title }} · {{ s.org.name }}</title>
+{% if s.statement %}<meta name="description" content="{{ s.statement|truncatechars:200 }}">{% endif %}
+<meta property="og:title" content="{{ s.title }}">
+{% if s.statement %}<meta property="og:description" content="{{ s.statement|truncatechars:200 }}">{% endif %}
+{% if first_image %}<meta property="og:image" content="{{ first_image.file.url }}">{% endif %}
+{% if s.status != "published" %}<meta name="robots" content="noindex">{% endif %}
+<link rel="stylesheet" href="{% static 'artifacts/kit.css' %}">
+<script src="{{ lt_embed }}/badge.js" defer></script>
+<style>
+  body { background: var(--paper); }
+  .story { max-width: 46rem; margin: 0 auto; padding: 0 1.25rem 6rem; font-family: var(--font-story); }
+  .draftbar { background: var(--warn-bg); color: var(--warn-ink); text-align: center; padding: .6rem 1rem; font-size: .95rem; }
+  .story header { padding: 5rem 0 2.5rem; }
+  .story .org { font-size: .9rem; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 1rem; }
+  .story h1 { font-size: clamp(2.2rem, 6vw, 3.4rem); line-height: 1.08; letter-spacing: -.02em; margin: 0 0 1.2rem; }
+  .story .statement { font-size: 1.35rem; line-height: 1.45; color: var(--ink-2); margin: 0; }
+  .story .rule { width: 3rem; height: 3px; background: var(--brand); border: 0; margin: 2.5rem 0 0; }
+  .piece { margin: 3.5rem 0; }
+  .piece figure { margin: 0; }
+  .piece .wide { margin: 0 calc(50% - min(50vw, 32rem)); }
+  .piece img, .piece video { display: block; width: 100%; height: auto; max-height: 85vh; object-fit: contain; background: #f4f4f2; }
+  .piece audio { width: 100%; }
+  .piece figcaption { font-size: .92rem; color: var(--ink-3); margin-top: .7rem; }
+  .piece .text { font-size: 1.2rem; line-height: 1.65; margin: 1.2rem 0 0; white-space: pre-line; }
+  .piece blockquote { margin: 1.2rem 0 0; padding: 0 0 0 1.2rem; border-left: 3px solid var(--brand); font-size: 1.15rem; line-height: 1.6; color: var(--ink); white-space: pre-line; }
+  .piece .link { display: block; border: 1px solid var(--rule); border-radius: var(--radius); padding: 1rem 1.2rem; text-decoration: none; color: var(--ink); }
+  .piece .link span { display: block; color: var(--accent); overflow-wrap: anywhere; font-size: .95rem; }
+  .story footer { border-top: 1px solid var(--rule); padding-top: 1.5rem; margin-top: 4rem; font-size: .9rem; color: var(--ink-3); }
+  @media (max-width: 760px) { .story header { padding: 3rem 0 1.5rem; } .piece { margin: 2.5rem 0; } .piece .wide { margin: 0 -1.25rem; } }
+</style>
+</head>
+<body>
+{% if s.status != "published" %}<div class="draftbar">Preview. Only your team can see this until it is published. <a href="{% url 'artifacts:story_edit' s.slug %}">Back to editing</a></div>
+{% elif is_member %}<div class="draftbar" style="background:var(--accent-soft);color:var(--ink)"><a href="{% url 'artifacts:story_edit' s.slug %}">Edit this story</a></div>{% endif %}
+<article class="story">
+  <header>
+    <p class="org">{% if s.org.website %}<a href="{{ s.org.website }}" style="color:inherit;text-decoration:none">{{ s.org.name }}</a>{% else %}{{ s.org.name }}{% endif %}</p>
+    <h1>{{ s.title }}</h1>
+    {% if s.statement %}<p class="statement">{{ s.statement }}</p>{% endif %}
+    <hr class="rule">
+  </header>
+  {% for b in blocks %}
+  <section class="piece">
+    {% with a=b.artifact %}
+    {% if a %}
+      {% if a.is_image %}<figure><div class="wide"><img src="{{ a.file.url }}" alt="{{ b.text|default:a.words|default:a.title|truncatechars:160 }}" loading="{% if forloop.first %}eager{% else %}lazy{% endif %}"></div>
+        <figcaption>{{ a.when|date:"j F Y" }}{% if a.about %} · {{ a.about }}{% endif %}</figcaption></figure>
+      {% elif a.is_video %}<figure><div class="wide"><video src="{{ a.file.url }}" controls playsinline preload="metadata"></video></div>
+        <figcaption>{{ a.when|date:"j F Y" }}{% if a.about %} · {{ a.about }}{% endif %}</figcaption></figure>
+      {% elif a.is_audio %}<figure><audio src="{{ a.file.url }}" controls preload="metadata"></audio><figcaption>Voice note · {{ a.when|date:"j F Y" }}</figcaption></figure>
+      {% elif a.claim_id %}<linked-badge claim-id="{{ a.claim_id }}" layout="row" theme="light"></linked-badge>
+      {% elif a.kind == "link" %}<a class="link" href="{{ a.source_url }}" rel="noopener">{{ a.title|default:"Read more" }}<span>{{ a.source_url }}</span></a>
+      {% elif a.file and a.kind == "file" %}<a class="link" href="{{ a.file.url }}">{{ a.title|default:a.filename }}<span>{{ a.filename }}</span></a>{% endif %}
+      {% if b.text %}<p class="text">{{ b.text }}</p>{% elif a.words and not a.claim_id %}<blockquote>{{ a.words }}</blockquote>{% endif %}
+    {% else %}
+      <p class="text">{{ b.text }}</p>
+    {% endif %}
+    {% endwith %}
+  </section>
+  {% endfor %}
+  <footer>{{ s.org.name }}{% if s.published_at %} · {{ s.published_at|date:"j F Y" }}{% endif %}</footer>
+</article>
+</body>
+</html>

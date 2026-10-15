@@ -1,0 +1,22 @@
+{% extends "artifacts/base.html" %}
+{% block title %}{{ c.name }} · Story Kit{% endblock %}
+{% block content %}
+<p><a href="{% url 'artifacts:collections' %}">← Collections</a></p>
+<h1>{{ c.name }}</h1>
+{% if c.description %}<p class="lede">{{ c.description }}</p>{% endif %}
+<form method="post" class="row" style="margin:1rem 0">{% csrf_token %}
+  <button type="submit" name="action" value="story" class="big">Make a story from this</button>
+  {% if c.filter %}<button type="submit" name="action" value="refresh" class="quiet">Add new items that match</button>{% endif %}
+</form>
+{% if stories %}<p class="muted">Stories from this collection: {% for s in stories %}<a href="{% url 'artifacts:story_edit' s.slug %}">{{ s.title }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+{% if items %}
+<div class="grid">{% for a in items %}{% include "artifacts/_tile.html" with pickable=1 form_id="coll" %}{% endfor %}</div>
+<form method="post" id="coll" class="toolbar">{% csrf_token %}<button type="submit" name="action" value="remove" class="quiet">Take ticked out of this collection</button></form>
+{% else %}<div class="empty"><p>This collection is empty.</p></div>{% endif %}
+<details style="margin-top:2rem"><summary>Rename or describe</summary>
+<form method="post" class="narrow">{% csrf_token %}
+  <label for="cname">Name</label><input type="text" id="cname" name="name" value="{{ c.name }}">
+  <label for="cdesc">Description</label><textarea id="cdesc" name="description">{{ c.description }}</textarea>
+  <p><button type="submit" name="action" value="rename">Save</button></p>
+</form></details>
+{% endblock %}

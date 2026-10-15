@@ -1,0 +1,110 @@
+{% extends "artifacts/base.html" %}
+{% block title %}Edit: {{ s.title }} · Story Kit{% endblock %}
+{% block content %}
+<p><a href="{% url 'artifacts:stories' %}">← Stories</a>{% if s.collection %} · from <a href="{% url 'artifacts:collection' s.collection.pk %}">{{ s.collection.name }}</a>{% endif %}</p>
+<form method="post" id="story">{% csrf_token %}
+<input type="hidden" name="blocks" id="blocks-json">
+<div class="editor">
+  <div>
+    <label for="title">Title</label>
+    <input type="text" id="title" name="title" value="{{ s.title }}" required>
+    <label for="statement">What this story shows <span class="muted">(one or two sentences, shown under the title)</span></label>
+    <textarea id="statement" name="statement" style="min-height:4rem">{{ s.statement }}</textarea>
+    <h2>The story, in order</h2>
+    <p class="muted">Drag ⠿ to reorder. Write a caption or a line of story next to each piece.</p>
+    <ol class="blocks" id="blocks">
+      {% for b in blocks %}
+      <li class="block{% if not b.artifact %} text-only{% endif %}" data-artifact="{{ b.artifact_id|default:'' }}" data-ai="{% if b.by_ai %}1{% endif %}">
+        <span class="grip" aria-label="Drag to reorder" title="Drag to reorder">⠿</span>
+        {% if b.artifact %}<div class="thumb">{% include "artifacts/_media.html" with a=b.artifact %}</div>{% endif %}
+        <div>
+          {% if b.artifact %}<p class="from">{{ b.artifact.get_kind_display }} · {{ b.artifact.when|date:"j M Y" }}{% if b.artifact.sent_by %} · {{ b.artifact.sent_by|truncatechars:40 }}{% endif %}{% if b.artifact.words %} · “{{ b.artifact.words|truncatechars:90 }}”{% endif %}</p>{% endif %}
+          {% if b.by_ai %}<span class="ai">AI draft, not yet edited</span>{% endif %}
+          <textarea aria-label="Text for this piece" placeholder="{% if b.artifact %}Caption or a line of story (optional){% else %}A paragraph of the story{% endif %}">{{ b.text }}</textarea>
+        </div>
+        <button type="button" class="remove" aria-label="Take out of story" title="Take out of story">✕</button>
+      </li>
+      {% endfor %}
+    </ol>
+    <p><button type="button" class="quiet" id="add-text">+ Add a paragraph</button></p>
+  </div>
+  <div>
+    <h2 style="margin-top:0">Add pieces</h2>
+    <p class="muted">{% if s.collection %}From “{{ s.collection.name }}”.{% else %}From everything you have.{% endif %} Tap one to add it to the end.</p>
+    <div class="pool" id="pool">
+      {% for a in pool %}
+      <button type="button" data-artifact="{{ a.pk }}" data-from="{{ a.get_kind_display }} · {{ a.when|date:'j M Y' }}{% if a.sent_by %} · {{ a.sent_by|truncatechars:40 }}{% endif %}{% if a.words %} · “{{ a.words|truncatechars:90 }}”{% endif %}">
+        <span class="thumb">{% include "artifacts/_media.html" %}</span>
+        <span>{{ a.title|default:a.words|default:a.filename|default:a.source_url|truncatechars:70 }}<small>{{ a.when|date:"j M Y" }}</small></span>
+      </button>
+      {% empty %}<p class="muted" style="padding:1rem">Everything is already in the story.</p>{% endfor %}
+    </div>
+    {% if ai_on %}
+    <h2>AI helper</h2>
+    <p class="muted">Writes a first draft from these pieces, using only what they say. It replaces the story below; every line it writes is marked until you edit it.</p>
+    <p><button type="submit" name="action" value="ai" class="quiet" id="ai">Draft from {% if s.collection %}this collection{% else %}these pieces{% endif %}</button></p>
+    {% endif %}
+  </div>
+</div>
+<div class="savebar">
+  <button type="submit" name="action" value="save">Save</button>
+  {% if s.status == "published" %}
+    <a class="btn quiet" href="{% url 'artifacts:story' s.slug %}">View published story</a>
+    <button type="submit" name="action" value="unpublish" class="quiet">Unpublish</button>
+  {% else %}
+    <a class="btn quiet" href="{% url 'artifacts:story' s.slug %}">Preview</a>
+    <button type="submit" name="action" value="publish" class="quiet">Publish</button>
+  {% endif %}
+  {% if s.status == "published" %}<small>Public at <a href="{{ public_url }}">{{ public_url }}</a></small>{% endif %}
+</div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  var list = document.getElementById('blocks'), form = document.getElementById('story');
+  function block(artifactId, thumbHtml, from) {
+    var li = document.createElement('li');
+    li.className = 'block' + (artifactId ? '' : ' text-only');
+    li.dataset.artifact = artifactId || '';
+    li.innerHTML = '<span class="grip" aria-label="Drag to reorder" title="Drag to reorder">⠿</span>' +
+      (artifactId ? '<div class="thumb">' + thumbHtml + '</div>' : '') +
+      '<div>' + (from ? '<p class="from"></p>' : '') + '<textarea aria-label="Text for this piece"></textarea></div>' +
+      '<button type="button" class="remove" aria-label="Take out of story" title="Take out of story">✕</button>';
+    if (from) li.querySelector('.from').textContent = from;
+    li.querySelector('textarea').placeholder = artifactId ? 'Caption or a line of story (optional)' : 'A paragraph of the story';
+    list.appendChild(li);
+    return li;
+  }
+  document.getElementById('pool').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-artifact]'); if (!b) return;
+    block(b.dataset.artifact, b.querySelector('.thumb').innerHTML, b.dataset.from);
+    b.remove();
+  });
+  document.getElementById('add-text').addEventListener('click', function () { block('', '', '').querySelector('textarea').focus(); });
+  list.addEventListener('click', function (e) { if (e.target.closest('.remove')) e.target.closest('.block').remove(); });
+  list.addEventListener('input', function (e) { var li = e.target.closest('.block'); if (li) { li.dataset.ai = ''; var t = li.querySelector('.ai'); if (t) t.remove(); } });
+  // Drag to reorder with pointer events, so it works with a finger as well as a mouse.
+  var drag = null;
+  list.addEventListener('pointerdown', function (e) {
+    var g = e.target.closest('.grip'); if (!g) return;
+    drag = g.closest('.block'); drag.classList.add('dragging'); g.setPointerCapture(e.pointerId); e.preventDefault();
+  });
+  list.addEventListener('pointermove', function (e) {
+    if (!drag) return;
+    var over = document.elementFromPoint(e.clientX, e.clientY); over = over && over.closest('#blocks .block');
+    if (over && over !== drag) { var r = over.getBoundingClientRect(); list.insertBefore(drag, e.clientY < r.top + r.height / 2 ? over : over.nextSibling); }
+  });
+  function drop() { if (drag) { drag.classList.remove('dragging'); drag = null; } }
+  list.addEventListener('pointerup', drop); list.addEventListener('pointercancel', drop);
+  form.addEventListener('submit', function () {
+    var out = [];
+    list.querySelectorAll('.block').forEach(function (li) {
+      out.push({artifact: li.dataset.artifact ? parseInt(li.dataset.artifact, 10) : null,
+                text: li.querySelector('textarea').value, by_ai: li.dataset.ai === '1'});
+    });
+    document.getElementById('blocks-json').value = JSON.stringify(out);
+  });
+})();
+</script>
+{% endblock %}
