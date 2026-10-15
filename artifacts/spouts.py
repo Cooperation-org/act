@@ -5,9 +5,13 @@ to the source, and none of them deletes anything there.
 """
 import email
 import email.policy
+import html
 import imaplib
 import logging
+import mimetypes
 import re
+import threading
+from datetime import datetime
 from email.utils import parseaddr, parsedate_to_datetime
 from urllib.parse import quote
 
@@ -152,21 +156,16 @@ def drive_folder_id(url_or_id):
 
 
 def drive_enabled():
-    return bool(settings.ACT_GOOGLE_API_KEY)
+    """Drive import always works for folders shared 'Anyone with the link'. With
+    ACT_GOOGLE_API_KEY it uses the Drive API (dates, owners); without, Drive's public
+    folder view, which gives names and files only."""
+    return True
 
 
-def import_drive(source, limit=200, max_bytes=200 * 1024 * 1024):
-    """Copy every file in a Drive folder shared 'anyone with the link'. Read-only.
-    Returns (new, already). Raises RuntimeError with a plain message on failure."""
-    if not drive_enabled():
-        raise RuntimeError("Drive import is not switched on yet.")
-    folder = source.config.get("folder_id", "")
-    key = settings.ACT_GOOGLE_API_KEY
+def _drive_api_files(folder, key):
     params = {"q": f"'{folder}' in parents and trashed = false", "key": key, "pageSize": 100,
               "fields": "nextPageToken, files(id, name, mimeType, size, createdTime, webViewLink, "
                         "imageMediaMetadata(time), owners(displayName, emailAddress))"}
-    new = already = 0
-    seen = 0
     while True:
         r = requests.get(DRIVE_API, params=params, timeout=30)
         if r.status_code != 200:
@@ -174,35 +173,82 @@ def import_drive(source, limit=200, max_bytes=200 * 1024 * 1024):
                                "as 'Anyone with the link'.")
         body = r.json()
         for f in body.get("files", []):
-            if f["mimeType"].startswith("application/vnd.google-apps"):
-                continue  # Docs/Sheets/folders need export, not copy
-            if int(f.get("size") or 0) > max_bytes:
-                continue
-            seen += 1
-            if seen > limit:
-                break
-            got = requests.get(f"{DRIVE_API}/{f['id']}", params={"alt": "media", "key": key}, timeout=120)
-            if got.status_code != 200:
-                continue
-            taken = (f.get("imageMediaMetadata") or {}).get("time")
             when = None
+            taken = (f.get("imageMediaMetadata") or {}).get("time")
             if taken:
                 try:
-                    from datetime import datetime
                     when = timezone.make_aware(datetime.strptime(taken, "%Y:%m:%d %H:%M:%S"))
                 except ValueError:
                     when = None
             owner = (f.get("owners") or [{}])[0]
-            _, created = add_file(source.org, data=got.content, filename=f["name"], content_type=f["mimeType"],
-                                  source=source, source_ref=f["id"], source_url=f.get("webViewLink", ""),
-                                  sent_by=owner.get("emailAddress") or owner.get("displayName") or "",
-                                  happened_at=when or parse_datetime(f.get("createdTime") or ""))
-            new += created
-            already += not created
-        token = body.get("nextPageToken")
-        if not token or seen > limit:
+            yield {"id": f["id"], "name": f["name"], "mime": f["mimeType"], "size": int(f.get("size") or 0),
+                   "url": f.get("webViewLink", ""), "when": when or parse_datetime(f.get("createdTime") or ""),
+                   "by": owner.get("emailAddress") or owner.get("displayName") or ""}
+        if not body.get("nextPageToken"):
+            return
+        params["pageToken"] = body["nextPageToken"]
+
+
+_EMBED_ENTRY = re.compile(
+    r'<a href="https://drive\.google\.com/(file/d|drive/folders)/([A-Za-z0-9_-]+)[^"]*".*?'
+    r'(?:/type/([a-z]+/[A-Za-z0-9.+-]+))?".*?<div class="flip-entry-title">([^<]*)</div>', re.S)
+
+
+def _drive_public_files(folder, depth=0, max_depth=3):
+    """Files in a folder shared 'Anyone with the link', from Drive's public folder view
+    (no key needed). Walks subfolders a few levels down. Google Docs/Sheets are skipped:
+    they are not files to copy."""
+    r = requests.get("https://drive.google.com/embeddedfolderview", params={"id": folder}, timeout=30)
+    if r.status_code != 200 or "flip-entry" not in r.text and "flip-list" not in r.text:
+        raise RuntimeError("Google Drive would not show that folder. Check it is shared as 'Anyone with the link'.")
+    for entry in r.text.split('<div class="flip-entry"')[1:]:
+        m = _EMBED_ENTRY.search(entry)
+        if not m:
+            continue
+        what, fid, mime, name = m.groups()
+        name = html.unescape(name)
+        if what == "drive/folders":
+            if depth < max_depth:
+                yield from _drive_public_files(fid, depth + 1, max_depth)
+            continue
+        yield {"id": fid, "name": name, "mime": mime or mimetypes.guess_type(name)[0] or "",
+               "size": 0, "url": f"https://drive.google.com/file/d/{fid}/view", "when": None, "by": ""}
+
+
+def _drive_download(f, key):
+    if key:
+        return requests.get(f"{DRIVE_API}/{f['id']}", params={"alt": "media", "key": key}, timeout=300)
+    return requests.get("https://drive.usercontent.google.com/download",
+                        params={"id": f["id"], "export": "download", "confirm": "t"}, timeout=300)
+
+
+def import_drive(source, limit=300, max_bytes=300 * 1024 * 1024):
+    """Copy every file in a Drive folder shared 'Anyone with the link'. Read-only: the
+    folder is never changed. Returns (new, already). Raises RuntimeError with a plain
+    message on failure."""
+    folder = source.config.get("folder_id", "")
+    key = settings.ACT_GOOGLE_API_KEY
+    files = _drive_api_files(folder, key) if key else _drive_public_files(folder)
+    new = already = seen = 0
+    have = set(source.artifacts.values_list("source_ref", flat=True))
+    for f in files:
+        if f["mime"].startswith("application/vnd.google-apps") or f["size"] > max_bytes:
+            continue
+        if f["id"] in have:
+            already += 1
+            continue
+        seen += 1
+        if seen > limit:
             break
-        params["pageToken"] = token
+        got = _drive_download(f, key)
+        ctype = got.headers.get("Content-Type", "")
+        if got.status_code != 200 or ctype.startswith("text/html") or len(got.content) > max_bytes:
+            continue  # too large for Drive's direct download, or not shared
+        _, created = add_file(source.org, data=got.content, filename=f["name"], content_type=f["mime"],
+                              source=source, source_ref=f["id"], source_url=f["url"], sent_by=f["by"],
+                              happened_at=f["when"])
+        new += created
+        already += not created
     return new, already
 
 
@@ -252,3 +298,17 @@ def check(source):
     source.last_checked = timezone.now()
     source.save(update_fields=["last_checked", "last_error"])
     return msg
+
+
+def check_in_background(source):
+    """A Drive folder can take minutes to copy; do it off the request. The result is
+    recorded on the source (last_checked, last_error), which the Ways page shows."""
+    def run(pk):
+        from django.db import connection
+        try:
+            check(Source.objects.get(pk=pk))
+        except Exception:
+            logger.exception("background check of source %s failed", pk)
+        finally:
+            connection.close()
+    threading.Thread(target=run, args=(source.pk,), daemon=True).start()

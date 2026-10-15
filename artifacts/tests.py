@@ -139,6 +139,30 @@ class DriveTests(TestCase):
         self.assertEqual(drive_folder_id("not a link"), "")
 
 
+class DriveImportTests(Base):
+    PAGE = ('<div class="flip-list"><div class="flip-entry" id="entry-F1"><div class="flip-entry-info">'
+            '<a href="https://drive.google.com/file/d/FILEID00001/view?usp=drive_web" target="_blank">'
+            '<div class="flip-entry-list-icon"><img src="https://drive-thirdparty.googleusercontent.com/16/type/image/png" alt=""/></div>'
+            '<div class="flip-entry-title">shop &amp; sign.png</div></a></div></div>'
+            '<div class="flip-entry" id="entry-D1"><div class="flip-entry-info">'
+            '<a href="https://docs.google.com/document/d/DOCID000001/edit" target="_blank">'
+            '<div class="flip-entry-title">A Google Doc</div></a></div></div></div>')
+
+    def test_public_folder_import_copies_files_once(self):
+        src = Source.objects.create(org=self.org, kind=SourceKind.DRIVE, config={"folder_id": "FOLDER00001"})
+        listing = mock.Mock(status_code=200, text=self.PAGE)
+        file = mock.Mock(status_code=200, content=png_bytes("green"), headers={"Content-Type": "image/png"})
+        with override_settings(ACT_GOOGLE_API_KEY=""), \
+                mock.patch("artifacts.spouts.requests.get", side_effect=[listing, file, listing]):
+            from .spouts import import_drive
+            self.assertEqual(import_drive(src), (1, 0))
+            self.assertEqual(import_drive(src), (0, 1))
+        a = Artifact.objects.get(org=self.org)
+        self.assertEqual(a.filename, "shop & sign.png")
+        self.assertEqual(a.kind, ArtifactKind.PHOTO)
+        self.assertEqual(a.source_ref, "FILEID00001")
+
+
 class PageTests(Base):
     def setUp(self):
         super().setUp()

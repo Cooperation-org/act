@@ -36,9 +36,8 @@
         <input type="url" name="folder" placeholder="https://drive.google.com/drive/folders/…" aria-label="Drive folder link" required>
         <button type="submit">Add folder</button>
       </form>
-      {% if not drive_on %}<p class="muted">Copying from Drive is not switched on yet. Folders you add now are copied once it is.</p>{% endif %}
-      {% if drive_sources %}<ul class="sourcelist">{% for s in drive_sources %}<li><a href="{{ s.config.folder_url }}">Drive folder</a> · {% if s.last_checked %}checked {{ s.last_checked|timesince }} ago{% else %}not copied yet{% endif %}{% if s.last_error %} · <span class="pending">{{ s.last_error }}</span>{% endif %}
-        {% if drive_on %}<form method="post" action="{% url 'artifacts:check_source' s.pk %}" style="display:inline">{% csrf_token %}<button class="quiet" type="submit">Copy new files now</button></form>{% endif %}</li>{% endfor %}</ul>{% endif %}
+      {% if drive_sources %}<ul class="sourcelist">{% for s in drive_sources %}<li><a href="{{ s.config.folder_url }}">Drive folder</a> · {% if s.last_checked %}copied {{ s.last_checked|timesince }} ago · {{ s.artifacts.count }} {{ s.artifacts.count|pluralize:"item,items" }}{% else %}copying…{% endif %}{% if s.last_error %} · <span class="pending">{{ s.last_error }}</span>{% endif %}
+        <form method="post" action="{% url 'artifacts:check_source' s.pk %}" style="display:inline">{% csrf_token %}<button class="quiet" type="submit">Copy new files now</button></form></li>{% endfor %}</ul>{% endif %}
     </div>
   </li>
   <li>

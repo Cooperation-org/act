@@ -136,7 +136,6 @@ def ways(request):
         "email_address": (email_source.config.get("address") if email_source else "") or "",
         "drive_sources": Source.objects.filter(org=org, kind=SourceKind.DRIVE),
         "claim_sources": Source.objects.filter(org=org, kind=SourceKind.LINKEDCLAIMS),
-        "drive_on": spouts.drive_enabled(),
         "count": Artifact.objects.filter(org=org).count(),
     })
 
@@ -240,10 +239,8 @@ def add_drive(request):
     source, _ = Source.objects.get_or_create(org=org, kind=SourceKind.DRIVE, config__folder_id=folder,
                                              defaults={"label": "Google Drive folder",
                                                        "config": {"folder_id": folder, "folder_url": url}})
-    if spouts.drive_enabled():
-        messages.info(request, f"Drive folder: {spouts.check(source)}")
-    else:
-        messages.info(request, "Folder saved. Copying from Drive is not switched on yet; it will be copied when it is.")
+    spouts.check_in_background(source)
+    messages.info(request, "Copying the folder now. New items show up in What we have as they arrive.")
     return redirect("artifacts:ways")
 
 
@@ -265,7 +262,11 @@ def add_claims(request):
 @require_POST
 def check_source(request, pk):
     source = get_object_or_404(Source, pk=pk, org=request.org)
-    messages.info(request, f"{source.label}: {spouts.check(source) or 'nothing to check'}")
+    if source.kind == SourceKind.DRIVE:
+        spouts.check_in_background(source)
+        messages.info(request, "Copying new files from the folder now.")
+    else:
+        messages.info(request, f"{source.label}: {spouts.check(source) or 'nothing to check'}")
     return redirect("artifacts:ways")
 
 
