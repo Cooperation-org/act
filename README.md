@@ -61,7 +61,7 @@ and always visible.
 | cooperation.org | `letters` |, | `/letters/`, `/admin/` (root forwards to `/letters/`) |
 | raisethevoices.org | `campaigns,blog,people` |, (platform: every org's published campaigns) | `/`, `/c/<slug>/`, `/updates/`, `/blog/`, `/people/`, `/admin/` |
 | Jreas Coop (domain TBD) | `campaigns,blog,people` | `jreas-coop` | `/` (org home), `/c/jreas-coop/`, `/updates/`, `/blog/`, `/people/`, `/governance/`, `/admin/` |
-| Story Kit (not deployed) | `artifacts` |, | `/` → `/kit/`, `/start/`, `/ways/`, `/send/`, `/library/`, `/collections/`, `/stories/<slug>/`, `/admin/` |
+| Story Kit: demos.linkedtrust.us/storykit/ (VM 200 demo, database `act`) | `artifacts` |, | `/` → `/kit/`, `/start/`, `/ways/`, `/send/`, `/library/`, `/collections/`, `/stories/<slug>/`, `/admin/` |
 
 New capabilities (content management, content planning, email campaigns) arrive as further
 apps in this list.
@@ -94,6 +94,21 @@ projects repo `Ideas/inbound-artifacts/` (the flow) and `Ideas/story-kit/` (the 
   pieces' own words and marks every line it writes until a person edits it.
 - Files: an S3-compatible bucket (Backblaze B2) when `ACT_STORAGE_BUCKET` is set, else `media/`.
   Set `ACT_STORAGE_SIGNED_URLS=0` and `ACT_STORAGE_PUBLIC_HOST` only for a public bucket.
+
+### Install Story Kit on its own VM
+
+1. Checkout, venv, `pip install -r requirements.txt` (see Deploy above for WeasyPrint libs).
+2. `.env` (mode 600) from `.env.example` with `ACT_APPS=artifacts`, `ACT_PUBLIC_URL`, and
+   `ACT_BASE_PATH`/`SCRIPT_NAME` empty at a domain root. Its own database is better (see
+   "Deployments and data"); `ACT_PG_*` point at it.
+3. `manage.py migrate` with the owner role, `collectstatic --clear`, `createsuperuser`.
+4. `deploy/act.service` (gunicorn) and `deploy/nginx-act.conf` with the VM's domain; keep
+   `client_max_body_size 200m` for video.
+5. Files: set `ACT_STORAGE_*` for a B2 bucket, else `media/` must be writable by the service user.
+6. Email intake: `ACT_INTAKE_IMAP_*` for the org's mailbox and a timer running `manage.py poll_email`
+   (copy `deploy/act-retry-mail.timer`, change the command).
+7. Sign-in: a LinkedTrust SSO client for `<ACT_PUBLIC_URL>/api/v1/auth/linkedtrust/callback`
+   (`LINKEDTRUST_CLIENT_ID/SECRET`). Without it, sign-in is the Django admin login.
 
 ## Single-org site (`ACT_SITE_ORG`)
 
