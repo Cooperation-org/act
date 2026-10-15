@@ -5,9 +5,9 @@
 <p class="lede">Add as many as you like. A sentence about them helps later.</p>
 <form method="post" enctype="multipart/form-data" class="narrow" id="send">{% csrf_token %}
   <div class="picks">
-    <label><input type="file" name="files" accept="image/*" capture="environment" multiple><span class="btn">📷 Take photo</span></label>
-    <label><input type="file" name="files" accept="video/*" capture="environment" multiple><span class="btn">🎥 Record video</span></label>
-    <label><input type="file" name="files" accept="audio/*" capture multiple><span class="btn">🎙 Voice note</span></label>
+    <label><input type="file" name="files" accept="image/*" capture="environment" multiple><span class="btn"><b aria-hidden="true">📷</b>Take photo</span></label>
+    <label><input type="file" name="files" accept="video/*" capture="environment" multiple><span class="btn"><b aria-hidden="true">🎥</b>Record video</span></label>
+    <label><input type="file" name="files" accept="audio/*" capture multiple><span class="btn"><b aria-hidden="true">🎙</b>Voice note</span></label>
   </div>
   <label class="drop" id="drop">
     <strong>Or choose files</strong>

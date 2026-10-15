@@ -84,7 +84,8 @@ form.narrow { max-width: 34rem; }
 .drop input { display: block; margin: 1rem auto 0; max-width: 100%; }
 .picks { display: grid; grid-template-columns: repeat(3, 1fr); gap: .6rem; margin: 1rem 0; }
 .picks label { margin: 0; }
-.picks .btn { width: 100%; text-align: center; padding: 1rem .5rem; }
+.picks .btn { width: 100%; height: 100%; text-align: center; padding: .9rem .4rem; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .2rem; line-height: 1.2; }
+.picks .btn b { font-size: 1.5rem; font-weight: 400; }
 .picks input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .chosen { font-size: .95rem; color: var(--ink-2); }
 
@@ -150,4 +151,7 @@ dl.facts dd { margin: 0; overflow-wrap: anywhere; }
   .ways > li { grid-template-columns: 2rem 1fr; }
   .block { grid-template-columns: 1.6rem 3.5rem 1fr 1.6rem; gap: .4rem; }
   .block .thumb { width: 3.5rem; height: 3.5rem; }
+  .block > div:not(.thumb) { grid-column: 1 / -1; grid-row: 2; }
+  .block > .remove { grid-column: -2; grid-row: 1; justify-self: end; }
+  .block.text-only > div { grid-row: auto; grid-column: 2; }
 }
