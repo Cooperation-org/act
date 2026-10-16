@@ -61,7 +61,7 @@ def signin(request):
         return redirect(nxt)
     if settings.LINKEDTRUST_SSO_ENABLED:
         request.session["act_post_login_next"] = nxt
-        return redirect("/api/v1/auth/linkedtrust/redirect")
+        return redirect(f"{settings.BASE_PATH}/api/v1/auth/linkedtrust/redirect")
     return redirect(f"{reverse('admin:login')}?{urlencode({'next': nxt})}")
 
 

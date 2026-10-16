@@ -195,7 +195,7 @@ def vouch_signin(request, slug):
     if not settings.LINKEDTRUST_SSO_ENABLED:
         return redirect("vouch", slug=c.slug)
     request.session["act_post_login_next"] = reverse("vouch", args=[c.slug])
-    return redirect("/api/v1/auth/linkedtrust/redirect")
+    return redirect(f"{settings.BASE_PATH}/api/v1/auth/linkedtrust/redirect")
 
 
 @login_required
