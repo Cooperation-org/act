@@ -1,19 +1,54 @@
 {% extends "artifacts/base.html" %}
 {% block title %}Send · Story Kit{% endblock %}
+{% block head %}<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"><meta name="referrer" content="no-referrer">{% endblock %}
 {% block content %}
 <h1>Send a photo, video or voice note</h1>
-<p class="lede">Add as many as you like. A sentence about them helps later.</p>
+<p class="lede">Click a button below to open your camera or microphone directly — no file picker.</p>
 <form method="post" enctype="multipart/form-data" class="narrow" id="send">{% csrf_token %}
   <div class="picks">
-    <label><input type="file" name="files" accept="image/*" capture="environment" multiple><span class="btn"><b aria-hidden="true">📷</b>Take photo</span></label>
-    <label><input type="file" name="files" accept="video/*" capture="environment" multiple><span class="btn"><b aria-hidden="true">🎥</b>Record video</span></label>
-    <label><input type="file" name="files" accept="audio/*" capture multiple><span class="btn"><b aria-hidden="true">🎙</b>Voice note</span></label>
+    <button type="button" id="rec-photo" class="btn"><b aria-hidden="true">📷</b><span>Take photo</span></button>
+    <button type="button" id="rec-video" class="btn"><b aria-hidden="true">🎥</b><span>Record video</span></button>
+    <button type="button" id="rec-voice" class="btn"><b aria-hidden="true">🎙</b><span>Voice note</span></button>
   </div>
-  <label class="drop" id="drop">
-    <strong>Or choose files</strong>
-    <span class="muted">Photos, videos, voice notes, PDFs, documents. Drop them here on a computer.</span>
-    <input type="file" name="files" multiple id="pick">
-  </label>
+
+  <div id="cam" class="cam" hidden>
+    <p class="cam-mode muted" id="cam-mode">Camera</p>
+    <div class="cam-stage">
+      <video id="cam-video" autoplay playsinline muted></video>
+      <div class="cam-empty" id="cam-empty" hidden>Recording audio only.</div>
+      <div class="cam-timer" id="cam-timer" hidden>00:00</div>
+      <img id="cam-preview" alt="" hidden>
+      <div class="cam-fallback" id="cam-fallback" hidden>
+        <p id="cam-fallback-msg" style="color:#fff"></p>
+        <button type="button" class="big" id="cam-pick">Pick from files</button>
+      </div>
+    </div>
+    <div class="cam-toolbar">
+      <button type="button" class="big" id="cam-snap" hidden>Snap photo</button>
+      <button type="button" class="big" id="cam-record">Start recording</button>
+      <button type="button" class="big" id="cam-stop" hidden>Stop</button>
+      <button type="button" id="cam-retake" hidden>Retake</button>
+      <button type="button" id="cam-save" hidden disabled>Save</button>
+      <button type="button" class="quiet" id="cam-cancel">Cancel</button>
+    </div>
+  </div>
+
+  <div class="captures" id="captures" hidden>
+    <p class="muted" id="captures-summary"></p>
+    <input type="file" id="cap-photo" name="files" hidden>
+    <input type="file" id="cap-video" name="files" hidden>
+    <input type="file" id="cap-voice" name="files" hidden>
+  </div>
+
+  <details>
+    <summary class="muted" style="cursor:pointer;padding:.6rem 0">Already have files? Choose or drag them here</summary>
+    <label class="drop" id="drop">
+      <strong>Or choose files</strong>
+      <span class="muted">Photos, videos, voice notes, PDFs, documents. Drop them here on a computer.</span>
+      <input type="file" name="files" multiple id="pick">
+    </label>
+  </details>
+
   <p class="chosen" id="chosen" aria-live="polite"></p>
   <label for="words">What is this? <span class="muted">(your own words, kept exactly)</span></label>
   <textarea id="words" name="words" placeholder="Who is in it, what happened, why it matters"></textarea>
@@ -21,21 +56,219 @@
   <input type="date" id="happened_on" name="happened_on" max="{{ today }}">
   <p style="margin-top:1.4rem"><button type="submit" class="big" id="go">Send</button></p>
 </form>
+<input type="file" id="cap-pick-photo" accept="image/*" hidden>
+<input type="file" id="cap-pick-video" accept="video/*" hidden>
+<input type="file" id="cap-pick-voice" accept="audio/*" hidden>
 {% endblock %}
 {% block scripts %}
 <script>
 (function () {
   var form = document.getElementById('send'), chosen = document.getElementById('chosen'), drop = document.getElementById('drop'), pick = document.getElementById('pick');
-  function show() {
+
+  function refreshChosen() {
     var n = 0, names = [];
     form.querySelectorAll('input[type=file]').forEach(function (i) { for (var f of i.files) { n++; names.push(f.name); } });
     chosen.textContent = n ? n + (n === 1 ? ' item ready: ' : ' items ready: ') + names.slice(0, 4).join(', ') + (n > 4 ? '…' : '') : '';
+    var cap = document.getElementById('captures'), sum = document.getElementById('captures-summary');
+    var labels = [];
+    [['cap-photo', 'photo'], ['cap-video', 'video'], ['cap-voice', 'voice']].forEach(function (x) {
+      var inp = document.getElementById(x[0]);
+      if (inp.files && inp.files[0]) labels.push(x[1] + ': ' + inp.files[0].name);
+    });
+    if (labels.length) { sum.textContent = 'Captured ' + labels.join(', '); cap.hidden = false; }
+    else { sum.textContent = ''; cap.hidden = true; }
   }
-  form.addEventListener('change', show);
-  ['dragenter', 'dragover'].forEach(function (e) { drop.addEventListener(e, function (ev) { ev.preventDefault(); drop.classList.add('over'); }); });
-  ['dragleave', 'drop'].forEach(function (e) { drop.addEventListener(e, function () { drop.classList.remove('over'); }); });
-  drop.addEventListener('drop', function (ev) { ev.preventDefault(); pick.files = ev.dataTransfer.files; show(); });
+  form.addEventListener('change', refreshChosen);
+  if (drop) {
+    ['dragenter', 'dragover'].forEach(function (e) { drop.addEventListener(e, function (ev) { ev.preventDefault(); drop.classList.add('over'); }); });
+    ['dragleave', 'drop'].forEach(function (e) { drop.addEventListener(e, function () { drop.classList.remove('over'); }); });
+    drop.addEventListener('drop', function (ev) { ev.preventDefault(); pick.files = ev.dataTransfer.files; refreshChosen(); });
+  }
   form.addEventListener('submit', function () { var b = document.getElementById('go'); b.textContent = 'Sending…'; b.disabled = true; });
+
+  var cam = document.getElementById('cam');
+  var camVideo = document.getElementById('cam-video');
+  var camEmpty = document.getElementById('cam-empty');
+  var camTimer = document.getElementById('cam-timer');
+  var camPreview = document.getElementById('cam-preview');
+  var camSnapBtn = document.getElementById('cam-snap');
+  var camRecordBtn = document.getElementById('cam-record');
+  var camStopBtn = document.getElementById('cam-stop');
+  var camRetakeBtn = document.getElementById('cam-retake');
+  var camSaveBtn = document.getElementById('cam-save');
+  var camCancelBtn = document.getElementById('cam-cancel');
+  var camModeLabel = document.getElementById('cam-mode');
+  var camFallback = document.getElementById('cam-fallback');
+  var camFallbackMsg = document.getElementById('cam-fallback-msg');
+  var camPickBtn = document.getElementById('cam-pick');
+
+  var state = { mode: null, stream: null, recorder: null, chunks: [], timerId: null, blob: null, mime: null };
+
+  function fmt(s) { var m = Math.floor(s / 60), r = s % 60; return (m < 10 ? '0' : '') + m + ':' + (r < 10 ? '0' : '') + r; }
+  function startTimer() { var t = 0; camTimer.hidden = false; camTimer.textContent = fmt(t); state.timerId = setInterval(function () { t++; camTimer.textContent = fmt(t); }, 1000); }
+  function stopTimer() { if (state.timerId) { clearInterval(state.timerId); state.timerId = null; } camTimer.hidden = true; }
+
+  function setUI() {
+    var has = !!state.blob, recording = state.recorder && state.recorder.state === 'recording';
+    var isPhoto = state.mode === 'photo';
+    camSnapBtn.hidden = !isPhoto || recording || has;
+    camRecordBtn.hidden = isPhoto || recording || has;
+    camStopBtn.hidden = !recording;
+    camRetakeBtn.hidden = !has;
+    camSaveBtn.hidden = !has;
+    camSaveBtn.disabled = !has;
+  }
+
+  function showFallback(msg) { camFallbackMsg.textContent = msg; camFallback.hidden = false; }
+  function clearFallback() { camFallback.hidden = true; camFallbackMsg.textContent = ''; }
+
+  function resetCam() {
+    if (state.stream) state.stream.getTracks().forEach(function (t) { t.stop(); });
+    if (state.recorder && state.recorder.state !== 'inactive') { try { state.recorder.stop(); } catch (_) {} }
+    state.stream = null; state.recorder = null; state.chunks = []; state.blob = null; state.mime = null;
+    camVideo.srcObject = null; camPreview.src = ''; camPreview.hidden = true;
+    camEmpty.hidden = true; camVideo.hidden = true; camTimer.hidden = true;
+    clearFallback(); stopTimer();
+    setUI();
+  }
+
+  async function openMode(mode) {
+    resetCam();
+    state.mode = mode;
+    camModeLabel.textContent = ({photo: 'Take photo', video: 'Record video', voice: 'Voice note'})[mode];
+    cam.hidden = false;
+    setUI();
+    camVideo.hidden = mode === 'voice'; camEmpty.hidden = mode !== 'voice';
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showFallback('In-page recording is not supported in this browser. Use "Pick from files" below to choose an existing file.');
+      return;
+    }
+    var tries = [{ video: true, audio: mode === 'video' }, { video: { facingMode: 'user' }, audio: mode === 'video' }];
+    var lastErr = null;
+    for (var i = 0; i < tries.length; i++) {
+      try {
+        state.stream = await navigator.mediaDevices.getUserMedia(tries[i]);
+        camVideo.srcObject = state.stream;
+        return;
+      } catch (e) { lastErr = e; }
+    }
+    showFallback('Camera/microphone unavailable (' + (lastErr && lastErr.name || 'error') + '). Allow access in your browser, or use "Pick from files" below.');
+  }
+
+  camCancelBtn.addEventListener('click', function () { resetCam(); cam.hidden = true; });
+
+  function snapPhoto() {
+    var w = camVideo.videoWidth, h = camVideo.videoHeight;
+    if (!w || !h) { showFallback('Camera not ready yet. Wait a moment and try again.'); return; }
+    var c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    c.getContext('2d').drawImage(camVideo, 0, 0, w, h);
+    c.toBlob(function (b) {
+      state.blob = b; state.mime = 'image/jpeg';
+      camPreview.src = URL.createObjectURL(b); camPreview.hidden = false;
+      camVideo.hidden = true;
+      setUI();
+    }, 'image/jpeg', 0.9);
+  }
+  camSnapBtn.addEventListener('click', snapPhoto);
+
+  function startRecording() {
+    var mime = (state.mode === 'video') ? pickVideoMime() : pickAudioMime();
+    state.mime = mime; state.chunks = [];
+    var rec;
+    try { rec = new MediaRecorder(state.stream, { mimeType: mime }); }
+    catch (e) { rec = new MediaRecorder(state.stream); state.mime = rec.mimeType; }
+    rec.ondataavailable = function (e) { if (e.data && e.data.size) state.chunks.push(e.data); };
+    rec.onstop = function () {
+      state.blob = new Blob(state.chunks, { type: state.mime });
+      if (state.mode === 'video') {
+        camPreview.src = URL.createObjectURL(state.blob); camPreview.hidden = false; camVideo.hidden = true;
+      }
+      setUI();
+    };
+    state.recorder = rec;
+    rec.start();
+    startTimer();
+    setUI();
+  }
+  camRecordBtn.addEventListener('click', startRecording);
+
+  function stopRecording() {
+    if (state.recorder && state.recorder.state !== 'inactive') state.recorder.stop();
+    stopTimer();
+    setUI();
+  }
+  camStopBtn.addEventListener('click', stopRecording);
+
+  camRetakeBtn.addEventListener('click', function () {
+    if (state.blob && state.mime && state.mime.indexOf('image') !== -1) camVideo.hidden = false;
+    else if (state.blob && state.mime && state.mime.indexOf('video') !== -1) camVideo.hidden = false;
+    camPreview.hidden = true; state.blob = null; state.mime = null;
+    setUI();
+  });
+
+  function pickVideoMime() { var c = ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4']; for (var i = 0; i < c.length; i++) if (window.MediaRecorder && MediaRecorder.isTypeSupported(c[i])) return c[i]; return 'video/webm'; }
+  function pickAudioMime() { var c = ['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus']; for (var i = 0; i < c.length; i++) if (window.MediaRecorder && MediaRecorder.isTypeSupported(c[i])) return c[i]; return 'audio/webm'; }
+
+  function ext(m) { if (m.indexOf('mp4') !== -1) return 'mp4'; if (m.indexOf('jpeg') !== -1 || m.indexOf('jpg') !== -1) return 'jpg'; if (m.indexOf('png') !== -1) return 'png'; return 'webm'; }
+
+  function attach() {
+    if (!state.blob || !state.mode) return;
+    var fname = state.mode + '-' + new Date().toISOString().replace(/[:.]/g, '-') + '.' + ext(state.mime);
+    var f = new File([state.blob], fname, { type: state.mime });
+    var target = document.getElementById('cap-' + state.mode);
+    var dt = new DataTransfer(); dt.items.add(f);
+    target.files = dt.files;
+    refreshChosen();
+    resetCam();
+    cam.hidden = true;
+  }
+  camSaveBtn.addEventListener('click', attach);
+
+  function pickExisting() {
+    document.getElementById('cap-pick-' + state.mode).click();
+  }
+  camPickBtn.addEventListener('click', pickExisting);
+
+  ['cap-pick-photo', 'cap-pick-video', 'cap-pick-voice'].forEach(function (id) {
+    document.getElementById(id).addEventListener('change', function (e) {
+      var f = e.target.files && e.target.files[0];
+      if (!f) return;
+      var mode = id.replace('cap-pick-', '');
+      var target = document.getElementById('cap-' + mode);
+      var dt = new DataTransfer(); dt.items.add(new File([f], mode + '-' + f.name, { type: f.type }));
+      target.files = dt.files;
+      e.target.value = '';
+      refreshChosen();
+      resetCam();
+      cam.hidden = true;
+    });
+  });
+
+  document.getElementById('rec-photo').addEventListener('click', function () { openMode('photo'); });
+  document.getElementById('rec-video').addEventListener('click', function () { openMode('video'); });
+  document.getElementById('rec-voice').addEventListener('click', function () { openMode('voice'); });
+
+  camVideo.addEventListener('loadedmetadata', function () { if (state.stream) setUI(); });
 })();
 </script>
+<style>
+.cam { background: #1a1a1a; color: #fff; border-radius: var(--radius); margin: 1rem 0; padding: 1rem; }
+.cam[hidden] { display: none; }
+.cam-mode { margin: 0 0 .6rem; color: #ccc; font-weight: 600; }
+.cam-stage { position: relative; aspect-ratio: 4 / 3; max-height: 60vh; background: #000; border-radius: 8px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.cam-stage video, .cam-stage img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.cam-empty { color: #ddd; padding: 2rem; text-align: center; }
+.cam-timer { position: absolute; top: .8rem; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.65); color: #fff; padding: .3rem .8rem; border-radius: 6px; font: 700 1.05rem ui-monospace, monospace; }
+.cam-fallback { position: absolute; inset: 0; background: rgba(0,0,0,.92); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; padding: 1rem; text-align: center; }
+.cam-fallback p { max-width: 32rem; }
+.cam-toolbar { margin-top: .8rem; display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.cam-toolbar .big { background: var(--brand); color: #fff; border-color: var(--brand); }
+.cam-toolbar .quiet { background: transparent; color: #ccc; border: 1px solid #555; }
+.cam-toolbar button:disabled { opacity: .5; cursor: not-allowed; }
+.captures { padding: .8rem; background: var(--accent-soft); border-radius: var(--radius); margin-bottom: 1rem; }
+.captures p { margin: 0; }
+.picks .btn { line-height: 1.2; }
+.picks .btn span { display: inline; }
+</style>
 {% endblock %}

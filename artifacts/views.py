@@ -17,6 +17,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.utils.text import slugify
+from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
@@ -158,6 +159,7 @@ def _store_uploads(request, org, files, words, when=None):
 
 
 @org_required
+@never_cache
 def send(request):
     org = request.org
     if request.method == "POST":
