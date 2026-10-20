@@ -21,8 +21,11 @@
       <input type="text" id="title" name="title" value="{{ a.title }}">
       <label for="about">Who or what it is about</label>
       <input type="text" id="about" name="about" value="{{ a.about }}" placeholder="A person, a business, a program">
+      <label for="parts">Part of {{ org.name }} <span class="muted">(chapter, site, program, partner; comma separated)</span></label>
+      <input type="text" id="parts" name="parts" value="{{ part_text }}">
       <label for="tags">Labels <span class="muted">(comma separated)</span></label>
       <input type="text" id="tags" name="tags" value="{{ tag_text }}">
+      {% if ai_labels %}<p class="muted"><span class="ai">AI</span> added: {{ ai_labels|join:", " }}</p>{% endif %}
       <label class="row" style="font-weight:400"><input type="checkbox" name="consent"{% if a.consent %} checked{% endif %}> Everyone shown agreed to be in it</label>
       <p><button type="submit">Save</button></p>
     </form>

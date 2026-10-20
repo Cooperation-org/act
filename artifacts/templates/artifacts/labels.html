@@ -1,0 +1,21 @@
+{% extends "artifacts/base.html" %}
+{% block title %}Labels · Story Kit{% endblock %}
+{% block content %}
+<h1>Labels</h1>
+<p class="muted">“Part of {{ org.name }}” is for chapters, sites, programs and partners; plain labels are for topics and events. Rename a label to an existing name to merge the two.</p>
+{% if tags %}
+<table class="labels">
+  <thead><tr><th>Label</th><th>Kind</th><th>Items</th><th></th></tr></thead>
+  <tbody>
+  {% for t in tags %}
+  <tr>
+    <td><form method="post" id="l{{ t.pk }}">{% csrf_token %}<input type="hidden" name="pk" value="{{ t.pk }}"><input type="text" name="name" value="{{ t.name }}" aria-label="Name"></form></td>
+    <td><select name="group" form="l{{ t.pk }}" aria-label="Kind"><option value="">Label</option><option value="{{ PART }}"{% if t.group == PART %} selected{% endif %}>Part of {{ org.name }}</option></select></td>
+    <td><a href="{% url 'artifacts:library' %}?{% if t.group == PART %}part{% else %}tag{% endif %}={{ t.name|urlencode }}">{{ t.n }}</a></td>
+    <td class="row"><button type="submit" name="action" value="save" form="l{{ t.pk }}" class="quiet">Save</button> <button type="submit" name="action" value="delete" form="l{{ t.pk }}" class="quiet">Delete</button></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}<div class="empty"><p>No labels yet. Add them on any item, or tick items in <a href="{% url 'artifacts:library' %}">What we have</a>.</p></div>{% endif %}
+{% endblock %}

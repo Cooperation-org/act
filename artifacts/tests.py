@@ -243,3 +243,66 @@ class PageTests(Base):
     def test_share_target_refuses_cross_site_post(self):
         r = self.client.post(reverse("artifacts:share"), {"text": "x"}, HTTP_SEC_FETCH_SITE="cross-site")
         self.assertEqual(r.status_code, 400)
+
+
+class SortingTests(Base):
+    def setUp(self):
+        super().setUp()
+        self.client.force_login(self.user)
+
+    def test_drive_subfolders_become_labels(self):
+        from .spouts import import_drive
+        src = Source.objects.create(org=self.org, kind=SourceKind.DRIVE, config={"folder_id": "ROOT0000001"})
+        files = [{"id": "F1", "name": "a.png", "mime": "image/png", "size": 0, "url": "", "when": None, "by": "",
+                  "folders": ("Lowell", "Demo Day")}]
+        got = mock.Mock(status_code=200, headers={"Content-Type": "image/png"}, content=png_bytes())
+        with mock.patch("artifacts.spouts._drive_public_files", return_value=iter(files)), \
+                mock.patch("artifacts.spouts._drive_download", return_value=got):
+            self.assertEqual(import_drive(src), (1, 0))
+        a = Artifact.objects.get(org=self.org)
+        self.assertEqual(sorted(t.name for t in a.tags.all()), ["demo day", "lowell"])
+
+    def test_filter_needs_every_chosen_label(self):
+        from .models import Tag, TagGroup
+        a, _ = add_file(self.org, data=png_bytes("red"), filename="a.png")
+        b, _ = add_file(self.org, data=png_bytes("blue"), filename="b.png")
+        lowell = Tag.objects.create(org=self.org, name="lowell", group=TagGroup.PART)
+        pitch = Tag.objects.create(org=self.org, name="pitch")
+        a.tags.add(lowell, pitch)
+        b.tags.add(pitch)
+        r = self.client.get(reverse("artifacts:library"), {"tag": "pitch"})
+        self.assertEqual(r.context["total"], 2)
+        r = self.client.get(reverse("artifacts:library"), {"tag": "pitch", "part": "lowell"})
+        self.assertEqual(r.context["total"], 1)
+        self.assertContains(r, "Part of Org One")
+
+    def test_artifact_page_saves_parts_and_labels(self):
+        from .models import TagGroup
+        a, _ = add_file(self.org, data=png_bytes(), filename="a.png")
+        self.client.post(reverse("artifacts:artifact", args=[a.pk]), {"parts": "Lawrence", "tags": "market, food"})
+        self.assertEqual({(t.name, t.group) for t in a.tags.all()},
+                         {("lawrence", TagGroup.PART), ("market", ""), ("food", "")})
+
+    def test_rename_onto_existing_label_merges(self):
+        from .models import Tag
+        a, _ = add_file(self.org, data=png_bytes(), filename="a.png")
+        x = Tag.objects.create(org=self.org, name="demo-day")
+        Tag.objects.create(org=self.org, name="demo day")
+        a.tags.add(x)
+        self.client.post(reverse("artifacts:labels"), {"pk": x.pk, "action": "save", "name": "demo day"})
+        self.assertEqual([t.name for t in a.tags.all()], ["demo day"])
+
+    @override_settings(ANTHROPIC_API_KEY="k")
+    def test_ai_sort_labels_and_titles(self):
+        from . import ai
+        a, _ = add_file(self.org, data=png_bytes(), filename="a.png", words="Opening day in Lowell")
+        reply = {"content": [{"type": "text", "text": json.dumps({"items": [
+            {"id": a.pk, "title": "Ribbon cutting", "parts": ["Lowell"], "labels": ["opening", "ribbon"]}]})}]}
+        with mock.patch("artifacts.ai.requests.post", return_value=mock.Mock(status_code=200, json=lambda: reply)) as post:
+            self.assertEqual(ai.sort_artifacts(self.org, [a.pk]), 1)
+        sent = post.call_args.kwargs["json"]["messages"][0]["content"]
+        self.assertTrue(any(c["type"] == "image" for c in sent))
+        a.refresh_from_db()
+        self.assertEqual(a.title, "Ribbon cutting")
+        self.assertEqual({(t.name, t.group) for t in a.tags.all()}, {("lowell", "part"), ("opening", ""), ("ribbon", "")})
+        self.assertEqual(len(a.ai_labels), 3)

@@ -9,19 +9,26 @@
     <a class="btn" href="{% url 'artifacts:send' %}">Send a photo</a> <a class="btn quiet" href="{% url 'artifacts:ways' %}">All ways to send</a>
   </div>
 {% else %}
+{% if parts or labels %}
+<div class="chips" aria-label="Filter by label">
+  {% if parts %}<p><span class="muted">Part of {{ org.name }}:</span> {% for t, href, on in parts %}<a class="chip part{% if on %} on{% endif %}" href="{{ href }}"{% if on %} aria-current="true"{% endif %}>{{ t.name }} <small>{{ t.n }}</small>{% if on %} ✕{% endif %}</a>{% endfor %}</p>{% endif %}
+  {% if labels %}<p><span class="muted">Labels:</span> {% for t, href, on in labels %}<a class="chip{% if on %} on{% endif %}" href="{{ href }}"{% if on %} aria-current="true"{% endif %}>{{ t.name }} <small>{{ t.n }}</small>{% if on %} ✕{% endif %}</a>{% endfor %} <a href="{% url 'artifacts:labels' %}" class="muted">Edit labels</a></p>{% endif %}
+</div>
+{% endif %}
 <form method="get" class="filters" role="search">
+  {% for k, v in keep %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
   <input type="search" name="q" value="{{ f.q }}" placeholder="Search words, labels, file names" aria-label="Search">
   {% if kinds|length > 1 %}<select name="kind" aria-label="Kind"><option value="">Any kind</option>{% for k, label in kinds %}<option value="{{ k }}"{% if f.kind == k %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>{% endif %}
-  {% if tags %}<select name="tag" aria-label="Label"><option value="">Any label</option>{% for t in tags %}<option{% if f.tag == t.name %} selected{% endif %}>{{ t.name }}</option>{% endfor %}</select>{% endif %}
   {% if source_kinds|length > 1 %}<select name="source" aria-label="Came in by"><option value="">Any way in</option>{% for k, label in source_kinds %}<option value="{{ k }}"{% if f.source == k %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>{% endif %}
   {% if people|length > 1 %}<select name="person" aria-label="Sent by"><option value="">Anyone</option>{% for p in people %}<option{% if f.person == p %} selected{% endif %}>{{ p }}</option>{% endfor %}</select>{% endif %}
   <input type="date" name="since" value="{{ f.since }}" aria-label="From date">
   <input type="date" name="until" value="{{ f.until }}" aria-label="To date">
+  <select name="sort" aria-label="Order"><option value="">Newest added</option><option value="happened"{% if f.sort == "happened" %} selected{% endif %}>Newest taken</option><option value="oldest"{% if f.sort == "oldest" %} selected{% endif %}>Oldest taken</option><option value="title"{% if f.sort == "title" %} selected{% endif %}>Title A to Z</option></select>
   <select name="show" aria-label="Show"><option value="">Showing</option><option value="hidden"{% if f.show == "hidden" %} selected{% endif %}>Hidden</option></select>
   <button type="submit" class="quiet">Filter</button>
   {% if f %}<a href="{% url 'artifacts:library' %}">Clear</a>{% endif %}
 </form>
-<p class="muted">{{ total }} {{ total|pluralize:"item,items" }}{% if f %} match{% endif %}. Tick items to label them, collect them, or start a story.</p>
+<p class="muted">{{ total }} {{ total|pluralize:"item,items" }}{% if f %} match{% endif %}. Tick items to label them, collect them, or start a story.{% if unlabeled and ai_on %} {{ unlabeled }} {{ unlabeled|pluralize:"has,have" }} no labels yet.{% endif %}</p>
 {% if items %}
 <div class="grid">{% for a in items %}{% include "artifacts/_tile.html" with pickable=1 %}{% endfor %}</div>
 {% else %}<div class="empty"><p>Nothing matches. <a href="{% url 'artifacts:library' %}">Show everything</a>.</p></div>{% endif %}
@@ -29,7 +36,9 @@
 <form method="post" id="bulk" class="toolbar">{% csrf_token %}
   <input type="hidden" name="back" value="{{ back }}">
   <input type="hidden" name="filter" value="{{ filter_json }}">
+  {% if ai_on %}<button type="submit" name="action" value="sort" title="Ticked items, or every item with no labels">Sort with AI</button>{% endif %}
   <input type="text" name="tags" placeholder="Labels, comma separated" aria-label="Labels">
+  <select name="group" aria-label="Kind of label"><option value="">as labels</option><option value="part">as part of {{ org.name }}</option></select>
   <button type="submit" name="action" value="tag" class="quiet">Label ticked</button>
   <input type="text" name="name" placeholder="Collection name" aria-label="Collection name">
   <button type="submit" name="action" value="collect" class="quiet">Collect ticked</button>

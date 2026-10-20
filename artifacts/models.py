@@ -59,12 +59,20 @@ class ArtifactStatus(models.TextChoices):
     HIDDEN = "hidden", "Hidden"
 
 
+class TagGroup(models.TextChoices):
+    LABEL = "", "Label"
+    PART = "part", "Part of our org"
+
+
 class Tag(models.Model):
+    """A label. Group "part" marks a part of the org (a chapter, a site, a program,
+    a partner) so the library can filter by it separately from topic labels."""
     org = models.ForeignKey(Org, on_delete=models.CASCADE, related_name="artifact_tags")
     name = models.CharField(max_length=60)
+    group = models.CharField(max_length=8, choices=TagGroup.choices, default=TagGroup.LABEL, blank=True)
 
     class Meta:
-        ordering = ["name"]
+        ordering = ["group", "name"]
         constraints = [models.UniqueConstraint(fields=["org", "name"], name="one_tag_name_per_org")]
 
     def __str__(self):

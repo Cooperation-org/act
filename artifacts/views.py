@@ -10,7 +10,7 @@ from urllib.parse import urlencode
 from django.conf import settings
 from django.contrib import messages
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.http import Http404, HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -27,7 +27,7 @@ from campaigns.models import Org, VolunteerProfile
 from . import ai, spouts
 from .intake import add_file, add_reference
 from .models import (Artifact, ArtifactKind, ArtifactStatus, Collection, Source, SourceKind, Story,
-                     StoryBlock, StoryStatus, Tag)
+                     StoryBlock, StoryStatus, Tag, TagGroup)
 
 SESSION_ORG = "storykit_org"
 
@@ -274,7 +274,10 @@ def check_source(request, pk):
 
 # ---- library -----------------------------------------------------------------
 
-FILTER_KEYS = ("kind", "tag", "source", "person", "q", "since", "until", "show")
+FILTER_KEYS = ("kind", "tag", "part", "source", "person", "q", "since", "until", "show", "sort")
+MULTI_KEYS = ("tag", "part")
+SORTS = {"": ("-received_at",), "happened": ("-happened_at", "-received_at"),
+         "oldest": ("happened_at", "received_at"), "title": ("title", "filename")}
 
 
 def filtered(org, f):
@@ -285,8 +288,10 @@ def filtered(org, f):
         qs = qs.filter(status=ArtifactStatus.HIDDEN)
     if f.get("kind"):
         qs = qs.filter(kind=f["kind"])
-    if f.get("tag"):
-        qs = qs.filter(tags__name=f["tag"])
+    for key in MULTI_KEYS:  # every chosen label must be on the item
+        names = f.get(key) or []
+        for name in ([names] if isinstance(names, str) else names):
+            qs = qs.filter(pk__in=Artifact.objects.filter(org=org, tags__name=name).values("pk"))
     if f.get("source"):
         qs = qs.filter(source__kind=f["source"])
     if f.get("person"):
@@ -304,12 +309,44 @@ def filtered(org, f):
 
 
 def _filter_from(request):
-    return {k: request.GET.get(k, "").strip() for k in FILTER_KEYS if request.GET.get(k, "").strip()}
+    f = {}
+    for k in FILTER_KEYS:
+        if k in MULTI_KEYS:
+            vals = [v.strip() for v in request.GET.getlist(k) if v.strip()]
+            if vals:
+                f[k] = vals
+        elif request.GET.get(k, "").strip():
+            f[k] = request.GET[k].strip()
+    return f
 
 
-def _tags_from(org, text):
+def _tags_from(org, text, group=TagGroup.LABEL):
+    """Labels named in a comma-separated text. A new name is made in `group`; an existing
+    label keeps its group."""
     names = [t.strip().lower()[:60] for t in (text or "").replace(";", ",").split(",") if t.strip()]
-    return [Tag.objects.get_or_create(org=org, name=n)[0] for n in names]
+    return [Tag.objects.get_or_create(org=org, name=n, defaults={"group": group})[0] for n in names]
+
+
+def _chips(f, key, tags):
+    """(tag, address, chosen) per label: the address adds the label to the filter, or
+    takes it off when it is already chosen."""
+    out = []
+    for t in tags:
+        on = t.name in f.get(key, [])
+        out.append((t, _without(f, key, t.name) if on else _with(f, key, t.name), on))
+    return out
+
+
+def _with(f, key, value):
+    rest = dict(f)
+    rest[key] = list(f.get(key, [])) + [value]
+    return f"{reverse('artifacts:library')}?{urlencode(rest, doseq=True)}"
+
+
+def _without(f, key, value):
+    """The library address with one chosen label taken off."""
+    rest = {k: ([x for x in v if x != value] if k == key else v) for k, v in f.items()}
+    return f"{reverse('artifacts:library')}?{urlencode(rest, doseq=True)}"
 
 
 @org_required
@@ -320,11 +357,25 @@ def library(request):
         picked = Artifact.objects.filter(org=org, pk__in=ids)
         action = request.POST.get("action")
         back = request.POST.get("back") or reverse("artifacts:library")
+        if action == "sort":
+            if not ai.enabled():
+                messages.error(request, "The AI helper is not switched on.")
+                return redirect(back)
+            todo = ids or list(Artifact.objects.filter(org=org, tags__isnull=True)
+                               .exclude(status=ArtifactStatus.HIDDEN).values_list("pk", flat=True))
+            if not todo:
+                messages.info(request, "Everything already has labels. Tick items to sort them again.")
+                return redirect(back)
+            ai.sort_in_background(org, todo)
+            messages.success(request, f"Sorting {len(todo)} {'item' if len(todo) == 1 else 'items'}. "
+                             "Labels appear as each batch is done; reload in a minute.")
+            return redirect(back)
         if not ids and action != "collect_filter":
             messages.error(request, "Tick at least one item first.")
             return redirect(back)
         if action == "tag":
-            tags = _tags_from(org, request.POST.get("tags"))
+            group = TagGroup.PART if request.POST.get("group") == TagGroup.PART else TagGroup.LABEL
+            tags = _tags_from(org, request.POST.get("tags"), group)
             for a in picked:
                 a.tags.add(*tags)
             messages.success(request, f"Labeled {picked.count()}.")
@@ -349,13 +400,21 @@ def library(request):
             return redirect("artifacts:story_edit", slug=s.slug)
         return redirect(back)
     f = _filter_from(request)
-    qs = filtered(org, f).order_by("-received_at")
+    qs = filtered(org, f).order_by(*SORTS.get(f.get("sort", ""), SORTS[""]))
     everything = Artifact.objects.filter(org=org)
+    in_use = Tag.objects.filter(org=org).annotate(
+        n=Count("artifacts", filter=~Q(artifacts__status=ArtifactStatus.HIDDEN), distinct=True)) \
+        .filter(n__gt=0).order_by("-n", "name")
+    chosen = [(k, v, _without(f, k, v)) for k in MULTI_KEYS for v in f.get(k, [])]
     return render(request, "artifacts/library.html", {
         "org": org, "nav": "library", "items": qs[:300], "total": qs.count(), "f": f, "filter_json": json.dumps(f),
         "any_at_all": everything.exists(),
         "kinds": [(k, label) for k, label in ArtifactKind.choices if everything.filter(kind=k).exists()],
-        "tags": Tag.objects.filter(org=org, artifacts__isnull=False).distinct(),
+        "parts": _chips(f, "part", [t for t in in_use if t.group == TagGroup.PART]),
+        "labels": _chips(f, "tag", [t for t in in_use if t.group != TagGroup.PART]),
+        "keep": [(k, x) for k in MULTI_KEYS for x in f.get(k, [])],
+        "chosen": chosen, "here": request.get_full_path(), "ai_on": ai.enabled(),
+        "unlabeled": everything.filter(tags__isnull=True).exclude(status=ArtifactStatus.HIDDEN).count(),
         "source_kinds": [(k, label) for k, label in SourceKind.choices if everything.filter(source__kind=k).exists()],
         "people": everything.exclude(sent_by="").values_list("sent_by", flat=True).distinct().order_by("sent_by"),
         "collections": Collection.objects.filter(org=org),
@@ -374,12 +433,46 @@ def artifact(request, pk):
         if a.status == ArtifactStatus.NEW:
             a.status = ArtifactStatus.KEPT
         a.save()
-        a.tags.set(_tags_from(org, request.POST.get("tags")))
+        a.tags.set(_tags_from(org, request.POST.get("parts"), TagGroup.PART)
+                   + _tags_from(org, request.POST.get("tags")))
         messages.success(request, "Saved.")
         return redirect("artifacts:artifact", pk=a.pk)
     return render(request, "artifacts/artifact.html", {
-        "org": org, "nav": "library", "a": a, "tag_text": ", ".join(t.name for t in a.tags.all()),
+        "org": org, "nav": "library", "a": a,
+        "part_text": ", ".join(t.name for t in a.tags.all() if t.group == TagGroup.PART),
+        "tag_text": ", ".join(t.name for t in a.tags.all() if t.group != TagGroup.PART),
+        "ai_labels": {x.get("label") for x in a.ai_labels if x.get("by") == "ai"},
         "lt_embed": settings.LT_EMBED})
+
+
+@org_required
+def labels(request):
+    """Every label, with how many items carry it: rename, merge, move between
+    'part of our org' and plain label, or delete."""
+    org = request.org
+    if request.method == "POST":
+        t = get_object_or_404(Tag, pk=request.POST.get("pk"), org=org)
+        action = request.POST.get("action")
+        if action == "delete":
+            t.delete()
+            messages.success(request, f"Took the label “{t.name}” off everything.")
+        elif action == "save":
+            t.group = TagGroup.PART if request.POST.get("group") == TagGroup.PART else TagGroup.LABEL
+            name = (request.POST.get("name") or "").strip().lower()[:60] or t.name
+            same = Tag.objects.filter(org=org, name=name).exclude(pk=t.pk).first()
+            if same:  # renamed onto an existing label: merge into it
+                for a in t.artifacts.all():
+                    a.tags.add(same)
+                t.delete()
+                messages.success(request, f"Merged into “{same.name}”.")
+            else:
+                t.name = name
+                t.save()
+                messages.success(request, "Saved.")
+        return redirect("artifacts:labels")
+    tags = Tag.objects.filter(org=org).annotate(n=Count("artifacts", distinct=True)).order_by("group", "name")
+    return render(request, "artifacts/labels.html", {
+        "org": org, "nav": "labels", "tags": tags, "PART": TagGroup.PART})
 
 
 # ---- collections -------------------------------------------------------------

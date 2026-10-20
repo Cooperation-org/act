@@ -21,7 +21,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
 from .intake import add_file, add_reference
-from .models import ArtifactKind, Source, SourceKind
+from .models import ArtifactKind, Source, SourceKind, Tag
 
 logger = logging.getLogger(__name__)
 
@@ -162,7 +162,11 @@ def drive_enabled():
     return True
 
 
-def _drive_api_files(folder, key):
+FOLDER_MIME = "application/vnd.google-apps.folder"
+
+
+def _drive_api_files(folder, key, path=(), max_depth=3):
+    """Files in the folder and its subfolders; each carries the subfolder names it sits in."""
     params = {"q": f"'{folder}' in parents and trashed = false", "key": key, "pageSize": 100,
               "fields": "nextPageToken, files(id, name, mimeType, size, createdTime, webViewLink, "
                         "imageMediaMetadata(time), owners(displayName, emailAddress))"}
@@ -173,6 +177,10 @@ def _drive_api_files(folder, key):
                                "as 'Anyone with the link'.")
         body = r.json()
         for f in body.get("files", []):
+            if f["mimeType"] == FOLDER_MIME:
+                if len(path) < max_depth:
+                    yield from _drive_api_files(f["id"], key, path + (f["name"],), max_depth)
+                continue
             when = None
             taken = (f.get("imageMediaMetadata") or {}).get("time")
             if taken:
@@ -183,7 +191,7 @@ def _drive_api_files(folder, key):
             owner = (f.get("owners") or [{}])[0]
             yield {"id": f["id"], "name": f["name"], "mime": f["mimeType"], "size": int(f.get("size") or 0),
                    "url": f.get("webViewLink", ""), "when": when or parse_datetime(f.get("createdTime") or ""),
-                   "by": owner.get("emailAddress") or owner.get("displayName") or ""}
+                   "by": owner.get("emailAddress") or owner.get("displayName") or "", "folders": path}
         if not body.get("nextPageToken"):
             return
         params["pageToken"] = body["nextPageToken"]
@@ -194,7 +202,7 @@ _EMBED_ENTRY = re.compile(
     r'(?:/type/([a-z]+/[A-Za-z0-9.+-]+))?".*?<div class="flip-entry-title">([^<]*)</div>', re.S)
 
 
-def _drive_public_files(folder, depth=0, max_depth=3):
+def _drive_public_files(folder, path=(), max_depth=3):
     """Files in a folder shared 'Anyone with the link', from Drive's public folder view
     (no key needed). Walks subfolders a few levels down. Google Docs/Sheets are skipped:
     they are not files to copy."""
@@ -208,11 +216,22 @@ def _drive_public_files(folder, depth=0, max_depth=3):
         what, fid, mime, name = m.groups()
         name = html.unescape(name)
         if what == "drive/folders":
-            if depth < max_depth:
-                yield from _drive_public_files(fid, depth + 1, max_depth)
+            if len(path) < max_depth:
+                yield from _drive_public_files(fid, path + (name,), max_depth)
             continue
         yield {"id": fid, "name": name, "mime": mime or mimetypes.guess_type(name)[0] or "",
-               "size": 0, "url": f"https://drive.google.com/file/d/{fid}/view", "when": None, "by": ""}
+               "size": 0, "url": f"https://drive.google.com/file/d/{fid}/view", "when": None, "by": "",
+               "folders": path}
+
+
+def labels_for(org, names):
+    """The org's labels with these names, made if missing. Names are kept as typed, lowercased."""
+    out = []
+    for n in names:
+        n = (n or "").strip().lower()[:60]
+        if n:
+            out.append(Tag.objects.get_or_create(org=org, name=n)[0])
+    return out
 
 
 def _drive_download(f, key):
@@ -224,8 +243,8 @@ def _drive_download(f, key):
 
 def import_drive(source, limit=300, max_bytes=300 * 1024 * 1024):
     """Copy every file in a Drive folder shared 'Anyone with the link'. Read-only: the
-    folder is never changed. Returns (new, already). Raises RuntimeError with a plain
-    message on failure."""
+    folder is never changed. Each file is labeled with the names of the subfolders it
+    sits in. Returns (new, already). Raises RuntimeError with a plain message on failure."""
     folder = source.config.get("folder_id", "")
     key = settings.ACT_GOOGLE_API_KEY
     files = _drive_api_files(folder, key) if key else _drive_public_files(folder)
@@ -244,9 +263,11 @@ def import_drive(source, limit=300, max_bytes=300 * 1024 * 1024):
         ctype = got.headers.get("Content-Type", "")
         if got.status_code != 200 or ctype.startswith("text/html") or len(got.content) > max_bytes:
             continue  # too large for Drive's direct download, or not shared
-        _, created = add_file(source.org, data=got.content, filename=f["name"], content_type=f["mime"],
+        a, created = add_file(source.org, data=got.content, filename=f["name"], content_type=f["mime"],
                               source=source, source_ref=f["id"], source_url=f["url"], sent_by=f["by"],
                               happened_at=f["when"])
+        if f.get("folders"):
+            a.tags.add(*labels_for(source.org, f["folders"]))
         new += created
         already += not created
     return new, already

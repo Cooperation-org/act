@@ -18,6 +18,7 @@ urlpatterns = [
     path("share/", views.share_target, name="share"),
     path("library/", views.library, name="library"),
     path("library/<int:pk>/", views.artifact, name="artifact"),
+    path("labels/", views.labels, name="labels"),
     path("collections/", views.collections, name="collections"),
     path("collections/<int:pk>/", views.collection, name="collection"),
     path("stories/", views.stories, name="stories"),

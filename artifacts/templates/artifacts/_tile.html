@@ -7,7 +7,7 @@
       {% if a.title %}<h3>{{ a.title }}</h3>{% endif %}
       {% if a.words %}<p>{{ a.words }}</p>{% elif a.filename %}<p class="muted">{{ a.filename }}</p>{% elif a.source_url %}<p class="muted">{{ a.source_url }}</p>{% endif %}
       <small>{{ a.when|date:"j M Y" }}{% if a.sent_by %} · {{ a.sent_by|truncatechars:32 }}{% endif %}</small>
-      <div>{% for t in a.tags.all %}<span class="tag">{{ t.name }}</span>{% endfor %}</div>
+      <div>{% for t in a.tags.all %}<span class="tag{% if t.group == 'part' %} part{% endif %}">{{ t.name }}</span>{% endfor %}</div>
     </div>
   </a>
 </div>
