@@ -108,11 +108,18 @@
   function startTimer() { var t = 0; camTimer.hidden = false; camTimer.textContent = fmt(t); state.timerId = setInterval(function () { t++; camTimer.textContent = fmt(t); }, 1000); }
   function stopTimer() { if (state.timerId) { clearInterval(state.timerId); state.timerId = null; } camTimer.hidden = true; }
 
+  function ready() {
+    if (!state.stream) return false;
+    if (state.mode === 'voice') return true;
+    return camVideo.videoWidth > 0;
+  }
+
   function setUI() {
     var has = !!state.blob, recording = state.recorder && state.recorder.state === 'recording';
     var isPhoto = state.mode === 'photo';
-    camSnapBtn.hidden = !isPhoto || recording || has;
-    camRecordBtn.hidden = isPhoto || recording || has;
+    var can = ready();
+    camSnapBtn.hidden = !isPhoto || recording || has || !can;
+    camRecordBtn.hidden = isPhoto || recording || has || !can;
     camStopBtn.hidden = !recording;
     camRetakeBtn.hidden = !has;
     camSaveBtn.hidden = !has;
@@ -149,6 +156,8 @@
       try {
         state.stream = await navigator.mediaDevices.getUserMedia(tries[i]);
         camVideo.srcObject = state.stream;
+        try { await camVideo.play(); } catch (_) {}
+        setUI();
         return;
       } catch (e) { lastErr = e; }
     }
@@ -157,7 +166,19 @@
 
   camCancelBtn.addEventListener('click', function () { resetCam(); cam.hidden = true; });
 
-  function snapPhoto() {
+  function awaitReady(timeoutMs) {
+    if (camVideo.videoWidth > 0) return Promise.resolve();
+    return new Promise(function (resolve) {
+      var done = false;
+      var finish = function () { if (!done) { done = true; resolve(); } };
+      camVideo.addEventListener('loadeddata', finish, { once: true });
+      camVideo.addEventListener('playing', finish, { once: true });
+      setTimeout(finish, timeoutMs || 3000);
+    });
+  }
+
+  async function snapPhoto() {
+    await awaitReady(3000);
     var w = camVideo.videoWidth, h = camVideo.videoHeight;
     if (!w || !h) { showFallback('Camera not ready yet. Wait a moment and try again.'); return; }
     var c = document.createElement('canvas');
@@ -250,6 +271,8 @@
   document.getElementById('rec-voice').addEventListener('click', function () { openMode('voice'); });
 
   camVideo.addEventListener('loadedmetadata', function () { if (state.stream) setUI(); });
+  camVideo.addEventListener('playing', function () { setUI(); });
+  camVideo.addEventListener('canplay', function () { setUI(); });
 })();
 </script>
 <style>
