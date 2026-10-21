@@ -22,7 +22,9 @@
       <video id="cam-video" autoplay playsinline muted></video>
       <div class="cam-empty" id="cam-empty" hidden>Recording audio only.</div>
       <div class="cam-timer" id="cam-timer" hidden>00:00</div>
-      <img id="cam-preview" alt="" hidden>
+      <img id="cam-preview-img" alt="" hidden>
+      <video id="cam-preview-video" controls playsinline hidden></video>
+      <audio id="cam-preview-audio" controls hidden></audio>
       <div class="cam-fallback" id="cam-fallback" hidden>
         <p id="cam-fallback-msg" style="color:#fff"></p>
       </div>
@@ -33,6 +35,7 @@
       <button type="button" class="big" id="cam-stop" hidden>Stop</button>
       <button type="button" id="cam-retake" hidden>Retake</button>
       <button type="button" id="cam-save" hidden disabled>Save</button>
+      <button type="button" class="quiet" id="cam-pick">Pick from files</button>
       <button type="button" class="quiet" id="cam-cancel">Cancel</button>
     </div>
   </div>
@@ -109,13 +112,16 @@
   var camVideo = document.getElementById('cam-video');
   var camEmpty = document.getElementById('cam-empty');
   var camTimer = document.getElementById('cam-timer');
-  var camPreview = document.getElementById('cam-preview');
+  var camPreviewImg = document.getElementById('cam-preview-img');
+  var camPreviewVideo = document.getElementById('cam-preview-video');
+  var camPreviewAudio = document.getElementById('cam-preview-audio');
   var camSnapBtn = document.getElementById('cam-snap');
   var camRecordBtn = document.getElementById('cam-record');
   var camStopBtn = document.getElementById('cam-stop');
   var camRetakeBtn = document.getElementById('cam-retake');
   var camSaveBtn = document.getElementById('cam-save');
   var camCancelBtn = document.getElementById('cam-cancel');
+  var camPickBtn = document.getElementById('cam-pick');
   var camModeLabel = document.getElementById('cam-mode');
   var camFallback = document.getElementById('cam-fallback');
   var camFallbackMsg = document.getElementById('cam-fallback-msg');
@@ -151,7 +157,10 @@
     if (state.stream) state.stream.getTracks().forEach(function (t) { t.stop(); });
     if (state.recorder && state.recorder.state !== 'inactive') { try { state.recorder.stop(); } catch (_) {} }
     state.stream = null; state.recorder = null; state.chunks = []; state.blob = null; state.mime = null;
-    camVideo.srcObject = null; camPreview.src = ''; camPreview.hidden = true;
+    camVideo.srcObject = null;
+    camPreviewImg.src = ''; camPreviewImg.hidden = true;
+    camPreviewVideo.removeAttribute('src'); camPreviewVideo.load(); camPreviewVideo.hidden = true;
+    camPreviewAudio.removeAttribute('src'); camPreviewAudio.load(); camPreviewAudio.hidden = true;
     camEmpty.hidden = true; camVideo.hidden = true; camTimer.hidden = true;
     clearFallback(); stopTimer();
     setUI();
@@ -229,7 +238,7 @@
     c.getContext('2d').drawImage(camVideo, 0, 0, w, h);
     c.toBlob(function (b) {
       state.blob = b; state.mime = 'image/jpeg';
-      camPreview.src = URL.createObjectURL(b); camPreview.hidden = false;
+      camPreviewImg.src = URL.createObjectURL(b); camPreviewImg.hidden = false;
       camVideo.hidden = true;
       setUI();
     }, 'image/jpeg', 0.9);
@@ -246,7 +255,9 @@
     rec.onstop = function () {
       state.blob = new Blob(state.chunks, { type: state.mime });
       if (state.mode === 'video') {
-        camPreview.src = URL.createObjectURL(state.blob); camPreview.hidden = false; camVideo.hidden = true;
+        camPreviewVideo.src = URL.createObjectURL(state.blob); camPreviewVideo.hidden = false; camVideo.hidden = true;
+      } else if (state.mode === 'voice') {
+        camPreviewAudio.src = URL.createObjectURL(state.blob); camPreviewAudio.hidden = false;
       }
       setUI();
     };
@@ -265,9 +276,9 @@
   camStopBtn.addEventListener('click', stopRecording);
 
   camRetakeBtn.addEventListener('click', function () {
-    if (state.blob && state.mime && state.mime.indexOf('image') !== -1) camVideo.hidden = false;
-    else if (state.blob && state.mime && state.mime.indexOf('video') !== -1) camVideo.hidden = false;
-    camPreview.hidden = true; state.blob = null; state.mime = null;
+    if (state.blob && state.mode !== 'voice') camVideo.hidden = false;
+    camPreviewImg.hidden = true; camPreviewVideo.hidden = true; camPreviewAudio.hidden = true;
+    state.blob = null; state.mime = null;
     setUI();
   });
 
@@ -288,6 +299,11 @@
     cam.hidden = true;
   }
   camSaveBtn.addEventListener('click', attach);
+
+  function pickExisting() {
+    document.getElementById('cap-pick-' + state.mode).click();
+  }
+  camPickBtn.addEventListener('click', pickExisting);
 
   ['cap-pick-photo', 'cap-pick-video', 'cap-pick-voice'].forEach(function (id) {
     document.getElementById(id).addEventListener('change', function (e) {
