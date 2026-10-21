@@ -43,6 +43,7 @@
 
   <div class="captures" id="captures" hidden>
     <p class="muted" id="captures-summary"></p>
+    <ul class="captures-thumbs" id="captures-thumbs"></ul>
     <input type="file" id="cap-photo" name="files" hidden>
     <input type="file" id="cap-video" name="files" hidden>
     <input type="file" id="cap-voice" name="files" hidden>
@@ -93,10 +94,39 @@
     form.querySelectorAll('input[type=file]').forEach(function (i) { for (var f of i.files) { n++; names.push(f.name); } });
     chosen.textContent = n ? n + (n === 1 ? ' item ready: ' : ' items ready: ') + names.slice(0, 4).join(', ') + (n > 4 ? '…' : '') : '';
     var cap = document.getElementById('captures'), sum = document.getElementById('captures-summary');
+    var thumbs = document.getElementById('captures-thumbs');
+    thumbs.innerHTML = '';
+    thumbs._urls = thumbs._urls || [];
+    thumbs._urls.forEach(function (u) { try { URL.revokeObjectURL(u); } catch (_) {} });
+    thumbs._urls = [];
     var labels = [];
     [['cap-photo', 'photo'], ['cap-video', 'video'], ['cap-voice', 'voice']].forEach(function (x) {
       var inp = document.getElementById(x[0]);
       if (inp.files && inp.files[0]) labels.push(x[1] + ': ' + inp.files[0].name);
+    });
+    form.querySelectorAll('input[type=file]').forEach(function (i) {
+      for (var f of i.files) {
+        var li = document.createElement('li');
+        li.className = 'capture-thumb';
+        if (f.type.indexOf('image') === 0) {
+          var img = document.createElement('img');
+          var u = URL.createObjectURL(f);
+          thumbs._urls.push(u);
+          img.src = u; img.alt = f.name;
+          li.appendChild(img);
+        } else if (f.type.indexOf('video') === 0) {
+          var v = document.createElement('video');
+          v.src = URL.createObjectURL(f); v.muted = true; v.playsInline = true;
+          thumbs._urls.push(v.src);
+          li.appendChild(v);
+        } else {
+          var a = document.createElement('span'); a.className = 'capture-icon'; a.textContent = '🎙';
+          li.appendChild(a);
+        }
+        var nm = document.createElement('span'); nm.className = 'capture-name'; nm.textContent = f.name;
+        li.appendChild(nm);
+        thumbs.appendChild(li);
+      }
     });
     if (labels.length) { sum.textContent = 'Captured ' + labels.join(', '); cap.hidden = false; }
     else { sum.textContent = ''; cap.hidden = true; }
@@ -385,6 +415,11 @@
 .cam-toolbar button:disabled { opacity: .5; cursor: not-allowed; }
 .captures { padding: .8rem; background: var(--accent-soft); border-radius: var(--radius); margin-bottom: 1rem; }
 .captures p { margin: 0; }
+.captures-thumbs { list-style: none; padding: .6rem 0 0; margin: 0; display: flex; flex-wrap: wrap; gap: .6rem; }
+.capture-thumb { background: var(--bg-2, #222); border-radius: 8px; padding: .3rem; display: flex; flex-direction: column; align-items: center; gap: .25rem; max-width: 130px; }
+.capture-thumb img, .capture-thumb video { width: 120px; height: 90px; object-fit: cover; border-radius: 6px; display: block; }
+.capture-thumb .capture-icon { font-size: 2rem; line-height: 1; padding: 1.4rem 0; }
+.capture-thumb .capture-name { font-size: .78rem; color: var(--text-2, #bbb); text-align: center; word-break: break-word; max-width: 120px; }
 .picks .btn { line-height: 1.2; }
 .picks .btn span { display: inline; }
 </style>
