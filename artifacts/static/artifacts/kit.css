@@ -166,3 +166,7 @@ table.labels td, table.labels th { padding: .35rem .4rem; text-align: left; bord
 table.labels input[type=text] { margin: 0; }
 table.labels select { margin: 0; }
 @media (max-width: 600px) { table.labels thead { display: none; } table.labels tr { display: block; padding: .5rem 0; border-bottom: 1px solid #ddd; } table.labels td { display: inline-block; border: 0; } }
+details.more { flex-basis: 100%; }
+details.more summary { cursor: pointer; color: var(--accent); padding: .3rem 0; }
+.toolbar .picked-only, .toolbar.has-picks .none-picked { display: none; }
+.toolbar.has-picks .picked-only, .toolbar .none-picked { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; width: 100%; }
