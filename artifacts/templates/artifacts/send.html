@@ -18,6 +18,7 @@
 
   <div id="cam" class="cam" hidden>
     <p class="cam-mode muted" id="cam-mode">Camera</p>
+    <p class="cam-stats muted" id="cam-stats" hidden></p>
     <div class="cam-stage">
       <video id="cam-video" autoplay playsinline muted></video>
       <div class="cam-empty" id="cam-empty" hidden>Recording audio only.</div>
@@ -35,6 +36,7 @@
       <button type="button" class="big" id="cam-stop" hidden>Stop</button>
       <button type="button" id="cam-retake" hidden>Retake</button>
       <button type="button" id="cam-save" hidden disabled>Save</button>
+      <button type="button" id="cam-bright" aria-pressed="false" title="Brightens only the preview; recording keeps the camera's actual exposure">Brighter preview</button>
       <button type="button" class="quiet" id="cam-pick">Pick from files</button>
       <button type="button" class="quiet" id="cam-cancel">Cancel</button>
     </div>
@@ -122,11 +124,13 @@
   var camSaveBtn = document.getElementById('cam-save');
   var camCancelBtn = document.getElementById('cam-cancel');
   var camPickBtn = document.getElementById('cam-pick');
+  var camBrightBtn = document.getElementById('cam-bright');
+  var camStats = document.getElementById('cam-stats');
   var camModeLabel = document.getElementById('cam-mode');
   var camFallback = document.getElementById('cam-fallback');
   var camFallbackMsg = document.getElementById('cam-fallback-msg');
 
-  var state = { mode: null, stream: null, recorder: null, chunks: [], timerId: null, blob: null, mime: null };
+  var state = { mode: null, stream: null, recorder: null, chunks: [], timerId: null, blob: null, mime: null, lumaId: null };
 
   function fmt(s) { var m = Math.floor(s / 60), r = s % 60; return (m < 10 ? '0' : '') + m + ':' + (r < 10 ? '0' : '') + r; }
   function startTimer() { var t = 0; camTimer.hidden = false; camTimer.textContent = fmt(t); state.timerId = setInterval(function () { t++; camTimer.textContent = fmt(t); }, 1000); }
@@ -156,12 +160,15 @@
   function resetCam() {
     if (state.stream) state.stream.getTracks().forEach(function (t) { t.stop(); });
     if (state.recorder && state.recorder.state !== 'inactive') { try { state.recorder.stop(); } catch (_) {} }
+    if (state.lumaId) { clearInterval(state.lumaId); state.lumaId = null; }
     state.stream = null; state.recorder = null; state.chunks = []; state.blob = null; state.mime = null;
     camVideo.srcObject = null;
     camPreviewImg.src = ''; camPreviewImg.hidden = true;
     camPreviewVideo.removeAttribute('src'); camPreviewVideo.load(); camPreviewVideo.hidden = true;
     camPreviewAudio.removeAttribute('src'); camPreviewAudio.load(); camPreviewAudio.hidden = true;
     camEmpty.hidden = true; camVideo.hidden = true; camTimer.hidden = true;
+    camStats.hidden = true; camStats.textContent = '';
+    camBrightBtn.setAttribute('aria-pressed', 'false'); camVideo.classList.remove('cam-bright-on');
     clearFallback(); stopTimer();
     setUI();
   }
@@ -189,6 +196,7 @@
         if (wantsVideo) {
           camVideo.srcObject = state.stream;
           try { await camVideo.play(); } catch (_) {}
+          startLumaReadout();
         }
         pollVideoReady();
         setUI();
@@ -312,6 +320,34 @@
   }
   camSaveBtn.addEventListener('click', attach);
 
+  function startLumaReadout() {
+    if (state.lumaId) return;
+    var sample = document.createElement('canvas'); sample.width = 16; sample.height = 16;
+    var ctx = sample.getContext('2d', { willReadFrequently: true });
+    var frames = 0;
+    var lastLuma = null;
+    state.lumaId = setInterval(function () {
+      frames++;
+      var w = camVideo.videoWidth, h = camVideo.videoHeight;
+      if (!w || !h) { camStats.textContent = 'no frames yet'; camStats.hidden = false; return; }
+      try {
+        ctx.drawImage(camVideo, 0, 0, 16, 16);
+        var px = ctx.getImageData(0, 0, 16, 16).data;
+        var sum = 0, n = 0;
+        for (var i = 0; i < px.length; i += 4) { sum += (px[i] * 0.299 + px[i+1] * 0.587 + px[i+2] * 0.114); n++; }
+        lastLuma = Math.round(sum / n);
+      } catch (_) {}
+      camStats.textContent = w + '×' + h + ' · luma ' + (lastLuma == null ? '?' : lastLuma) + '/255 · ' + frames + ' frames';
+      camStats.hidden = false;
+    }, 500);
+  }
+
+  camBrightBtn.addEventListener('click', function () {
+    var on = camBrightBtn.getAttribute('aria-pressed') === 'true';
+    camBrightBtn.setAttribute('aria-pressed', on ? 'false' : 'true');
+    camVideo.classList.toggle('cam-bright-on', !on);
+  });
+
   function pickExisting() {
     document.getElementById('cap-pick-' + state.mode).click();
   }
@@ -344,7 +380,9 @@
 <style>
 .cam { background: #1a1a1a; color: #fff; border-radius: var(--radius); margin: 1rem 0; padding: 1rem; }
 .cam[hidden] { display: none; }
-.cam-mode { margin: 0 0 .6rem; color: #ccc; font-weight: 600; }
+.cam-mode { margin: 0 0 .2rem; color: #ccc; font-weight: 600; }
+.cam-stats { margin: 0 0 .6rem; font: 600 .85rem ui-monospace, monospace; }
+#cam-video.cam-bright-on { filter: brightness(1.6) contrast(1.1); }
 .cam-stage { position: relative; aspect-ratio: 4 / 3; max-height: 60vh; background: #000; border-radius: 8px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
 .cam-stage video, .cam-stage img { max-width: 100%; max-height: 100%; object-fit: contain; }
 .cam-empty { color: #ddd; padding: 2rem; text-align: center; }
