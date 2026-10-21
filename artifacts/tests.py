@@ -402,3 +402,56 @@ class SlugTests(Base):
         slug = _unique_slug(Story, "umbrella-collective Riverside Bike Repair, April 2026 to October 2026")
         self.assertEqual(slug, "umbrella-collective-riverside-bike-repair")
         self.assertLessEqual(len(slug), 50)
+
+
+@override_settings(ACT_DEMO_ORG="o1")
+class DemoTests(Base):
+    def setUp(self):
+        super().setUp()
+        self.a, _ = add_file(self.org, data=png_bytes(), filename="a.png", source=self.upload, words="sample")
+        from .models import Tag
+        self.a.tags.add(Tag.objects.create(org=self.org, name="riverside", group="part"))
+        s = Story.objects.create(org=self.org, title="S", slug="s", status="published")
+        StoryBlock.objects.create(story=s, artifact=self.a, text="t")
+
+    def test_visitor_gets_own_copy_signed_in(self):
+        r = self.client.get(reverse("artifacts:demo"))
+        self.assertRedirects(r, reverse("artifacts:library"), fetch_redirect_response=False)
+        from .models import DemoCopy
+        d = DemoCopy.objects.get()
+        copy = Artifact.objects.get(org=d.org)
+        self.assertEqual((copy.file.name, copy.words, [t.name for t in copy.tags.all()]),
+                         (self.a.file.name, "sample", ["riverside"]))
+        self.assertEqual(Story.objects.get(org=d.org).blocks.get().artifact, copy)
+        page = self.client.get(reverse("artifacts:library"))
+        self.assertContains(page, "Start your own")
+        # an edit in the copy leaves the sample alone
+        self.client.post(reverse("artifacts:artifact_quick", args=[copy.pk]), '{"title": "mine"}', content_type="application/json")
+        self.a.refresh_from_db()
+        self.assertEqual(self.a.title, "")
+        # the same visitor coming back gets the same copy
+        self.client.get(reverse("artifacts:demo"))
+        self.assertEqual(DemoCopy.objects.count(), 1)
+
+    def test_old_copies_removed_but_sample_files_kept(self):
+        import os
+        from datetime import timedelta
+        from django.utils import timezone
+        from . import demo
+        from .models import DemoCopy
+        self.client.get(reverse("artifacts:demo"))
+        d = DemoCopy.objects.get()
+        own, _ = add_file(d.org, data=png_bytes("blue"), filename="mine.png")
+        own_path = own.file.path
+        self.assertEqual(demo.remove_old(now=timezone.now() + timedelta(hours=25)), 1)
+        self.assertFalse(DemoCopy.objects.exists())
+        self.assertFalse(os.path.exists(own_path))
+        self.assertFalse(os.path.exists(os.path.dirname(os.path.dirname(os.path.dirname(own_path)))))
+        self.assertTrue(os.path.exists(self.a.file.path))
+        self.assertTrue(Artifact.objects.filter(pk=self.a.pk).exists())
+
+    def test_start_your_own_signs_guest_out(self):
+        self.client.get(reverse("artifacts:demo"))
+        r = self.client.get(reverse("artifacts:demo_leave"))
+        self.assertIn(reverse("artifacts:signin"), r["Location"])
+        self.assertNotIn("_auth_user_id", self.client.session)

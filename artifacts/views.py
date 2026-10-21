@@ -25,7 +25,7 @@ from django.views.decorators.http import require_POST
 from campaigns.admin import user_orgs
 from campaigns.models import Org, VolunteerProfile
 
-from . import ai, spouts
+from . import ai, demo, spouts
 from .intake import add_file, add_reference
 from .models import (Artifact, ArtifactKind, ArtifactStatus, Collection, Source, SourceKind, Story,
                      StoryBlock, StoryStatus, StoryTemplate, Tag, TagGroup)
@@ -65,6 +65,35 @@ def signin(request):
         request.session["act_post_login_next"] = nxt
         return redirect(f"{settings.BASE_PATH}/api/v1/auth/linkedtrust/redirect")
     return redirect(f"{reverse('admin:login')}?{urlencode({'next': nxt})}")
+
+
+def demo_open(request):
+    """The live demo: your own copy of the sample org, no sign-in needed."""
+    sample = demo.sample_org()
+    if sample is None:
+        raise Http404
+    if request.user.is_authenticated:
+        mine = user_orgs(request.user).filter(demo_copy__isnull=False).order_by("-pk").first()
+        if mine:
+            request.session[SESSION_ORG] = mine.pk
+            return redirect("artifacts:library")
+    demo.remove_old()
+    guest, org = demo.make_copy(sample)
+    if request.user.is_authenticated:  # someone signed in trying the demo keeps their login
+        VolunteerProfile.objects.create(user=request.user, org=org, is_approver=True)
+    else:
+        from django.contrib.auth import login
+        login(request, guest, backend="django.contrib.auth.backends.ModelBackend")
+    request.session[SESSION_ORG] = org.pk
+    return redirect("artifacts:library")
+
+
+def demo_leave(request):
+    """From a demo copy to starting your own: a guest signs out and signs in for real."""
+    from django.contrib.auth import logout
+    if request.user.is_authenticated and request.user.demo_copies.exists():
+        logout(request)
+    return redirect(f"{reverse('artifacts:signin')}?{urlencode({'next': reverse('artifacts:start')})}")
 
 
 def home(request):

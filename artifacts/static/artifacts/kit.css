@@ -198,3 +198,5 @@ details.more-chips { display: inline; }
 details.more-chips summary { display: inline-block; cursor: pointer; color: var(--accent); font-size: .85rem; padding: .05rem .4rem; list-style: none; }
 details.more-chips summary::-webkit-details-marker { display: none; }
 details.more-chips[open] summary { display: none; }
+.demo-bar { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center; justify-content: space-between; background: var(--warn-bg); color: var(--warn-ink); border-radius: var(--radius); padding: .55rem .9rem; margin: 0 0 1rem; }
+.demo-bar .btn { padding: .35rem .9rem; }

@@ -162,6 +162,8 @@ PUBLIC_URL = os.environ.get("ACT_PUBLIC_URL", "http://localhost:8000")
 # act's backend POSTs the claim with client credentials. Without LT_CLIENT_ID/SECRET a
 # claim would be written with no issuer and could never be edited, so act refuses to sign.
 LT_API = os.environ.get("LT_API", "https://live.linkedtrust.us")
+# Story Kit live demo: the org each visitor gets a copy of (unset = no live demo).
+ACT_DEMO_ORG = os.environ.get("ACT_DEMO_ORG", "")
 LT_EMBED = os.environ.get("LT_EMBED", "https://demos.linkedtrust.us/embed")
 LT_CLIENT_ID = os.environ.get("LT_CLIENT_ID", "")
 LT_CLIENT_SECRET = os.environ.get("LT_CLIENT_SECRET", "")

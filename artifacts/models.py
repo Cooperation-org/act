@@ -201,3 +201,15 @@ class StoryBlock(models.Model):
 
     class Meta:
         ordering = ["order", "pk"]
+
+
+class DemoCopy(models.Model):
+    """A visitor's own copy of the sample org, made when they open the live demo without
+    signing in. Copies older than a day are removed, with their guest login and any
+    files uploaded into them."""
+    org = models.OneToOneField(Org, on_delete=models.CASCADE, related_name="demo_copy")
+    guest = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="demo_copies")
+    created = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"demo {self.org.slug}"

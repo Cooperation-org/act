@@ -6,6 +6,8 @@ app_name = "artifacts"
 
 urlpatterns = [
     path("kit/", views.home, name="home"),
+    path("demo/", views.demo_open, name="demo"),
+    path("demo/start-your-own/", views.demo_leave, name="demo_leave"),
     path("signin/", views.signin, name="signin"),
     path("start/", views.start, name="start"),
     path("org/<int:pk>/", views.switch_org, name="switch_org"),
