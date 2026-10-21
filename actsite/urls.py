@@ -19,8 +19,6 @@ def build_urlpatterns(enabled):
         patterns.append(path("", include("artifacts.urls")))
     if "campaigns" in enabled:
         patterns.append(path("", include("campaigns.urls")))
-    elif "artifacts" in enabled:
-        patterns.append(path("", RedirectView.as_view(pattern_name="artifacts:home"), name="home"))
     elif "letters" in enabled:
         patterns.append(path("", RedirectView.as_view(pattern_name="letters:index"), name="home"))
     return patterns

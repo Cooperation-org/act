@@ -1,11 +1,20 @@
+from django.conf import settings
 from django.urls import path
+from django.views.generic import RedirectView
 
 from . import views
 
 app_name = "artifacts"
 
-urlpatterns = [
-    path("kit/", views.home, name="home"),
+# Story Kit's home is the site root when it is the only app here; next to campaigns
+# (which owns "/") it lives at kit/.
+if "campaigns" in settings.ENABLED_APPS:
+    home = [path("kit/", views.home, name="home")]
+else:
+    home = [path("", views.home, name="home"),
+            path("kit/", RedirectView.as_view(pattern_name="artifacts:home", permanent=True))]
+
+urlpatterns = home + [
     path("demo/", views.demo_open, name="demo"),
     path("demo/start-your-own/", views.demo_leave, name="demo_leave"),
     path("signin/", views.signin, name="signin"),
