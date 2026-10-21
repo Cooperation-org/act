@@ -82,7 +82,15 @@
   var deferred = null;
   window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); deferred = e; go.hidden = false; box.hidden = false; });
   go.addEventListener('click', function () { if (deferred) { deferred.prompt(); deferred.userChoice.then(function () { box.hidden = true; }); } });
-  document.getElementById('install-no').addEventListener('click', function () { box.hidden = true; try { localStorage.setItem('storykit-install-no', '1'); } catch (e) {} });
+})();
+(function () {
+  var noBtn = document.getElementById('install-no');
+  if (!noBtn) return;
+  noBtn.addEventListener('click', function () {
+    var b = document.getElementById('install');
+    if (b) b.hidden = true;
+    try { localStorage.setItem('storykit-install-no', '1'); } catch (e) {}
+  }, false);
 })();
 </script>
 <script>
@@ -422,5 +430,8 @@
 .capture-thumb .capture-name { font-size: .78rem; color: var(--text-2, #bbb); text-align: center; word-break: break-word; max-width: 120px; }
 .picks .btn { line-height: 1.2; }
 .picks .btn span { display: inline; }
+.install { display: flex; align-items: center; gap: .6rem; padding: .8rem 1rem; background: var(--accent-soft); border-radius: var(--radius); margin: 1rem 0; flex-wrap: wrap; }
+.install[hidden] { display: none; }
+#install-no { background: transparent; color: var(--text-2, #888); border: 1px solid var(--text-2, #888); border-radius: 6px; font-size: 1rem; line-height: 1; min-width: 2.4rem; min-height: 2.4rem; padding: 0; cursor: pointer; }
 </style>
 {% endblock %}
