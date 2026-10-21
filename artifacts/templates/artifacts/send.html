@@ -36,7 +36,6 @@
       <button type="button" class="big" id="cam-stop" hidden>Stop</button>
       <button type="button" id="cam-retake" hidden>Retake</button>
       <button type="button" id="cam-save" hidden disabled>Save</button>
-      <button type="button" id="cam-bright" aria-pressed="false" title="Brightens only the preview; recording keeps the camera's actual exposure">Brighter preview</button>
       <button type="button" class="quiet" id="cam-pick">Pick from files</button>
       <button type="button" class="quiet" id="cam-cancel">Cancel</button>
     </div>
@@ -124,7 +123,6 @@
   var camSaveBtn = document.getElementById('cam-save');
   var camCancelBtn = document.getElementById('cam-cancel');
   var camPickBtn = document.getElementById('cam-pick');
-  var camBrightBtn = document.getElementById('cam-bright');
   var camStats = document.getElementById('cam-stats');
   var camModeLabel = document.getElementById('cam-mode');
   var camFallback = document.getElementById('cam-fallback');
@@ -168,7 +166,6 @@
     camPreviewAudio.removeAttribute('src'); camPreviewAudio.load(); camPreviewAudio.hidden = true;
     camEmpty.hidden = true; camVideo.hidden = true; camTimer.hidden = true;
     camStats.hidden = true; camStats.textContent = '';
-    camBrightBtn.setAttribute('aria-pressed', 'false'); camVideo.classList.remove('cam-bright-on');
     clearFallback(); stopTimer();
     setUI();
   }
@@ -342,12 +339,6 @@
     }, 500);
   }
 
-  camBrightBtn.addEventListener('click', function () {
-    var on = camBrightBtn.getAttribute('aria-pressed') === 'true';
-    camBrightBtn.setAttribute('aria-pressed', on ? 'false' : 'true');
-    camVideo.classList.toggle('cam-bright-on', !on);
-  });
-
   function pickExisting() {
     document.getElementById('cap-pick-' + state.mode).click();
   }
@@ -382,7 +373,6 @@
 .cam[hidden] { display: none; }
 .cam-mode { margin: 0 0 .2rem; color: #ccc; font-weight: 600; }
 .cam-stats { margin: 0 0 .6rem; font: 600 .85rem ui-monospace, monospace; }
-#cam-video.cam-bright-on { filter: brightness(1.6) contrast(1.1); }
 .cam-stage { position: relative; aspect-ratio: 4 / 3; max-height: 60vh; background: #000; border-radius: 8px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
 .cam-stage video, .cam-stage img { max-width: 100%; max-height: 100%; object-fit: contain; }
 .cam-empty { color: #ddd; padding: 2rem; text-align: center; }
