@@ -25,7 +25,6 @@
       <img id="cam-preview" alt="" hidden>
       <div class="cam-fallback" id="cam-fallback" hidden>
         <p id="cam-fallback-msg" style="color:#fff"></p>
-        <button type="button" class="big" id="cam-pick">Pick from files</button>
       </div>
     </div>
     <div class="cam-toolbar">
@@ -120,7 +119,6 @@
   var camModeLabel = document.getElementById('cam-mode');
   var camFallback = document.getElementById('cam-fallback');
   var camFallbackMsg = document.getElementById('cam-fallback-msg');
-  var camPickBtn = document.getElementById('cam-pick');
 
   var state = { mode: null, stream: null, recorder: null, chunks: [], timerId: null, blob: null, mime: null };
 
@@ -167,21 +165,31 @@
     setUI();
     camVideo.hidden = mode === 'voice'; camEmpty.hidden = mode !== 'voice';
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      showFallback('In-page recording is not supported in this browser. Use "Pick from files" below to choose an existing file.');
+      showFallback('In-page recording is not supported in this browser. Choose an existing file from the box below.');
       return;
     }
-    var tries = [{ video: true, audio: mode === 'video' }, { video: { facingMode: 'user' }, audio: mode === 'video' }];
+    var wantsVideo = mode !== 'voice';
+    var wantsAudio = mode === 'voice' || mode === 'video';
+    var tries = wantsVideo
+      ? [{ video: true, audio: wantsAudio }, { video: { facingMode: 'user' }, audio: wantsAudio }]
+      : [{ audio: true }];
     var lastErr = null;
     for (var i = 0; i < tries.length; i++) {
       try {
         state.stream = await navigator.mediaDevices.getUserMedia(tries[i]);
-        camVideo.srcObject = state.stream;
-        try { await camVideo.play(); } catch (_) {}
+        if (wantsVideo) {
+          camVideo.srcObject = state.stream;
+          try { await camVideo.play(); } catch (_) {}
+        }
+        pollVideoReady();
         setUI();
         return;
       } catch (e) { lastErr = e; }
     }
-    showFallback('Camera/microphone unavailable (' + (lastErr && lastErr.name || 'error') + '). Allow access in your browser, or use "Pick from files" below.');
+    var hint = wantsVideo
+      ? 'Allow camera access in your browser, or use "Already have files" below.'
+      : 'Allow microphone access in your browser, or use "Already have files" below.';
+    showFallback('Camera/microphone unavailable (' + (lastErr && lastErr.name || 'error') + '). ' + hint);
   }
 
   camCancelBtn.addEventListener('click', function () { resetCam(); cam.hidden = true; });
@@ -195,6 +203,21 @@
       camVideo.addEventListener('playing', finish, { once: true });
       setTimeout(finish, timeoutMs || 3000);
     });
+  }
+
+  function pollVideoReady() {
+    if (state.mode === 'voice') { setUI(); return; }
+    var tries = 0, max = 60;
+    function tick() {
+      tries++;
+      if (camVideo.videoWidth > 0 || tries >= max) { setUI(); return; }
+      requestAnimationFrame(tick);
+    }
+    if (camVideo.videoWidth > 0) { setUI(); return; }
+    if (camVideo.requestVideoFrameCallback) {
+      camVideo.requestVideoFrameCallback(function () { setUI(); });
+    }
+    requestAnimationFrame(tick);
   }
 
   async function snapPhoto() {
@@ -265,11 +288,6 @@
     cam.hidden = true;
   }
   camSaveBtn.addEventListener('click', attach);
-
-  function pickExisting() {
-    document.getElementById('cap-pick-' + state.mode).click();
-  }
-  camPickBtn.addEventListener('click', pickExisting);
 
   ['cap-pick-photo', 'cap-pick-video', 'cap-pick-voice'].forEach(function (id) {
     document.getElementById(id).addEventListener('change', function (e) {
