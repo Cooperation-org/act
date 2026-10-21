@@ -16,6 +16,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_date
+from django.utils.safestring import mark_safe
 from django.utils.text import slugify
 from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import csrf_exempt
@@ -127,13 +128,26 @@ def _source(org, kind, **match):
     return Source.objects.filter(org=org, kind=kind, **match).first()
 
 
+def qr_svg(url):
+    """A QR code for `url` as inline SVG, scannable by any phone camera."""
+    import io
+
+    import segno
+    buf = io.BytesIO()
+    segno.make(url, error="m").save(buf, kind="svg", scale=5, border=2, dark="#1a1a1a", light="#ffffff",
+                                    xmldecl=False, svgns=True, omitsize=True,
+                                    title="Scan to open Story Kit on your phone")
+    return mark_safe(buf.getvalue().decode())
+
+
 @org_required
 def ways(request):
     org = request.org
     email_source = _source(org, SourceKind.EMAIL)
+    send_url = request.build_absolute_uri(reverse("artifacts:send"))
     return render(request, "artifacts/ways.html", {
         "org": org, "nav": "ways",
-        "send_url": request.build_absolute_uri(reverse("artifacts:send")),
+        "send_url": send_url, "send_qr": qr_svg(send_url),
         "email_address": (email_source.config.get("address") if email_source else "") or "",
         "drive_sources": Source.objects.filter(org=org, kind=SourceKind.DRIVE),
         "claim_sources": Source.objects.filter(org=org, kind=SourceKind.LINKEDCLAIMS),

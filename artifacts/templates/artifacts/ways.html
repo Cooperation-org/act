@@ -9,9 +9,8 @@
     <span class="icon" aria-hidden="true">📱</span>
     <div>
       <h3>From your phone</h3>
-      <p>Open this page on your phone. Take a photo or video, or pick from your camera roll, and add a sentence about it.</p>
+      <div class="qr">{{ send_qr }}<p>Scan with your phone's camera. Then add it to your home screen.</p></div>
       <div class="copy"><code id="send-url">{{ send_url }}</code><button type="button" class="quiet" data-copy="send-url">Copy link</button><a class="btn" href="{% url 'artifacts:send' %}">Open</a></div>
-      <p class="muted">Tip: on the phone, choose "Add to Home Screen". Then Story Kit shows up in your phone's Share menu, next to Messages and Mail.</p>
     </div>
   </li>
   <li>

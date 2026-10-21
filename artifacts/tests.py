@@ -386,3 +386,11 @@ class TemplateTests(Base):
         s = Story.objects.get()
         self.assertEqual((s.template, s.title, [b.artifact_id for b in s.blocks.all()]), ("onepage", "Lowell", [self.a.pk]))
         self.assertContains(self.client.get(reverse("artifacts:story", args=[s.slug])), 'class="pieces"')
+
+
+class QRTests(Base):
+    def test_ways_page_has_qr_to_send(self):
+        self.client.force_login(self.user)
+        r = self.client.get(reverse("artifacts:ways"))
+        self.assertContains(r, "<svg")
+        self.assertContains(r, "Scan with your phone")

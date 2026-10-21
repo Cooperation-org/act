@@ -4,6 +4,11 @@
 {% block content %}
 <h1>Send a photo, video or voice note</h1>
 <p class="lede">Click a button below to open your camera or microphone directly — no file picker.</p>
+<div class="install" id="install" hidden>
+  <span id="install-text">Keep Story Kit on your home screen.</span>
+  <button type="button" id="install-go" hidden>Add to home screen</button>
+  <button type="button" class="quiet" id="install-no" aria-label="Not now">✕</button>
+</div>
 <form method="post" enctype="multipart/form-data" class="narrow" id="send">{% csrf_token %}
   <div class="picks">
     <button type="button" id="rec-photo" class="btn"><b aria-hidden="true">📷</b><span>Take photo</span></button>
@@ -61,6 +66,21 @@
 <input type="file" id="cap-pick-voice" accept="audio/*" hidden>
 {% endblock %}
 {% block scripts %}
+<script>
+// Offer "add to home screen" on a phone that has not installed Story Kit yet.
+(function () {
+  var box = document.getElementById('install'), go = document.getElementById('install-go'), text = document.getElementById('install-text');
+  var installed = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  var phone = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  var dismissed = false; try { dismissed = localStorage.getItem('storykit-install-no') === '1'; } catch (e) {}
+  if (installed || !phone || dismissed) return;
+  if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) { text.textContent = 'Keep Story Kit on your home screen: tap Share, then Add to Home Screen.'; box.hidden = false; }
+  var deferred = null;
+  window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); deferred = e; go.hidden = false; box.hidden = false; });
+  go.addEventListener('click', function () { if (deferred) { deferred.prompt(); deferred.userChoice.then(function () { box.hidden = true; }); } });
+  document.getElementById('install-no').addEventListener('click', function () { box.hidden = true; try { localStorage.setItem('storykit-install-no', '1'); } catch (e) {} });
+})();
+</script>
 <script>
 (function () {
   var form = document.getElementById('send'), chosen = document.getElementById('chosen'), drop = document.getElementById('drop'), pick = document.getElementById('pick');

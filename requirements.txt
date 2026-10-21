@@ -6,3 +6,4 @@ weasyprint>=62
 markdown>=3.5
 requests>=2.31
 django-storages[s3]>=1.14
+segno>=1.6
