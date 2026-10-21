@@ -23,8 +23,8 @@
       <div class="cam-empty" id="cam-empty" hidden>Recording audio only.</div>
       <div class="cam-timer" id="cam-timer" hidden>00:00</div>
       <img id="cam-preview-img" alt="" hidden>
-      <video id="cam-preview-video" controls playsinline hidden></video>
-      <audio id="cam-preview-audio" controls hidden></audio>
+      <video id="cam-preview-video" controls autoplay playsinline hidden></video>
+      <audio id="cam-preview-audio" controls autoplay hidden></audio>
       <div class="cam-fallback" id="cam-fallback" hidden>
         <p id="cam-fallback-msg" style="color:#fff"></p>
       </div>
@@ -246,23 +246,31 @@
   camSnapBtn.addEventListener('click', snapPhoto);
 
   function startRecording() {
+    if (!state.stream) { showFallback('Camera or microphone is not ready yet. Allow access, then try again.'); return; }
+    if (typeof MediaRecorder === 'undefined') { showFallback('Your browser cannot record in-page. Pick from files below.'); return; }
     var mime = (state.mode === 'video') ? pickVideoMime() : pickAudioMime();
-    state.mime = mime; state.chunks = [];
     var rec;
-    try { rec = new MediaRecorder(state.stream, { mimeType: mime }); }
-    catch (e) { rec = new MediaRecorder(state.stream); state.mime = rec.mimeType; }
+    try { rec = new MediaRecorder(state.stream, { mimeType: mime }); state.mime = mime; }
+    catch (e1) {
+      try { rec = new MediaRecorder(state.stream); state.mime = rec.mimeType; }
+      catch (e2) { showFallback('Could not start recording: ' + (e2 && e2.message || 'unsupported')); return; }
+    }
+    state.recorder = rec; state.chunks = [];
     rec.ondataavailable = function (e) { if (e.data && e.data.size) state.chunks.push(e.data); };
+    rec.onerror = function (e) { showFallback('Recording error: ' + (e && e.error && e.error.name || 'unknown')); };
     rec.onstop = function () {
       state.blob = new Blob(state.chunks, { type: state.mime });
       if (state.mode === 'video') {
         camPreviewVideo.src = URL.createObjectURL(state.blob); camPreviewVideo.hidden = false; camVideo.hidden = true;
+        camPreviewVideo.play().catch(function () {});
       } else if (state.mode === 'voice') {
         camPreviewAudio.src = URL.createObjectURL(state.blob); camPreviewAudio.hidden = false;
+        camPreviewAudio.play().catch(function () {});
       }
       setUI();
     };
-    state.recorder = rec;
-    rec.start();
+    try { rec.start(250); }
+    catch (e) { showFallback('Could not start recording: ' + (e && e.message || 'failed')); return; }
     startTimer();
     setUI();
   }
@@ -276,8 +284,12 @@
   camStopBtn.addEventListener('click', stopRecording);
 
   camRetakeBtn.addEventListener('click', function () {
+    try { camPreviewVideo.pause(); } catch (_) {}
+    try { camPreviewAudio.pause(); } catch (_) {}
     if (state.blob && state.mode !== 'voice') camVideo.hidden = false;
-    camPreviewImg.hidden = true; camPreviewVideo.hidden = true; camPreviewAudio.hidden = true;
+    camPreviewImg.hidden = true;
+    camPreviewVideo.removeAttribute('src'); camPreviewVideo.load(); camPreviewVideo.hidden = true;
+    camPreviewAudio.removeAttribute('src'); camPreviewAudio.load(); camPreviewAudio.hidden = true;
     state.blob = null; state.mime = null;
     setUI();
   });
