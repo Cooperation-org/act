@@ -376,6 +376,43 @@ def _tags_from(org, text, group=TagGroup.LABEL):
 CHIPS_SHOWN = 6
 
 
+def _grouped(org, qs):
+    """Items under the parts of the org they belong to: each top-level part (a site),
+    the parts inside it (businesses), and "not sorted yet" for items in no part.
+    None when the org has no parts, so the page shows the plain grid."""
+    parts = list(Tag.objects.filter(org=org, group=TagGroup.PART).select_related("parent"))
+    if not parts:
+        return None
+    by_pk = {t.pk: t for t in parts}
+
+    def depth(t):
+        d = 0
+        while t.parent_id and t.parent_id in by_pk:
+            t, d = by_pk[t.parent_id], d + 1
+        return d
+
+    def root(t):
+        while t.parent_id and t.parent_id in by_pk:
+            t = by_pk[t.parent_id]
+        return t
+    slots = {t.pk: [] for t in parts}
+    unsorted = []
+    for a in qs:
+        mine = [by_pk[t.pk] for t in a.tags.all() if t.pk in by_pk]
+        if mine:
+            slots[max(mine, key=depth).pk].append(a)
+        else:
+            unsorted.append(a)
+    tops = sorted([t for t in parts if root(t) == t], key=lambda t: t.name)
+    sections = []
+    for top in tops:
+        kids = sorted([t for t in parts if t.parent_id == top.pk], key=lambda t: t.name)
+        sections.append({"tag": top, "items": slots[top.pk],
+                         "children": [{"tag": k, "items": slots[k.pk]} for k in kids],
+                         "count": len(slots[top.pk]) + sum(len(slots[k.pk]) for k in kids)})
+    return {"unsorted": unsorted, "sections": sections}
+
+
 def _chips(f, key, tags):
     """(shown, more): (tag, address, chosen) per label, most used first. The address adds
     the label to the filter, or takes it off when chosen. Chosen labels and the most used
@@ -462,6 +499,7 @@ def library(request):
         n=Count("artifacts", filter=~Q(artifacts__status=ArtifactStatus.HIDDEN), distinct=True)) \
         .filter(n__gt=0).order_by("-n", "name")
     chosen = [(k, v, _without(f, k, v)) for k in MULTI_KEYS for v in f.get(k, [])]
+    grouped = _grouped(org, qs) if not (set(f) - {"sort"}) else None
     return render(request, "artifacts/library.html", {
         "org": org, "nav": "library", "items": qs[:300], "total": qs.count(), "f": f, "filter_json": json.dumps(f),
         "any_at_all": everything.exists(),
@@ -469,7 +507,7 @@ def library(request):
         "parts": _chips(f, "part", [t for t in in_use if t.group == TagGroup.PART]),
         "labels": _chips(f, "tag", [t for t in in_use if t.group != TagGroup.PART]),
         "keep": [(k, x) for k in MULTI_KEYS for x in f.get(k, [])],
-        "chosen": chosen, "here": request.get_full_path(), "ai_on": ai.enabled(),
+        "chosen": chosen, "here": request.get_full_path(), "ai_on": ai.enabled(), "grouped": grouped,
         "unlabeled": everything.filter(tags__isnull=True).exclude(status=ArtifactStatus.HIDDEN).count(),
         "source_kinds": [(k, label) for k, label in SourceKind.choices if everything.filter(source__kind=k).exists()],
         "people": everything.exclude(sent_by="").values_list("sent_by", flat=True).distinct().order_by("sent_by"),
@@ -514,6 +552,8 @@ def labels(request):
             messages.success(request, f"Took the label “{t.name}” off everything.")
         elif action == "save":
             t.group = TagGroup.PART if request.POST.get("group") == TagGroup.PART else TagGroup.LABEL
+            parent = Tag.objects.filter(org=org, group=TagGroup.PART, pk=request.POST.get("parent") or 0).exclude(pk=t.pk).first()
+            t.parent = parent if t.group == TagGroup.PART else None
             name = (request.POST.get("name") or "").strip().lower()[:60] or t.name
             same = Tag.objects.filter(org=org, name=name).exclude(pk=t.pk).first()
             if same:  # renamed onto an existing label: merge into it
@@ -528,7 +568,8 @@ def labels(request):
         return redirect("artifacts:labels")
     tags = Tag.objects.filter(org=org).annotate(n=Count("artifacts", distinct=True)).order_by("group", "name")
     return render(request, "artifacts/labels.html", {
-        "org": org, "nav": "labels", "tags": tags, "PART": TagGroup.PART})
+        "org": org, "nav": "labels", "tags": tags, "PART": TagGroup.PART,
+        "parts": [t for t in tags if t.group == TagGroup.PART]})
 
 
 @org_required
@@ -549,7 +590,18 @@ def artifact_quick(request, pk):
         fields.append("status")
     if fields:
         a.save(update_fields=fields)
-    return JsonResponse({"ok": True, "status": a.status, "title": a.title})
+    before = [t.pk for t in a.tags.all() if t.group == TagGroup.PART]
+    if isinstance(data.get("parts"), list):  # moved to another part of the org: that part and the ones above it
+        wanted = Tag.objects.filter(org=request.org, group=TagGroup.PART,
+                                    pk__in=[x for x in data["parts"] if isinstance(x, int)])
+        keep = set()
+        for t in wanted:
+            while t is not None and t.pk not in keep:
+                keep.add(t.pk)
+                t = t.parent
+        a.tags.remove(*[pk for pk in before if pk not in keep])
+        a.tags.add(*keep)
+    return JsonResponse({"ok": True, "status": a.status, "title": a.title, "parts_before": before})
 
 
 # ---- collections -------------------------------------------------------------

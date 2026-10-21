@@ -37,12 +37,17 @@ def make_copy(sample):
         s.pk, s.org, s.last_checked, s.last_error = None, org, None, ""
         s.save()
         sources[old] = s
-    tags = {}
+    tags, parents = {}, {}
     for t in Tag.objects.filter(org=sample):
         old = t.pk
-        t.pk, t.org = None, org
+        parents[old] = t.parent_id
+        t.pk, t.org, t.parent = None, org, None
         t.save()
         tags[old] = t
+    for old, parent in parents.items():
+        if parent in tags:
+            tags[old].parent = tags[parent]
+            tags[old].save(update_fields=["parent"])
     arts = {}
     for a in Artifact.objects.filter(org=sample).prefetch_related("tags"):
         old, old_tags = a.pk, [tags[t.pk] for t in a.tags.all()]

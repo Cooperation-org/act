@@ -70,6 +70,8 @@ class Tag(models.Model):
     org = models.ForeignKey(Org, on_delete=models.CASCADE, related_name="artifact_tags")
     name = models.CharField(max_length=60)
     group = models.CharField(max_length=8, choices=TagGroup.choices, default=TagGroup.LABEL, blank=True)
+    # A part of the org can sit inside another: a business inside a site.
+    parent = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL, related_name="children")
 
     class Meta:
         ordering = ["group", "name"]

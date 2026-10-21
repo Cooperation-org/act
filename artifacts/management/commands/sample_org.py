@@ -129,8 +129,12 @@ class Command(BaseCommand):
                         a.happened_at = when
                         a.save(update_fields=["happened_at"])
                 made += created
+                site_tag = Tag.objects.get_or_create(org=org, name=site, defaults={"group": TagGroup.PART})[0]
+                biz_tag = Tag.objects.get_or_create(org=org, name=business,
+                                                    defaults={"group": TagGroup.PART, "parent": site_tag})[0]
+                if biz_tag.parent_id != site_tag.pk:
+                    biz_tag.parent = site_tag
+                    biz_tag.save(update_fields=["parent"])
                 if labels is not None:
-                    a.tags.add(Tag.objects.get_or_create(org=org, name=site, defaults={"group": TagGroup.PART})[0],
-                               Tag.objects.get_or_create(org=org, name=business, defaults={"group": TagGroup.PART})[0],
-                               *[Tag.objects.get_or_create(org=org, name=x)[0] for x in labels])
+                    a.tags.add(site_tag, biz_tag, *[Tag.objects.get_or_create(org=org, name=x)[0] for x in labels])
         self.stdout.write(f"{made} new sample items in {org.name} ({n} in the sample).")
