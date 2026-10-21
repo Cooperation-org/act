@@ -351,3 +351,38 @@ class DirectEditTests(Base):
         self.assertEqual(s.blocks.get().text, "hi")
         r = self.client.get(reverse("artifacts:story_edit", args=[s.slug]))
         self.assertNotContains(r, "Saved.")
+
+
+class TemplateTests(Base):
+    def setUp(self):
+        super().setUp()
+        self.client.force_login(self.user)
+        from datetime import datetime, timezone as tz
+        self.a, _ = add_file(self.org, data=png_bytes("red"), filename="a.png",
+                             happened_at=datetime(2026, 8, 3, tzinfo=tz.utc))
+        self.b, _ = add_file(self.org, data=png_bytes("blue"), filename="b.png",
+                             happened_at=datetime(2026, 9, 9, tzinfo=tz.utc))
+
+    def test_timeline_from_dates_in_date_order_with_months(self):
+        r = self.client.post(reverse("artifacts:stories"), {"template": "timeline", "since": "2026-08-01",
+                                                            "until": "2026-09-30"})
+        s = Story.objects.get(org=self.org)
+        self.assertRedirects(r, reverse("artifacts:story_edit", args=[s.slug]), fetch_redirect_response=False)
+        self.assertEqual((s.template, [b.artifact_id for b in s.blocks.all()]), ("timeline", [self.a.pk, self.b.pk]))
+        self.assertEqual(s.title, "Org One, August 2026 to September 2026")
+        page = self.client.get(reverse("artifacts:story", args=[s.slug]))
+        self.assertContains(page, '<h2 class="month">August 2026</h2>')
+        self.assertContains(page, '<h2 class="month">September 2026</h2>')
+
+    def test_timeline_dates_narrow_it(self):
+        self.client.post(reverse("artifacts:stories"), {"template": "timeline", "since": "2026-09-01"})
+        self.assertEqual([b.artifact_id for b in Story.objects.get().blocks.all()], [self.b.pk])
+
+    def test_one_page_for_a_label(self):
+        from .models import Tag, TagGroup
+        t = Tag.objects.create(org=self.org, name="lowell", group=TagGroup.PART)
+        self.a.tags.add(t)
+        self.client.post(reverse("artifacts:stories"), {"template": "onepage", "label": "part:lowell"})
+        s = Story.objects.get()
+        self.assertEqual((s.template, s.title, [b.artifact_id for b in s.blocks.all()]), ("onepage", "Lowell", [self.a.pk]))
+        self.assertContains(self.client.get(reverse("artifacts:story", args=[s.slug])), 'class="pieces"')

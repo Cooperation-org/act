@@ -8,6 +8,7 @@
   <div>
     <label for="title">Title</label>
     <input type="text" id="title" name="title" value="{{ s.title }}" required>
+    <div class="layouts" role="radiogroup" aria-label="Layout">{% for v, n in templates %}<label class="chip{% if s.template == v %} on{% endif %}"><input type="radio" name="template" value="{{ v }}"{% if s.template == v %} checked{% endif %}> {{ n }}</label>{% endfor %}</div>
     <label for="statement">What this story shows <span class="muted">(one or two sentences, shown under the title)</span></label>
     <textarea id="statement" name="statement" style="min-height:4rem">{{ s.statement }}</textarea>
     <h2>The story, in order</h2>
@@ -117,6 +118,9 @@
   }
   function soon() { clearTimeout(timer); saved.textContent = ''; timer = setTimeout(save, 700); }
   form.addEventListener('input', soon);
+  form.querySelectorAll('.layouts input').forEach(function (r) { r.addEventListener('change', function () {
+    form.querySelectorAll('.layouts label').forEach(function (l) { l.classList.toggle('on', l.querySelector('input').checked); });
+  }); });
   new MutationObserver(soon).observe(list, {childList: true});
   // Drag a piece from the right-hand list into the story, at the place you drop it.
   var pool = document.getElementById('pool'), carry = null, startY = 0, startX = 0, moved = false;

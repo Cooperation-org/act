@@ -27,7 +27,7 @@ from campaigns.models import Org, VolunteerProfile
 from . import ai, spouts
 from .intake import add_file, add_reference
 from .models import (Artifact, ArtifactKind, ArtifactStatus, Collection, Source, SourceKind, Story,
-                     StoryBlock, StoryStatus, Tag, TagGroup)
+                     StoryBlock, StoryStatus, StoryTemplate, Tag, TagGroup)
 
 SESSION_ORG = "storykit_org"
 
@@ -529,17 +529,62 @@ def collection(request, pk):
 
 # ---- stories -----------------------------------------------------------------
 
-def _new_story(org, title, artifacts, collection=None):
+def _new_story(org, title, artifacts, collection=None, template=StoryTemplate.STORY):
     s = Story.objects.create(org=org, title=title[:200], slug=_unique_slug(Story, f"{org.slug}-{title}"),
-                             collection=collection)
+                             collection=collection, template=template)
     StoryBlock.objects.bulk_create([StoryBlock(story=s, order=i, artifact=a) for i, a in enumerate(artifacts)])
     return s
 
 
+ONEPAGE_PIECES = 9
+
+
+def _by_date(qs):
+    return sorted(qs, key=lambda a: a.when)
+
+
 @org_required
 def stories(request):
+    """The org's stories, and two ways to start one: a timeline over dates you pick,
+    or a one-page summary. Either can be narrowed to one label."""
+    org = request.org
+    if request.method == "POST":
+        template = request.POST.get("template")
+        label = request.POST.get("label") or ""
+        key, _, name = label.partition(":")
+        f = {key: [name]} if key in MULTI_KEYS and name else {}
+        if template == StoryTemplate.TIMELINE:
+            f.update({k: request.POST.get(k, "") for k in ("since", "until") if request.POST.get(k)})
+            items = _by_date(filtered(org, f)[:300])
+            if not items:
+                messages.error(request, "Nothing falls between those dates.")
+                return redirect("artifacts:stories")
+            first, last = items[0].when, items[-1].when
+            span = first.strftime("%B %Y") if first.strftime("%Y%m") == last.strftime("%Y%m") \
+                else f"{first:%B %Y} to {last:%B %Y}"
+            title = f"{name.title() if name else org.name}, {span}"
+        elif template == StoryTemplate.ONEPAGE:
+            qs = filtered(org, f)
+            pics = list(qs.filter(kind=ArtifactKind.PHOTO).order_by("-happened_at", "-received_at")[:ONEPAGE_PIECES])
+            rest = list(qs.exclude(kind=ArtifactKind.PHOTO).order_by("-happened_at", "-received_at")
+                        [:max(0, ONEPAGE_PIECES - len(pics))])
+            items = _by_date(pics + rest)
+            if not items:
+                messages.error(request, "Nothing to put on the page yet.")
+                return redirect("artifacts:stories")
+            title = name.title() if name else org.name
+        else:
+            return HttpResponseBadRequest("template")
+        s = _new_story(org, title, items, template=template)
+        return redirect("artifacts:story_edit", slug=s.slug)
+    everything = Artifact.objects.filter(org=org).exclude(status=ArtifactStatus.HIDDEN)
+    whens = [a.when for a in everything.only("happened_at", "received_at")]
+    tags = Tag.objects.filter(org=org, artifacts__isnull=False).distinct().order_by("group", "name")
     return render(request, "artifacts/stories.html", {
-        "org": request.org, "nav": "stories", "stories": Story.objects.filter(org=request.org)})
+        "org": org, "nav": "stories", "stories": Story.objects.filter(org=org),
+        "since": min(whens).date().isoformat() if whens else "", "until": max(whens).date().isoformat() if whens else "",
+        "labels": [(f"{'part' if t.group == TagGroup.PART else 'tag'}:{t.name}", t.name) for t in tags],
+        "any": bool(whens)})
 
 
 @org_required
@@ -550,6 +595,8 @@ def story_edit(request, slug):
         action = request.POST.get("action", "save")
         s.title = (request.POST.get("title") or s.title).strip()[:200]
         s.statement = (request.POST.get("statement") or "").strip()
+        if request.POST.get("template") in StoryTemplate.values:
+            s.template = request.POST["template"]
         try:
             blocks = json.loads(request.POST.get("blocks") or "[]")
         except ValueError:
@@ -599,7 +646,7 @@ def story_edit(request, slug):
         .exclude(status=ArtifactStatus.HIDDEN).exclude(pk__in=in_story).order_by("-received_at")[:200]
     return render(request, "artifacts/story_edit.html", {
         "org": org, "nav": "stories", "s": s, "blocks": s.blocks.select_related("artifact"), "pool": pool,
-        "ai_on": ai.enabled(), "public_url": request.build_absolute_uri(reverse("artifacts:story", args=[s.slug]))})
+        "ai_on": ai.enabled(), "templates": StoryTemplate.choices, "public_url": request.build_absolute_uri(reverse("artifacts:story", args=[s.slug]))})
 
 
 def story(request, slug):
@@ -608,9 +655,17 @@ def story(request, slug):
     is_member = request.user.is_authenticated and user_orgs(request.user).filter(pk=s.org_id).exists()
     if s.status != StoryStatus.PUBLISHED and not is_member:
         raise Http404
-    blocks = s.blocks.select_related("artifact").filter(Q(artifact__isnull=True)
-                                                        | ~Q(artifact__status=ArtifactStatus.HIDDEN))
+    blocks = list(s.blocks.select_related("artifact").filter(Q(artifact__isnull=True)
+                                                             | ~Q(artifact__status=ArtifactStatus.HIDDEN)))
     first_image = next((b.artifact for b in blocks if b.artifact and b.artifact.is_image), None)
+    # Timeline: a month heading wherever the month changes; text blocks belong to the piece before them.
+    month = None
+    for b in blocks:
+        b.month = ""
+        if b.artifact:
+            m = b.artifact.when.strftime("%B %Y")
+            if m != month:
+                b.month = month = m
     return render(request, "artifacts/story.html", {
         "s": s, "blocks": blocks, "first_image": first_image, "is_member": is_member, "lt_embed": settings.LT_EMBED})
 

@@ -2,8 +2,29 @@
 {% block title %}Stories · Story Kit{% endblock %}
 {% block content %}
 <h1>Stories</h1>
-<p class="lede">Start a story from a <a href="{% url 'artifacts:collections' %}">collection</a>, or tick items in <a href="{% url 'artifacts:library' %}">What we have</a> and choose "Story from ticked".</p>
+{% if any %}
+<div class="starts">
+  <form method="post" class="start-card">{% csrf_token %}
+    <input type="hidden" name="template" value="timeline">
+    <h2>Timeline</h2>
+    <div class="filters">
+      <label class="row">From <input type="date" name="since" value="{{ since }}"></label>
+      <label class="row">To <input type="date" name="until" value="{{ until }}"></label>
+      {% if labels %}<select name="label" aria-label="Only items labeled"><option value="">Everything</option>{% for v, n in labels %}<option value="{{ v }}">{{ n }}</option>{% endfor %}</select>{% endif %}
+    </div>
+    <button type="submit">Make timeline</button>
+  </form>
+  <form method="post" class="start-card">{% csrf_token %}
+    <input type="hidden" name="template" value="onepage">
+    <h2>One page</h2>
+    <div class="filters">
+      {% if labels %}<select name="label" aria-label="Only items labeled"><option value="">Everything</option>{% for v, n in labels %}<option value="{{ v }}">{{ n }}</option>{% endfor %}</select>{% endif %}
+    </div>
+    <button type="submit">Make one page</button>
+  </form>
+</div>
+{% endif %}
 {% if stories %}
-<ul class="list">{% for s in stories %}<li><span><a href="{% url 'artifacts:story_edit' s.slug %}"><strong>{{ s.title }}</strong></a> · {{ s.get_status_display }}</span><span>{% if s.status == "published" %}<a href="{% url 'artifacts:story' s.slug %}">View</a> · {% endif %}<small>edited {{ s.updated|timesince }} ago</small></span></li>{% endfor %}</ul>
-{% else %}<div class="empty"><p>No stories yet.</p></div>{% endif %}
+<ul class="list">{% for s in stories %}<li><span><a href="{% url 'artifacts:story_edit' s.slug %}"><strong>{{ s.title }}</strong></a> · {{ s.get_template_display }} · {{ s.get_status_display }}</span><span>{% if s.status == "published" %}<a href="{% url 'artifacts:story' s.slug %}">View</a> · {% endif %}<small>edited {{ s.updated|timesince }} ago</small></span></li>{% endfor %}</ul>
+{% elif not any %}<div class="empty"><p>Send something first. <a href="{% url 'artifacts:send' %}">Send a photo</a></p></div>{% endif %}
 {% endblock %}

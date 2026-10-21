@@ -181,3 +181,11 @@ details.more summary { cursor: pointer; color: var(--accent); padding: .3rem 0; 
 .pool button.dragging, .block.dragging { opacity: .5; }
 .drop-here { outline: 2px dashed var(--accent); outline-offset: 2px; }
 @media (pointer: fine) { .pool button { touch-action: none; } }
+.starts { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: var(--gap); margin: 1rem 0 2rem; }
+.start-card { border: 1px solid var(--rule); border-radius: var(--radius); padding: 1rem; background: var(--paper); }
+.start-card h2 { margin: 0 0 .5rem; font-size: 1.15rem; }
+.start-card .filters { margin: .5rem 0 .8rem; }
+.layouts { display: flex; gap: .4rem; margin: .8rem 0; }
+.layouts input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.layouts label { cursor: pointer; margin: 0; font-weight: 400; }
+.tile .x svg { width: 1.05rem; height: 1.05rem; vertical-align: middle; }

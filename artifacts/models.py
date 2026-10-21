@@ -163,6 +163,12 @@ class StoryStatus(models.TextChoices):
     PUBLISHED = "published", "Published"
 
 
+class StoryTemplate(models.TextChoices):
+    STORY = "", "Story"
+    TIMELINE = "timeline", "Timeline"
+    ONEPAGE = "onepage", "One page"
+
+
 class Story(models.Model):
     org = models.ForeignKey(Org, on_delete=models.CASCADE, related_name="stories")
     title = models.CharField(max_length=200)
@@ -170,6 +176,8 @@ class Story(models.Model):
     statement = models.TextField(blank=True, help_text="What this story shows, in one or two sentences")
     collection = models.ForeignKey(Collection, null=True, blank=True, on_delete=models.SET_NULL, related_name="stories")
     status = models.CharField(max_length=10, choices=StoryStatus.choices, default=StoryStatus.DRAFT)
+    template = models.CharField(max_length=10, choices=StoryTemplate.choices, default=StoryTemplate.STORY, blank=True,
+                                help_text="How the published page lays the pieces out")
     published_at = models.DateTimeField(null=True, blank=True)
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)

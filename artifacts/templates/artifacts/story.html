@@ -31,28 +31,52 @@
   .piece .link { display: block; border: 1px solid var(--rule); border-radius: var(--radius); padding: 1rem 1.2rem; text-decoration: none; color: var(--ink); }
   .piece .link span { display: block; color: var(--accent); overflow-wrap: anywhere; font-size: .95rem; }
   .story footer { border-top: 1px solid var(--rule); padding-top: 1.5rem; margin-top: 4rem; font-size: .9rem; color: var(--ink-3); }
+  /* Timeline: dates down the left, a line joining the pieces */
+  .timeline .piece { margin: 0; padding: 0 0 2.5rem 1.6rem; border-left: 2px solid var(--rule); position: relative; }
+  .timeline .piece::before { content: ""; position: absolute; left: -7px; top: .35rem; width: 12px; height: 12px; border-radius: 50%; background: var(--brand); }
+  .timeline .piece.note::before { display: none; }
+  .timeline .when { font-size: .85rem; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 .6rem; }
+  .timeline h2.month { font-size: 1.5rem; margin: 2.5rem 0 1.2rem; }
+  .timeline .piece .wide { margin: 0; }
+  /* One page: everything on one screen or one printed sheet */
+  .onepage { max-width: 64rem; }
+  .onepage header { padding: 2.5rem 0 1.2rem; }
+  .onepage h1 { font-size: clamp(1.8rem, 4vw, 2.6rem); }
+  .onepage .statement { font-size: 1.1rem; }
+  .onepage .pieces { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+  .onepage .piece { margin: 0; }
+  .onepage .piece .wide { margin: 0; }
+  .onepage .piece img, .onepage .piece video { aspect-ratio: 4 / 3; object-fit: cover; max-height: none; }
+  .onepage .piece .text, .onepage .piece blockquote { font-size: .95rem; line-height: 1.45; margin-top: .5rem; }
+  .onepage .piece.note { grid-column: 1 / -1; }
+  .onepage footer { margin-top: 1.5rem; }
+  @media (max-width: 760px) { .onepage .pieces { grid-template-columns: repeat(2, 1fr); } }
+  @media print { .draftbar { display: none; } .onepage .pieces { grid-template-columns: repeat(3, 1fr); } .onepage header { padding-top: 0; } }
   @media (max-width: 760px) { .story header { padding: 3rem 0 1.5rem; } .piece { margin: 2.5rem 0; } .piece .wide { margin: 0 -1.25rem; } }
 </style>
 </head>
 <body>
 {% if s.status != "published" %}<div class="draftbar">Preview. Only your team can see this until it is published. <a href="{% url 'artifacts:story_edit' s.slug %}">Back to editing</a></div>
 {% elif is_member %}<div class="draftbar" style="background:var(--accent-soft);color:var(--ink)"><a href="{% url 'artifacts:story_edit' s.slug %}">Edit this story</a></div>{% endif %}
-<article class="story">
+<article class="story{% if s.template %} {{ s.template }}{% endif %}">
   <header>
     <p class="org">{% if s.org.website %}<a href="{{ s.org.website }}" style="color:inherit;text-decoration:none">{{ s.org.name }}</a>{% else %}{{ s.org.name }}{% endif %}</p>
     <h1>{{ s.title }}</h1>
     {% if s.statement %}<p class="statement">{{ s.statement }}</p>{% endif %}
     <hr class="rule">
   </header>
+  {% if s.template == "onepage" %}<div class="pieces">{% endif %}
   {% for b in blocks %}
-  <section class="piece">
+  {% if s.template == "timeline" and b.month %}<h2 class="month">{{ b.month }}</h2>{% endif %}
+  <section class="piece{% if not b.artifact %} note{% endif %}">
+    {% if s.template == "timeline" and b.artifact %}<p class="when">{{ b.artifact.when|date:"j F Y" }}</p>{% endif %}
     {% with a=b.artifact %}
     {% if a %}
       {% if a.is_image %}<figure><div class="wide"><img src="{{ a.file.url }}" alt="{{ b.text|default:a.words|default:a.title|truncatechars:160 }}" loading="{% if forloop.first %}eager{% else %}lazy{% endif %}"></div>
-        <figcaption>{{ a.when|date:"j F Y" }}{% if a.about %} · {{ a.about }}{% endif %}</figcaption></figure>
+        {% if s.template != "timeline" %}<figcaption>{{ a.when|date:"j F Y" }}{% if a.about %} · {{ a.about }}{% endif %}</figcaption>{% endif %}</figure>
       {% elif a.is_video %}<figure><div class="wide"><video src="{{ a.file.url }}" controls playsinline preload="metadata"></video></div>
-        <figcaption>{{ a.when|date:"j F Y" }}{% if a.about %} · {{ a.about }}{% endif %}</figcaption></figure>
-      {% elif a.is_audio %}<figure><audio src="{{ a.file.url }}" controls preload="metadata"></audio><figcaption>Voice note · {{ a.when|date:"j F Y" }}</figcaption></figure>
+        {% if s.template != "timeline" %}<figcaption>{{ a.when|date:"j F Y" }}{% if a.about %} · {{ a.about }}{% endif %}</figcaption>{% endif %}</figure>
+      {% elif a.is_audio %}<figure><audio src="{{ a.file.url }}" controls preload="metadata"></audio><figcaption>Voice note{% if s.template != "timeline" %} · {{ a.when|date:"j F Y" }}{% endif %}</figcaption></figure>
       {% elif a.claim_id %}<linked-badge claim-id="{{ a.claim_id }}" layout="row" theme="light"></linked-badge>
       {% elif a.kind == "link" %}<a class="link" href="{{ a.source_url }}" rel="noopener">{{ a.title|default:"Read more" }}<span>{{ a.source_url }}</span></a>
       {% elif a.file and a.kind == "file" %}<a class="link" href="{{ a.file.url }}">{{ a.title|default:a.filename }}<span>{{ a.filename }}</span></a>{% endif %}
@@ -63,6 +87,7 @@
     {% endwith %}
   </section>
   {% endfor %}
+  {% if s.template == "onepage" %}</div>{% endif %}
   <footer>{{ s.org.name }}{% if s.published_at %} · {{ s.published_at|date:"j F Y" }}{% endif %}</footer>
 </article>
 </body>
