@@ -9,10 +9,10 @@
     <a class="btn" href="{% url 'artifacts:send' %}">Send a photo</a> <a class="btn quiet" href="{% url 'artifacts:ways' %}">All ways to send</a>
   </div>
 {% else %}
-{% if parts or labels %}
+{% if parts.0 or labels.0 %}
 <div class="chips" aria-label="Filter by label">
-  {% if parts %}<p><span class="muted">Part of {{ org.name }}:</span> {% for t, href, on in parts %}<a class="chip part{% if on %} on{% endif %}" href="{{ href }}"{% if on %} aria-current="true"{% endif %}>{{ t.name }} <small>{{ t.n }}</small>{% if on %} ✕{% endif %}</a>{% endfor %}</p>{% endif %}
-  {% if labels %}<p><span class="muted">Labels:</span> {% for t, href, on in labels %}<a class="chip{% if on %} on{% endif %}" href="{{ href }}"{% if on %} aria-current="true"{% endif %}>{{ t.name }} <small>{{ t.n }}</small>{% if on %} ✕{% endif %}</a>{% endfor %} <a href="{% url 'artifacts:labels' %}" class="muted">Edit labels</a></p>{% endif %}
+  {% if parts.0 %}<p><span class="muted">Part of {{ org.name }}:</span> {% for t, href, on in parts.0 %}{% include "artifacts/_chip.html" with part=1 %}{% endfor %}{% if parts.1 %}<details class="more-chips"><summary>+{{ parts.1|length }} more</summary>{% for t, href, on in parts.1 %}{% include "artifacts/_chip.html" with part=1 %}{% endfor %}</details>{% endif %}</p>{% endif %}
+  {% if labels.0 %}<p><span class="muted">Labels:</span> {% for t, href, on in labels.0 %}{% include "artifacts/_chip.html" %}{% endfor %}{% if labels.1 %}<details class="more-chips"><summary>+{{ labels.1|length }} more</summary>{% for t, href, on in labels.1 %}{% include "artifacts/_chip.html" %}{% endfor %} <a href="{% url 'artifacts:labels' %}" class="muted">Edit labels</a></details>{% else %} <a href="{% url 'artifacts:labels' %}" class="muted">Edit labels</a>{% endif %}</p>{% endif %}
 </div>
 {% endif %}
 <form method="get" class="filters" role="search">

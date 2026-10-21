@@ -25,6 +25,7 @@
   .piece .wide { margin: 0 calc(50% - min(50vw, 32rem)); }
   .piece img, .piece video { display: block; width: 100%; height: auto; max-height: 85vh; object-fit: contain; background: #f4f4f2; }
   .piece audio { width: 100%; }
+  .note-head { font-size: .92rem; color: var(--ink-3); margin: 0; }
   .piece figcaption { font-size: .92rem; color: var(--ink-3); margin-top: .7rem; }
   .piece .text { font-size: 1.2rem; line-height: 1.65; margin: 1.2rem 0 0; white-space: pre-line; }
   .piece blockquote { margin: 1.2rem 0 0; padding: 0 0 0 1.2rem; border-left: 3px solid var(--brand); font-size: 1.15rem; line-height: 1.6; color: var(--ink); white-space: pre-line; }
@@ -79,6 +80,7 @@
       {% elif a.is_audio %}<figure><audio src="{{ a.file.url }}" controls preload="metadata"></audio><figcaption>Voice note{% if s.template != "timeline" %} · {{ a.when|date:"j F Y" }}{% endif %}</figcaption></figure>
       {% elif a.claim_id %}<linked-badge claim-id="{{ a.claim_id }}" layout="row" theme="light"></linked-badge>
       {% elif a.kind == "link" %}<a class="link" href="{{ a.source_url }}" rel="noopener">{{ a.title|default:"Read more" }}<span>{{ a.source_url }}</span></a>
+      {% elif a.kind == "text" and s.template != "timeline" %}<p class="note-head">{{ a.when|date:"j F Y" }}{% if a.title %} · {{ a.title }}{% endif %}</p>
       {% elif a.file and a.kind == "file" %}<a class="link" href="{{ a.file.url }}">{{ a.title|default:a.filename }}<span>{{ a.filename }}</span></a>{% endif %}
       {% if b.text %}<p class="text">{{ b.text }}</p>{% elif a.words and not a.claim_id %}<blockquote>{{ a.words }}</blockquote>{% endif %}
     {% else %}

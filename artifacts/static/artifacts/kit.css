@@ -194,3 +194,7 @@ details.more summary { cursor: pointer; color: var(--accent); padding: .3rem 0; 
 .qr p { margin: 0; }
 .install { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; background: var(--accent-soft); border-radius: var(--radius); padding: .6rem .8rem; margin: 0 0 1rem; }
 .install span { flex: 1 1 12rem; }
+details.more-chips { display: inline; }
+details.more-chips summary { display: inline-block; cursor: pointer; color: var(--accent); font-size: .85rem; padding: .05rem .4rem; list-style: none; }
+details.more-chips summary::-webkit-details-marker { display: none; }
+details.more-chips[open] summary { display: none; }

@@ -78,8 +78,11 @@ def home(request):
     return redirect("artifacts:library")
 
 
-def _unique_slug(model, base, field="slug"):
-    base = slugify(base)[:40] or "org"
+def _unique_slug(model, base, field="slug", size=46):
+    base = slugify(base)
+    if len(base) > size:  # cut at a word, not in the middle of one
+        base = base[:size].rsplit("-", 1)[0]
+    base = base or "org"
     slug, n = base, 2
     while model.objects.filter(**{field: slug}).exists():
         slug, n = f"{base}-{n}", n + 1
@@ -341,14 +344,24 @@ def _tags_from(org, text, group=TagGroup.LABEL):
     return [Tag.objects.get_or_create(org=org, name=n, defaults={"group": group})[0] for n in names]
 
 
+CHIPS_SHOWN = 6
+
+
 def _chips(f, key, tags):
-    """(tag, address, chosen) per label: the address adds the label to the filter, or
-    takes it off when it is already chosen."""
+    """(shown, more): (tag, address, chosen) per label, most used first. The address adds
+    the label to the filter, or takes it off when chosen. Chosen labels and the most used
+    few are shown; the rest wait behind "+N more"."""
     out = []
     for t in tags:
         on = t.name in f.get(key, [])
         out.append((t, _without(f, key, t.name) if on else _with(f, key, t.name), on))
-    return out
+    shown = [c for c in out if c[2]]
+    for c in out:
+        if len(shown) >= CHIPS_SHOWN:
+            break
+        if not c[2]:
+            shown.append(c)
+    return shown, [c for c in out if c not in shown]
 
 
 def _with(f, key, value):

@@ -394,3 +394,11 @@ class QRTests(Base):
         r = self.client.get(reverse("artifacts:ways"))
         self.assertContains(r, "<svg")
         self.assertContains(r, "Scan with your phone")
+
+
+class SlugTests(Base):
+    def test_long_title_slug_cuts_at_a_word_and_fits(self):
+        from .views import _unique_slug
+        slug = _unique_slug(Story, "umbrella-collective Riverside Bike Repair, April 2026 to October 2026")
+        self.assertEqual(slug, "umbrella-collective-riverside-bike-repair")
+        self.assertLessEqual(len(slug), 50)
