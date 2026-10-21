@@ -1,8 +1,11 @@
 """AI helper: from a set of artifacts to a first draft of a story.
 
+Providers are tried in order: Anthropic (reads photos), then MiniMax M3 through its
+Anthropic-compatible API (text only). Whichever answers first is used.
+
 It only drafts. Every block it writes is marked by_ai until a person edits it,
 and it may only use what the artifacts say: the senders' own words, dates, who
-sent them. Off unless ANTHROPIC_API_KEY is set.
+sent them. Off unless ANTHROPIC_API_KEY or MINIMAX_API_KEY is set.
 """
 import json
 import logging
@@ -12,7 +15,37 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-API = "https://api.anthropic.com/v1/messages"
+
+
+def providers():
+    """(name, messages URL, key, model, reads images), in the order to try them."""
+    out = []
+    if settings.ANTHROPIC_API_KEY:
+        out.append(("anthropic", "https://api.anthropic.com/v1/messages", settings.ANTHROPIC_API_KEY,
+                    settings.ACT_AI_MODEL, True))
+    if settings.MINIMAX_API_KEY:
+        out.append(("minimax", "https://api.minimax.io/anthropic/v1/messages", settings.MINIMAX_API_KEY,
+                    settings.ACT_MINIMAX_MODEL, False))
+    return out
+
+
+def ask(build_content, max_tokens=2000):
+    """Send one user message to the first provider that answers; returns its text.
+    build_content(reads_images) gives the message content for that provider."""
+    for name, url, key, model, vision in providers():
+        try:
+            r = requests.post(url, timeout=180, headers={
+                "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
+                json={"model": model, "max_tokens": max_tokens,
+                      "messages": [{"role": "user", "content": build_content(vision)}]})
+        except requests.RequestException as e:
+            logger.error("ai %s: %s", name, e)
+            continue
+        if r.status_code != 200:
+            logger.error("ai %s: %s %s", name, r.status_code, r.text[:300])
+            continue
+        return "".join(c.get("text", "") for c in r.json().get("content", []) if c.get("type") == "text")
+    raise RuntimeError("The AI helper did not answer. Try again in a minute.")
 
 PROMPT = """You help a small organization tell a story from material its people sent in.
 Below are the pieces, each with an id, its kind, when it happened, who sent it, and their own words.
@@ -33,7 +66,7 @@ Pieces:
 
 
 def enabled():
-    return bool(settings.ANTHROPIC_API_KEY)
+    return bool(providers())
 
 
 def describe(artifacts):
@@ -51,15 +84,7 @@ def draft_story(artifacts):
     """Returns (statement, [(artifact_id|None, text)]). Raises RuntimeError on failure."""
     if not enabled():
         raise RuntimeError("The AI helper is not switched on.")
-    r = requests.post(API, timeout=120, headers={
-        "x-api-key": settings.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01",
-        "content-type": "application/json"}, json={
-        "model": settings.ACT_AI_MODEL, "max_tokens": 2000,
-        "messages": [{"role": "user", "content": PROMPT.format(pieces=describe(artifacts))}]})
-    if r.status_code != 200:
-        logger.error("ai draft: %s %s", r.status_code, r.text[:300])
-        raise RuntimeError("The AI helper did not answer. Try again in a minute.")
-    text = "".join(c.get("text", "") for c in r.json().get("content", []) if c.get("type") == "text")
+    text = ask(lambda vision: PROMPT.format(pieces=describe(artifacts)))
     start, end = text.find("{"), text.rfind("}")
     try:
         data = json.loads(text[start:end + 1])
@@ -119,22 +144,16 @@ def suggest_labels(org, artifacts, parts, labels):
     """One call for up to SORT_BATCH artifacts. Returns {id: {"title", "parts", "labels"}}."""
     if not enabled():
         raise RuntimeError("The AI helper is not switched on.")
-    content = [{"type": "text", "text": SORT_PROMPT.format(
-        org=org.name, parts=", ".join(parts) or "(none yet)", labels=", ".join(labels) or "(none yet)",
-        pieces=describe(artifacts))}]
-    for a in artifacts:
-        if a.is_image:
-            img = _image_block(a)
+    def content(vision):
+        out = [{"type": "text", "text": SORT_PROMPT.format(
+            org=org.name, parts=", ".join(parts) or "(none yet)", labels=", ".join(labels) or "(none yet)",
+            pieces=describe(artifacts))}]
+        for a in artifacts:
+            img = _image_block(a) if vision and a.is_image else None
             if img:
-                content += [{"type": "text", "text": f"Photo id {a.pk}:"}, img]
-    r = requests.post(API, timeout=180, headers={
-        "x-api-key": settings.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01",
-        "content-type": "application/json"}, json={
-        "model": settings.ACT_AI_MODEL, "max_tokens": 2000, "messages": [{"role": "user", "content": content}]})
-    if r.status_code != 200:
-        logger.error("ai sort: %s %s", r.status_code, r.text[:300])
-        raise RuntimeError("The AI helper did not answer. Try again in a minute.")
-    text = "".join(c.get("text", "") for c in r.json().get("content", []) if c.get("type") == "text")
+                out += [{"type": "text", "text": f"Photo id {a.pk}:"}, img]
+        return out
+    text = ask(content)
     start, end = text.find("{"), text.rfind("}")
     try:
         data = json.loads(text[start:end + 1])

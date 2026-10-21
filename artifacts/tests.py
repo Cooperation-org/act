@@ -306,3 +306,21 @@ class SortingTests(Base):
         self.assertEqual(a.title, "Ribbon cutting")
         self.assertEqual({(t.name, t.group) for t in a.tags.all()}, {("lowell", "part"), ("opening", ""), ("ribbon", "")})
         self.assertEqual(len(a.ai_labels), 3)
+
+    @override_settings(ANTHROPIC_API_KEY="k", MINIMAX_API_KEY="m")
+    def test_falls_back_to_minimax_without_images(self):
+        from . import ai
+        a, _ = add_file(self.org, data=png_bytes(), filename="a.png", words="Opening day")
+        ok = {"content": [{"type": "text", "text": json.dumps({"items": [{"id": a.pk, "title": "t", "labels": ["x"]}]})}]}
+        calls = []
+
+        def post(url, **kw):
+            calls.append((url, kw["json"]["messages"][0]["content"]))
+            if "anthropic.com" in url:
+                return mock.Mock(status_code=400, text="credit balance is too low")
+            return mock.Mock(status_code=200, json=lambda: ok)
+        with mock.patch("artifacts.ai.requests.post", side_effect=post):
+            self.assertEqual(ai.sort_artifacts(self.org, [a.pk]), 1)
+        self.assertIn("minimax", calls[1][0])
+        self.assertTrue(any(c["type"] == "image" for c in calls[0][1]))
+        self.assertFalse(any(c["type"] == "image" for c in calls[1][1]))
