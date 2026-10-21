@@ -11,7 +11,7 @@
     <label for="statement">What this story shows <span class="muted">(one or two sentences, shown under the title)</span></label>
     <textarea id="statement" name="statement" style="min-height:4rem">{{ s.statement }}</textarea>
     <h2>The story, in order</h2>
-    <p class="muted">Drag ⠿ to reorder. Write a caption or a line of story next to each piece.</p>
+    
     <ol class="blocks" id="blocks">
       {% for b in blocks %}
       <li class="block{% if not b.artifact %} text-only{% endif %}" data-artifact="{{ b.artifact_id|default:'' }}" data-ai="{% if b.by_ai %}1{% endif %}">
@@ -30,7 +30,7 @@
   </div>
   <div>
     <h2 style="margin-top:0">Add pieces</h2>
-    <p class="muted">{% if s.collection %}From “{{ s.collection.name }}”.{% else %}From everything you have.{% endif %} Tap one to add it to the end.</p>
+    <p class="muted">Tap to add at the end, or drag into place.</p>
     <div class="pool" id="pool">
       {% for a in pool %}
       <button type="button" data-artifact="{{ a.pk }}" data-from="{{ a.get_kind_display }} · {{ a.when|date:'j M Y' }}{% if a.sent_by %} · {{ a.sent_by|truncatechars:40 }}{% endif %}{% if a.words %} · “{{ a.words|truncatechars:90 }}”{% endif %}">
@@ -47,7 +47,7 @@
   </div>
 </div>
 <div class="savebar">
-  <button type="submit" name="action" value="save">Save</button>
+  <span class="saved" id="saved" aria-live="polite"></span>
   {% if s.status == "published" %}
     <a class="btn quiet" href="{% url 'artifacts:story' s.slug %}">View published story</a>
     <button type="submit" name="action" value="unpublish" class="quiet">Unpublish</button>
@@ -77,7 +77,7 @@
     return li;
   }
   document.getElementById('pool').addEventListener('click', function (e) {
-    var b = e.target.closest('button[data-artifact]'); if (!b) return;
+    var b = e.target.closest('button[data-artifact]'); if (!b || this.dataset.justDragged) return;
     block(b.dataset.artifact, b.querySelector('.thumb').innerHTML, b.dataset.from);
     b.remove();
   });
@@ -97,6 +97,51 @@
   });
   function drop() { if (drag) { drag.classList.remove('dragging'); drag = null; } }
   list.addEventListener('pointerup', drop); list.addEventListener('pointercancel', drop);
+  // Saved as you go: any change to the title, statement, order or text is sent a moment later.
+  function blocksJson() {
+    var out = [];
+    list.querySelectorAll('.block').forEach(function (li) {
+      out.push({artifact: li.dataset.artifact ? parseInt(li.dataset.artifact, 10) : null,
+                text: li.querySelector('textarea').value, by_ai: li.dataset.ai === '1'});
+    });
+    return JSON.stringify(out);
+  }
+  var saved = document.getElementById('saved'), timer = null;
+  function save() {
+    document.getElementById('blocks-json').value = blocksJson();
+    var fd = new FormData(form); fd.set('action', 'save');
+    saved.textContent = 'Saving…';
+    fetch(location.pathname, {method: 'POST', body: fd, credentials: 'same-origin', headers: {'Accept': 'application/json'}})
+      .then(function (r) { saved.textContent = r.ok ? 'Saved' : 'Not saved. Check your connection.'; })
+      .catch(function () { saved.textContent = 'Not saved. Check your connection.'; });
+  }
+  function soon() { clearTimeout(timer); saved.textContent = ''; timer = setTimeout(save, 700); }
+  form.addEventListener('input', soon);
+  new MutationObserver(soon).observe(list, {childList: true});
+  // Drag a piece from the right-hand list into the story, at the place you drop it.
+  var pool = document.getElementById('pool'), carry = null, startY = 0, startX = 0, moved = false;
+  pool.addEventListener('dragstart', function (e) { e.preventDefault(); });  // no native image drag
+  pool.addEventListener('pointerdown', function (e) {
+    var b = e.target.closest('button[data-artifact]'); if (!b) return;
+    carry = b; startX = e.clientX; startY = e.clientY; moved = false;
+  });
+  document.addEventListener('pointermove', function (e) {
+    if (!carry) return;
+    if (!moved && Math.abs(e.clientX - startX) + Math.abs(e.clientY - startY) < 10) return;
+    moved = true; carry.classList.add('dragging'); list.classList.add('drop-here');
+  });
+  document.addEventListener('pointerup', function (e) {
+    if (!carry) return;
+    var b = carry; carry = null; b.classList.remove('dragging'); list.classList.remove('drop-here');
+    if (!moved) return;  // a tap: the click handler adds it to the end
+    var over = document.elementFromPoint(e.clientX, e.clientY);
+    if (!over || !over.closest('#blocks, .blocks')) return;
+    var li = block(b.dataset.artifact, b.querySelector('.thumb').innerHTML, b.dataset.from);
+    var target = over.closest('.block');
+    if (target && target !== li) { var r = target.getBoundingClientRect(); list.insertBefore(li, e.clientY < r.top + r.height / 2 ? target : target.nextSibling); }
+    b.remove();
+    pool.dataset.justDragged = '1'; setTimeout(function () { delete pool.dataset.justDragged; }, 50);
+  });
   form.addEventListener('submit', function () {
     var out = [];
     list.querySelectorAll('.block').forEach(function (li) {

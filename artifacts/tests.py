@@ -324,3 +324,30 @@ class SortingTests(Base):
         self.assertIn("minimax", calls[1][0])
         self.assertTrue(any(c["type"] == "image" for c in calls[0][1]))
         self.assertFalse(any(c["type"] == "image" for c in calls[1][1]))
+
+
+class DirectEditTests(Base):
+    def setUp(self):
+        super().setUp()
+        self.client.force_login(self.user)
+
+    def test_quick_archive_and_title(self):
+        a, _ = add_file(self.org, data=png_bytes(), filename="a.png")
+        url = reverse("artifacts:artifact_quick", args=[a.pk])
+        self.client.post(url, json.dumps({"status": "hidden", "title": "Ribbon"}), content_type="application/json")
+        a.refresh_from_db()
+        self.assertEqual((a.status, a.title), ("hidden", "Ribbon"))
+        other, _ = add_file(self.other, data=png_bytes("blue"), filename="b.png")
+        r = self.client.post(reverse("artifacts:artifact_quick", args=[other.pk]), "{}", content_type="application/json")
+        self.assertEqual(r.status_code, 404)
+
+    def test_story_autosave_leaves_no_flash(self):
+        a, _ = add_file(self.org, data=png_bytes(), filename="a.png")
+        s = Story.objects.create(org=self.org, title="T", slug="t")
+        r = self.client.post(reverse("artifacts:story_edit", args=[s.slug]),
+                             {"title": "T2", "blocks": json.dumps([{"artifact": a.pk, "text": "hi"}]), "action": "save"},
+                             HTTP_ACCEPT="application/json")
+        self.assertEqual(r.json(), {"ok": True})
+        self.assertEqual(s.blocks.get().text, "hi")
+        r = self.client.get(reverse("artifacts:story_edit", args=[s.slug]))
+        self.assertNotContains(r, "Saved.")

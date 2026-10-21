@@ -29,7 +29,7 @@
     <label class="row">From <input type="date" name="since" value="{{ f.since }}"></label>
     <label class="row">To <input type="date" name="until" value="{{ f.until }}"></label>
     <select name="sort" aria-label="Order"><option value="">Newest added</option><option value="happened"{% if f.sort == "happened" %} selected{% endif %}>Newest taken</option><option value="oldest"{% if f.sort == "oldest" %} selected{% endif %}>Oldest taken</option><option value="title"{% if f.sort == "title" %} selected{% endif %}>Title A to Z</option></select>
-    <label class="row"><input type="checkbox" name="show" value="hidden"{% if f.show == "hidden" %} checked{% endif %}> Hidden items</label>
+    <label class="row"><input type="checkbox" name="show" value="hidden"{% if f.show == "hidden" %} checked{% endif %}> Archived</label>
     <button type="submit" class="quiet">Apply</button>
     </div>
   </details>
@@ -52,7 +52,7 @@
       <input type="text" name="name" placeholder="Collection name" aria-label="Collection name">
       <button type="submit" name="action" value="collect" class="quiet">Collect</button>
       {% if ai_on %}<button type="submit" name="action" value="sort" class="quiet">Sort with AI</button>{% endif %}
-      {% if f.show == "hidden" %}<button type="submit" name="action" value="unhide" class="quiet">Bring back</button>{% else %}<button type="submit" name="action" value="hide" class="quiet">Hide</button>{% endif %}
+      {% if f.show == "hidden" %}<button type="submit" name="action" value="unhide" class="quiet">Bring back</button>{% else %}<button type="submit" name="action" value="hide" class="quiet">Archive</button>{% endif %}
     </div></details>
   </div>
   <div class="none-picked">

@@ -33,6 +33,7 @@
 <script>
 if ('serviceWorker' in navigator) { navigator.serviceWorker.register('{% url "artifacts:sw" %}').catch(function(){}); }
 </script>
+<script src="{% static 'artifacts/tiles.js' %}" defer></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

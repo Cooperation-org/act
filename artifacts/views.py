@@ -381,7 +381,7 @@ def library(request):
             messages.success(request, f"Labeled {picked.count()}.")
         elif action == "hide":
             picked.update(status=ArtifactStatus.HIDDEN)
-            messages.success(request, f"Hid {len(ids)}. They are under Hidden.")
+            messages.success(request, f"Archived {len(ids)}. More filters → Archived shows them.")
         elif action == "unhide":
             picked.update(status=ArtifactStatus.KEPT)
             messages.success(request, f"Brought back {len(ids)}.")
@@ -475,6 +475,27 @@ def labels(request):
         "org": org, "nav": "labels", "tags": tags, "PART": TagGroup.PART})
 
 
+@org_required
+@require_POST
+def artifact_quick(request, pk):
+    """One edit from a tile, saved as made: {"title": ...} or {"status": "hidden"|"kept"}."""
+    a = get_object_or_404(Artifact, pk=pk, org=request.org)
+    try:
+        data = json.loads(request.body or "{}")
+    except ValueError:
+        return HttpResponseBadRequest("json")
+    fields = []
+    if "title" in data:
+        a.title = str(data["title"]).strip()[:300]
+        fields.append("title")
+    if data.get("status") in (ArtifactStatus.HIDDEN, ArtifactStatus.KEPT):
+        a.status = data["status"]
+        fields.append("status")
+    if fields:
+        a.save(update_fields=fields)
+    return JsonResponse({"ok": True, "status": a.status, "title": a.title})
+
+
 # ---- collections -------------------------------------------------------------
 
 @org_required
@@ -546,6 +567,8 @@ def story_edit(request, slug):
             elif action == "unpublish":
                 s.status = StoryStatus.DRAFT
             s.save()
+        if request.headers.get("Accept") == "application/json" and action == "save":
+            return JsonResponse({"ok": True})
         if action == "ai":
             pieces = [b.artifact for b in s.blocks.select_related("artifact") if b.artifact]
             if s.collection:
