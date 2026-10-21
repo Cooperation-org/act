@@ -39,11 +39,18 @@ _LOGIN_MESSAGES = {
 
 
 def login_help(request):
-    """Friendly page for the SSO failure redirect (/login?error=<code>)."""
+    """Friendly page for the SSO failure redirect (/login?error=<code>).
+
+    Renders in the enabled app's own base template: campaigns/base.html reverses
+    campaigns-only URL names, so on an artifacts-only deployment it raises NoReverseMatch
+    and the failure page itself 500s.
+    """
     title, message = _LOGIN_MESSAGES.get(
         request.GET.get("error", ""),
         ("Sign-in didn't finish", "Please open your invite link and try again."))
-    return render(request, "campaigns/login_help.html", {"page_title": title, "message": message})
+    template = ("artifacts/login_help.html" if "artifacts" in settings.ENABLED_APPS
+                else "campaigns/login_help.html")
+    return render(request, template, {"page_title": title, "message": message})
 
 
 class SessionCallbackView(CallbackView):
