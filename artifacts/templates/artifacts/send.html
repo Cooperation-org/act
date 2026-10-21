@@ -329,8 +329,8 @@
     setUI();
   });
 
-  function pickVideoMime() { var c = ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4']; for (var i = 0; i < c.length; i++) if (window.MediaRecorder && MediaRecorder.isTypeSupported(c[i])) return c[i]; return 'video/webm'; }
-  function pickAudioMime() { var c = ['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus']; for (var i = 0; i < c.length; i++) if (window.MediaRecorder && MediaRecorder.isTypeSupported(c[i])) return c[i]; return 'audio/webm'; }
+  function pickVideoMime() { var c = ['video/mp4','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm']; for (var i = 0; i < c.length; i++) if (window.MediaRecorder && MediaRecorder.isTypeSupported(c[i])) return c[i]; return 'video/mp4'; }
+  function pickAudioMime() { var c = ['audio/mp4','audio/m4a','audio/aac','audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus']; for (var i = 0; i < c.length; i++) if (window.MediaRecorder && MediaRecorder.isTypeSupported(c[i])) return c[i]; return 'audio/mp4'; }
 
   function ext(m) { if (m.indexOf('mp4') !== -1) return 'mp4'; if (m.indexOf('jpeg') !== -1 || m.indexOf('jpg') !== -1) return 'jpg'; if (m.indexOf('png') !== -1) return 'png'; return 'webm'; }
 
