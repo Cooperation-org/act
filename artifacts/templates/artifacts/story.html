@@ -18,7 +18,8 @@
   .draftbar { background: var(--warn-bg); color: var(--warn-ink); text-align: center; padding: .6rem 1rem; font-size: var(--t-sub); }
   .draftbar.member { background: var(--accent-soft); color: var(--ink); }
   .sitebar { display: flex; align-items: center; justify-content: space-between; gap: var(--s4); padding: var(--s4) max(var(--s5), env(safe-area-inset-right)) var(--s4) max(var(--s5), env(safe-area-inset-left)); border-bottom: 1px solid var(--rule); font-size: var(--t-sub); }
-  .sitebar a, .sitebar b { color: var(--ink); font-weight: 600; text-decoration: none; }
+  .sitebar a, .sitebar b { display: inline-flex; align-items: center; min-height: var(--touch); color: var(--ink); font-weight: 600; text-decoration: none; }
+  .draftbar a { display: inline-flex; align-items: center; min-height: var(--touch); }
   .sitebar span { color: var(--ink-3); font-size: var(--t-foot); text-align: right; }
   .story { max-width: 46rem; margin: 0 auto; padding: 0 max(var(--s5), env(safe-area-inset-right)) 6rem max(var(--s5), env(safe-area-inset-left)); font-family: var(--font-story); }
   .story h1, .story h2 { overflow-wrap: anywhere; }
@@ -36,13 +37,13 @@
   .note-head { font: 400 var(--t-sub) var(--font); color: var(--ink-3); margin: 0; }
   .piece figcaption { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--s2) var(--s4); margin-top: var(--s3); font: 400 var(--t-sub)/1.4 var(--font); color: var(--ink-3); }
   .piece figcaption .cap { flex: 1 1 14rem; min-width: 0; }
-  .check { flex: 0 0 auto; }
+  .check { flex: 0 1 auto; min-width: 0; max-width: 100%; }
   .check[open] { flex: 1 1 100%; }
   .piece figcaption .cap { padding-top: .6rem; }
-  .check summary { display: inline-flex; align-items: center; gap: 6px; min-height: var(--touch); padding: 0 var(--s4); border-radius: 999px; background: var(--info-bg); color: var(--info-ink); font: 600 var(--t-sub) var(--font); cursor: pointer; list-style: none; }
+  .check summary { display: inline-flex; align-items: center; max-width: 100%; text-align: left; overflow-wrap: anywhere; gap: 6px; min-height: var(--touch); padding: var(--s1) var(--s4); border-radius: 999px; background: var(--info-bg); color: var(--info-ink); font: 600 var(--t-sub) var(--font); cursor: pointer; list-style: none; }
   .check summary::-webkit-details-marker { display: none; }
   .check[open] summary { background: var(--info-ink); color: #fff; }
-  .proof-card { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: var(--s3) var(--s5); margin: var(--s3) 0 0; padding: var(--s4); background: #fafaf8; border: 1px solid var(--rule); border-radius: var(--radius-lg); font-family: var(--font); flex-basis: 100%; color: var(--ink); }
+  .proof-card { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(10rem, 100%), 1fr)); gap: var(--s3) var(--s5); margin: var(--s3) 0 0; padding: var(--s4); background: #fafaf8; border: 1px solid var(--rule); border-radius: var(--radius-lg); font-family: var(--font); flex-basis: 100%; color: var(--ink); }
   .proof-card dt { font: 500 var(--t-cap) var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 2px; }
   .proof-card dd { margin: 0; font-size: var(--t-sub); }
   .proof { display: inline-flex; align-items: center; gap: .3rem; color: var(--accent-strong); font-weight: 600; }
@@ -65,8 +66,8 @@
   .piece .link span { display: block; color: var(--accent); overflow-wrap: anywhere; font-size: var(--t-sub); }
   .story-foot { margin-top: var(--s7); padding-top: var(--s5); border-top: 1px solid var(--rule); font: 400 var(--t-sub)/1.5 var(--font); color: var(--ink-3); }
   .foot-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--s3) var(--s5); align-items: center; }
-  .foot-row p { margin: 0; flex: 1 1 18rem; }
-  .foot-row .acts { display: flex; gap: var(--s4); flex: 0 0 auto; }
+  .foot-row p { margin: 0; flex: 1 1 18rem; min-width: 0; }
+  .foot-row .acts { display: flex; flex-wrap: wrap; gap: var(--s2) var(--s4); flex: 0 1 auto; }
   .linkish { background: transparent; color: var(--accent); border: 0; padding: 0 var(--s1); min-height: var(--touch); font: 500 var(--t-sub) var(--font); text-decoration: underline; text-underline-offset: .2em; }
   .linkish:hover { background: transparent; color: var(--accent-strong); }
   .how summary { cursor: pointer; color: var(--ink); font-weight: 600; min-height: var(--touch); display: flex; align-items: center; }

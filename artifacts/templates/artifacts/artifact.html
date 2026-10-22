@@ -4,7 +4,8 @@
 {% block head %}{% if a.claim_id %}<script src="{{ lt_embed }}/badge.js" defer></script>{% endif %}{% endblock %}
 {% block content %}
 <p class="crumb"><a class="back" href="{% url 'artifacts:library' %}">{% ic "chevron-left" %}Library</a></p>
-<h1>{{ a.title|default:a.get_kind_display }}</h1>
+<p class="mono-label" style="margin-top:var(--s2)">{{ a.kind|kind_label }}{% if a.size and a.kind != 'text' and a.kind != 'data' %} &middot; {{ a.size|filesizeformat }}{% endif %}</p>
+<h1>{{ a.title|default:a.about|default:a.get_kind_display }}</h1>
 <p class="state">{% if a.claim_id %}<span class="status live">{% ic "signed" "ic-sm" %}Signed</span>{% else %}<span class="status">Not signed yet</span>{% endif %}{% if a.consent %}<span class="status live">{% ic "check" "ic-sm" %}Everyone shown agreed</span>{% endif %}</p>
 <div class="detail">
   <div>
@@ -12,9 +13,10 @@
       {% if a.is_image %}<img src="{{ a.file.url }}" alt="{{ a.title|default:a.words|truncatechars:120 }}">
       {% elif a.is_video %}<video src="{{ a.file.url }}" controls playsinline preload="metadata"></video>
       {% elif a.is_audio %}<audio src="{{ a.file.url }}" controls style="width:100%"></audio>
+      {% elif a.kind == "data" %}<p class="big-number dark">{{ a.title }}</p>
       {% elif a.claim_id %}<linked-badge claim-id="{{ a.claim_id }}" layout="row" theme="light"></linked-badge>
       {% elif a.file %}<p><a class="btn" href="{{ a.file.url }}">Open {{ a.filename }}</a></p>
-      {% elif a.source_url %}<p><a class="btn" href="{{ a.source_url }}" rel="noopener">Open the link</a></p>{% endif %}
+      {% elif a.source_url and a.kind == "link" %}<p><a class="btn" href="{{ a.source_url }}" rel="noopener">Open the link</a></p>{% endif %}
     </div>
     {% if a.words %}<h2>In their words</h2><div class="words">{{ a.words }}</div>{% endif %}
   </div>
@@ -37,6 +39,7 @@
       <dt>Kind</dt><dd>{{ a.get_kind_display }}</dd>
       <dt>Happened</dt><dd>{{ a.happened_at|date:"j M Y, H:i"|default:"not known" }}</dd>
       <dt>Came in</dt><dd>{{ a.received_at|date:"j M Y, H:i" }}{% if a.source %} · {{ a.source.get_kind_display }}{% endif %}</dd>
+      {% if a.kind == "data" and a.source_ref %}<dt>Came from</dt><dd>{{ a.source_ref }}</dd>{% endif %}
       {% if a.sent_by %}<dt>Sent by</dt><dd>{{ a.sent_by }}</dd>{% endif %}
       {% if a.source_url %}<dt>Original</dt><dd><a href="{{ a.source_url }}" rel="noopener">{{ a.source_url|truncatechars:60 }}</a></dd>{% endif %}
       {% if a.filename %}<dt>File</dt><dd>{{ a.filename }} · {{ a.size|filesizeformat }}</dd>{% endif %}

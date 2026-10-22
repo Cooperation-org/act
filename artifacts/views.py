@@ -341,8 +341,8 @@ def add_number(request):
     a, _ = add_reference(org, kind=ArtifactKind.DATA, url=f"number:{uuid.uuid4().hex}", title=value, source=source,
                          sent_by=request.user.email or request.user.get_username(), added_by=request.user,
                          happened_at=timezone.now(), source_ref=where)
-    a.about = what
-    a.save(update_fields=["about"])
+    a.about, a.source_url = what, ""   # the web address was only a way to tell two numbers apart
+    a.save(update_fields=["about", "source_url"])
     messages.success(request, "Saved the number.")
     return redirect(back)
 
