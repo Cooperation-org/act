@@ -481,3 +481,34 @@ class IconTests(TestCase):
         emoji = re.compile("[\U0001F300-\U0001FAFF\u2600-\u27BF\u2705\u2715]")
         for f in self._templates():
             self.assertIsNone(emoji.search(f.read_text()), f"emoji in {f.name}")
+
+
+class ShellTests(Base):
+    """The frame around every page: landmarks, one main, and the right place marked current."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_login(self.user)
+
+    def test_page_has_skip_link_and_one_main(self):
+        page = self.client.get(reverse("artifacts:library")).content.decode()
+        self.assertIn('href="#main"', page)
+        self.assertEqual(page.count('<main id="main"'), 1)
+        self.assertIn("viewport-fit=cover", page)
+
+    def test_tab_bar_and_sidebar_mark_the_current_place(self):
+        for name, label in (("library", "Library"), ("stories", "Stories"), ("collections", "Collections")):
+            page = self.client.get(reverse(f"artifacts:{name}")).content.decode()
+            self.assertEqual(page.count('aria-current="page"'), 2, name)  # sidebar and tab bar
+            self.assertRegex(page, rf'aria-current="page"[^>]*>[^<]*<svg[^>]*>.*?</svg><span>{label}</span>', name)
+
+    def test_add_is_always_in_reach(self):
+        page = self.client.get(reverse("artifacts:stories")).content.decode()
+        self.assertIn('class="tab-add"', page)
+        self.assertIn("Add a photo, video or voice note", page)
+
+    def test_signed_out_welcome_has_no_app_navigation(self):
+        self.client.logout()
+        page = self.client.get(reverse("artifacts:home")).content.decode()
+        self.assertNotIn('class="tabs"', page)
+        self.assertNotIn('class="rail"', page)
