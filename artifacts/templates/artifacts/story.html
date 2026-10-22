@@ -1,4 +1,4 @@
-{% load static %}<!doctype html>
+{% load static kit %}<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -16,27 +16,35 @@
   .story { max-width: 46rem; margin: 0 auto; padding: 0 1.25rem 6rem; font-family: var(--font-story); }
   .draftbar { background: var(--warn-bg); color: var(--warn-ink); text-align: center; padding: .6rem 1rem; font-size: .95rem; }
   .story header { padding: 5rem 0 2.5rem; }
-  .story .org { font-size: .9rem; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 1rem; }
-  .story h1 { font-size: clamp(2.2rem, 6vw, 3.4rem); line-height: 1.08; letter-spacing: -.02em; margin: 0 0 1.2rem; }
+  .story .org { font: 600 var(--t-foot)/1.2 var(--font); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 1rem; }
+  .story h1 { font-family: var(--font); font-weight: 700; font-size: clamp(2.2rem, 6vw, 3.4rem); line-height: 1.06; letter-spacing: -.028em; margin: 0 0 1.2rem; }
   .story .statement { font-size: 1.35rem; line-height: 1.45; color: var(--ink-2); margin: 0; }
-  .story .rule { width: 3rem; height: 3px; background: var(--brand); border: 0; margin: 2.5rem 0 0; }
+  .story .rule { width: 3rem; height: 3px; background: var(--accent); border: 0; border-radius: 2px; margin: 2.5rem 0 0; }
   .piece { margin: 3.5rem 0; }
   .piece figure { margin: 0; }
   .piece .wide { margin: 0 calc(50% - min(50vw, 32rem)); }
   .piece img, .piece video { display: block; width: 100%; height: auto; max-height: 85vh; object-fit: contain; background: #f4f4f2; }
   .piece audio { width: 100%; }
-  .note-head { font-size: .92rem; color: var(--ink-3); margin: 0; }
-  .piece figcaption { font-size: .92rem; color: var(--ink-3); margin-top: .7rem; }
+  .note-head { font-size: var(--t-sub); color: var(--ink-3); margin: 0; }
+  .piece figcaption { font-size: var(--t-sub); color: var(--ink-3); margin-top: .7rem; }
+  .proof { display: inline-flex; align-items: center; gap: .3rem; color: var(--accent-strong); font-weight: 600; }
   .piece .text { font-size: 1.2rem; line-height: 1.65; margin: 1.2rem 0 0; white-space: pre-line; }
-  .piece blockquote { margin: 1.2rem 0 0; padding: 0 0 0 1.2rem; border-left: 3px solid var(--brand); font-size: 1.15rem; line-height: 1.6; color: var(--ink); white-space: pre-line; }
+  .piece blockquote { margin: 1.2rem 0 0; padding: 0; font-size: 1.2rem; line-height: 1.6; color: var(--ink); white-space: pre-line; }
+  .piece blockquote::before { content: "\201C"; display: block; font: 700 2.4rem/.7 var(--font-display); color: var(--accent); margin-bottom: .2rem; }
   .piece .link { display: block; border: 1px solid var(--rule); border-radius: var(--radius); padding: 1rem 1.2rem; text-decoration: none; color: var(--ink); }
   .piece .link span { display: block; color: var(--accent); overflow-wrap: anywhere; font-size: .95rem; }
-  .story footer { border-top: 1px solid var(--rule); padding-top: 1.5rem; margin-top: 4rem; font-size: .9rem; color: var(--ink-3); }
+  .story footer { border-top: 1px solid var(--rule); padding-top: 1.5rem; margin-top: 4rem; font-size: var(--t-sub); color: var(--ink-3); }
+  .how summary { cursor: pointer; color: var(--ink); font-weight: 600; min-height: var(--touch); display: flex; align-items: center; }
+  .how ul { list-style: none; margin: .4rem 0 1.2rem; padding: 0; }
+  .how li { display: grid; grid-template-columns: 1.5rem 1fr; gap: .2rem .6rem; padding: .6rem 0; border-top: 1px solid var(--rule); }
+  .how li .ic { color: var(--accent); margin-top: .15rem; }
+  .how b { color: var(--ink); font-weight: 600; }
+  .how small { display: block; }
   /* Timeline: dates down the left, a line joining the pieces */
   .timeline .piece { margin: 0; padding: 0 0 2.5rem 1.6rem; border-left: 2px solid var(--rule); position: relative; }
   .timeline .piece::before { content: ""; position: absolute; left: -7px; top: .35rem; width: 12px; height: 12px; border-radius: 50%; background: var(--brand); }
   .timeline .piece.note::before { display: none; }
-  .timeline .when { font-size: .85rem; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 .6rem; }
+  .timeline .when { font: 600 var(--t-foot)/1.2 var(--font); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 .6rem; }
   .timeline h2.month { font-size: 1.5rem; margin: 2.5rem 0 1.2rem; }
   .timeline .piece .wide { margin: 0; }
   /* One page: everything on one screen or one printed sheet */
@@ -57,6 +65,7 @@
 </style>
 </head>
 <body>
+{% include "artifacts/_icons.html" %}
 {% if s.status != "published" %}<div class="draftbar">Preview. Only your team can see this until it is published. <a href="{% url 'artifacts:story_edit' s.slug %}">Back to editing</a></div>
 {% elif is_member %}<div class="draftbar" style="background:var(--accent-soft);color:var(--ink)"><a href="{% url 'artifacts:story_edit' s.slug %}">Edit this story</a></div>{% endif %}
 <article class="story{% if s.template %} {{ s.template }}{% endif %}">
@@ -74,10 +83,10 @@
     {% with a=b.artifact %}
     {% if a %}
       {% if a.is_image %}<figure><div class="wide"><img src="{{ a.file.url }}" alt="{{ b.text|default:a.words|default:a.title|truncatechars:160 }}" loading="{% if forloop.first %}eager{% else %}lazy{% endif %}"></div>
-        {% if s.template != "timeline" %}<figcaption>{{ a.when|date:"j F Y" }}{% if a.about %} · {{ a.about }}{% endif %}</figcaption>{% endif %}</figure>
+        {% if s.template != "timeline" %}<figcaption>{{ a.when|date:"j F Y" }}{% if a.about %} · {{ a.about }}{% endif %} · {{ a|how_sent }}{% if a.consent %} · Everyone shown agreed{% endif %}</figcaption>{% endif %}</figure>
       {% elif a.is_video %}<figure><div class="wide"><video src="{{ a.file.url }}" controls playsinline preload="metadata"></video></div>
-        {% if s.template != "timeline" %}<figcaption>{{ a.when|date:"j F Y" }}{% if a.about %} · {{ a.about }}{% endif %}</figcaption>{% endif %}</figure>
-      {% elif a.is_audio %}<figure><audio src="{{ a.file.url }}" controls preload="metadata"></audio><figcaption>Voice note{% if s.template != "timeline" %} · {{ a.when|date:"j F Y" }}{% endif %}</figcaption></figure>
+        {% if s.template != "timeline" %}<figcaption>{{ a.when|date:"j F Y" }}{% if a.about %} · {{ a.about }}{% endif %} · {{ a|how_sent }}{% if a.consent %} · Everyone shown agreed{% endif %}</figcaption>{% endif %}</figure>
+      {% elif a.is_audio %}<figure><audio src="{{ a.file.url }}" controls preload="metadata"></audio><figcaption>Voice note{% if s.template != "timeline" %} · {{ a.when|date:"j F Y" }}{% endif %} · {{ a|how_sent }}</figcaption></figure>
       {% elif a.claim_id %}<linked-badge claim-id="{{ a.claim_id }}" layout="row" theme="light"></linked-badge>
       {% elif a.kind == "link" %}<a class="link" href="{{ a.source_url }}" rel="noopener">{{ a.title|default:"Read more" }}<span>{{ a.source_url }}</span></a>
       {% elif a.kind == "text" and s.template != "timeline" %}<p class="note-head">{{ a.when|date:"j F Y" }}{% if a.title %} · {{ a.title }}{% endif %}</p>
@@ -90,7 +99,13 @@
   </section>
   {% endfor %}
   {% if s.template == "onepage" %}</div>{% endif %}
-  <footer>{{ s.org.name }}{% if s.published_at %} · {{ s.published_at|date:"j F Y" }}{% endif %}</footer>
+  <footer>
+    {% if pieces %}<details class="how"><summary>How this story was made · {{ pieces|length }} {{ pieces|length|pluralize:"piece,pieces" }}</summary>
+      <p>Each piece was sent in to {{ s.org.name }} as it happened and kept exactly as it arrived. Pieces with a signature say so.</p>
+      <ul>{% for a in pieces %}<li>{% ic a.kind|kind_icon %}<span><b>{{ a.title|default:a.get_kind_display }}</b><small>{{ a.when|date:"j F Y" }} · {{ a|how_sent }} · {% if a.claim_id %}<span class="proof">{% ic "signed" "ic-sm" %}Signed</span>{% else %}Not signed yet{% endif %}</small></span></li>{% endfor %}</ul>
+    </details>{% endif %}
+    {{ s.org.name }}{% if s.published_at %} · {{ s.published_at|date:"j F Y" }}{% endif %}
+  </footer>
 </article>
 </body>
 </html>

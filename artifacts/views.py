@@ -766,7 +766,8 @@ def story(request, slug):
             if m != month:
                 b.month = month = m
     return render(request, "artifacts/story.html", {
-        "s": s, "blocks": blocks, "first_image": first_image, "is_member": is_member, "lt_embed": settings.LT_EMBED})
+        "s": s, "blocks": blocks, "first_image": first_image, "is_member": is_member, "lt_embed": settings.LT_EMBED,
+        "pieces": [b.artifact for b in blocks if b.artifact]})
 
 
 # ---- install as an app (phone share sheet) -----------------------------------

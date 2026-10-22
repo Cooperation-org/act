@@ -601,3 +601,32 @@ class LibraryTests(Base):
         page = self.page()
         self.assertIn("Nothing here yet", page)
         self.assertIn(reverse("artifacts:send"), page)
+
+
+class PublicStoryTests(Base):
+    def setUp(self):
+        super().setUp()
+        a = add_file(self.org, data=png_bytes("red"), filename="a.png", content_type="image/png", source=self.upload,
+                     words="Opening morning", sent_by="private.person@example.org", added_by=self.user)[0]
+        a.consent = True
+        a.save()
+        add_file(self.org, data=b"x", filename="n.txt", content_type="text/plain", source=self.upload, words="A note",
+                 sent_by="private.person@example.org")
+        self.story = Story.objects.create(org=self.org, title="First weeks", slug="first-weeks", status="published")
+        for i, art in enumerate(Artifact.objects.filter(org=self.org).order_by("pk")):
+            StoryBlock.objects.create(story=self.story, order=i, artifact=art)
+        self.page = self.client.get(reverse("artifacts:story", args=["first-weeks"])).content.decode()
+
+    def test_every_piece_says_how_it_arrived_and_who_agreed(self):
+        self.assertIn("Sent from a phone or computer", self.page)
+        self.assertIn("Everyone shown agreed", self.page)
+
+    def test_how_it_was_made_lists_the_pieces_and_is_honest_about_signatures(self):
+        self.assertIn("How this story was made", self.page)
+        self.assertIn("Not signed yet", self.page)
+
+    def test_public_page_never_shows_who_sent_it(self):
+        self.assertNotIn("private.person@example.org", self.page)
+
+    def test_no_side_stripe_on_quotes(self):
+        self.assertNotRegex(self.page, r"border-left:\s*[3-9]px")
