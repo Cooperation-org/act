@@ -1,531 +1,180 @@
 {% extends "artifacts/base.html" %}
-{% load kit %}
-{% block title %}Send · Story Kit{% endblock %}
+{% load static kit %}
+{% block title %}Capture · Story Kit{% endblock %}
 {% block head %}<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">{% endblock %}
 {% block content %}
-<h1>Add something new</h1>
-<p class="lede">Capture it now, or bring in what you already have.</p>
-<div class="install" id="install" hidden>
-  <span id="install-text">Keep Story Kit on your home screen.</span>
-  <button type="button" id="install-go" hidden>Add to home screen</button>
-  <button type="button" class="quiet" id="install-no" aria-label="Not now">{% ic "x" %}</button>
+<div id="home" class="capture-home">
+  <div class="install" id="install" hidden>
+    <span id="install-text">Keep Story Kit on your home screen.</span>
+    <button type="button" id="install-go" hidden>Add to home screen</button>
+    <button type="button" class="quiet" id="install-no" aria-label="Not now">{% ic "x" %}</button>
+  </div>
+  <h1>What did you see today?</h1>
+
+  <div class="cap-grid" role="group" aria-label="What would you like to add?">
+    <button type="button" id="rec-photo" class="cap-dark">{% ic "camera" %}<span><strong>Photo</strong><small>Snap, then say why</small></span></button>
+    <button type="button" id="rec-video" class="cap-dark">{% ic "video" %}<span><strong>Video</strong><small>Up to 3 minutes</small></span></button>
+  </div>
+  <button type="button" id="rec-voice" class="cap-voice"><span class="badge-ic">{% ic "mic" "ic-lg" %}</span><span><strong>Voice note</strong><small>Tell the story out loud.</small></span></button>
+  <div class="cap-small">
+    <button type="button" data-open="link-sheet">{% ic "link" %}<span>Link</span></button>
+    <button type="button" id="open-file">{% ic "file" %}<span>File</span></button>
+    <button type="button" data-open="number-sheet">{% ic "number" %}<span>Number</span></button>
+  </div>
+  <label class="drop" id="drop" for="pick"><strong>Drop files here</strong><span>Photos, videos, voice notes, PDFs and documents.</span></label>
+
+  <div class="sent-head"><h2>{% if this_week or not sent %}You sent this week{% else %}You sent recently{% endif %}</h2>{% if sent %}<a href="{% url 'artifacts:library' %}?person={{ mine|urlencode }}">See all</a>{% endif %}</div>
+  <ul class="sent" id="sent">
+    {% for a in sent %}<li>{% include "artifacts/_sent.html" %}</li>{% empty %}<li class="sent-empty" id="sent-empty">Nothing yet. Tap Photo, Video or Voice note to send your first moment.</li>{% endfor %}
+  </ul>
+  <noscript>
+    <form method="post" enctype="multipart/form-data" class="panel">{% csrf_token %}
+      <label for="pick-plain">Choose files</label><input type="file" name="files" multiple id="pick-plain">
+      <label for="words-plain">Say something about it</label><textarea id="words-plain" name="words"></textarea>
+      <p><button type="submit">Send to inbox</button></p>
+    </form>
+  </noscript>
 </div>
 
-<div class="capture-tiles" role="group" aria-label="What would you like to add?">
-  <button type="button" id="rec-photo" class="cap-tile">{% ic "camera" "ic-xl" %}<span>Photo</span></button>
-  <button type="button" id="rec-video" class="cap-tile">{% ic "video" "ic-xl" %}<span>Video</span></button>
-  <button type="button" id="rec-voice" class="cap-tile">{% ic "mic" "ic-xl" %}<span>Voice</span></button>
-  <a href="{% url 'artifacts:ways' %}#link" id="open-link" class="cap-tile">{% ic "link" "ic-xl" %}<span>Link</span></a>
-  <button type="button" id="open-file" class="cap-tile">{% ic "file" "ic-xl" %}<span>File</span></button>
-</div>
-
-<form method="post" action="{% url 'artifacts:add_link' %}" class="panel" id="link-panel" hidden>{% csrf_token %}
-  <label for="link-url">Link <span class="muted">An article, a post, a report online.</span></label>
-  <input type="url" id="link-url" name="url" placeholder="https://" required>
-  <label for="link-words">What does it show? <span class="muted">Optional.</span></label>
-  <textarea id="link-words" name="words" style="min-height:4rem"></textarea>
-  <p class="row"><button type="submit">Save link</button><button type="button" class="quiet" id="link-cancel">Cancel</button></p>
-</form>
-
-<form method="post" enctype="multipart/form-data" id="send" class="capture">{% csrf_token %}
-  <div id="cam" class="cam" hidden>
-    <p class="cam-mode" id="cam-mode">Camera</p>
-    <p class="cam-stats muted" id="cam-stats" hidden></p>
+<form method="post" enctype="multipart/form-data" id="send">{% csrf_token %}
+  <dialog id="cam" class="cam" aria-labelledby="cam-mode-text">
+    <div class="cam-top">
+      <button type="button" class="icon-btn" id="cam-cancel" aria-label="Close">{% ic "x" %}</button>
+      <p class="cam-mode" id="cam-mode"><i class="dot" id="cam-dot" hidden></i><span id="cam-mode-text">Camera</span></p>
+    </div>
     <div class="cam-stage">
       <video id="cam-video" autoplay playsinline muted></video>
-      <div class="cam-empty" id="cam-empty" hidden>{% ic "mic" "ic-xl" %}<span>Recording audio only.</span></div>
-      <div class="cam-timer" id="cam-timer" hidden>00:00</div>
+      <span class="cam-vtimer" id="cam-vtimer" hidden>0:00</span>
+      <div class="cam-voice" id="cam-empty" hidden>
+        <div class="cam-time" id="cam-timer" aria-live="off">0:00</div>
+        <canvas class="cam-wave" id="cam-wave" aria-hidden="true"></canvas>
+        <div class="cam-prompt"><b>If you're not sure what to say</b><p>Who is this? What happened? Why does it matter to them, or to you?</p></div>
+      </div>
       <img id="cam-preview-img" alt="" hidden>
-      <video id="cam-preview-video" controls autoplay playsinline hidden></video>
-      <audio id="cam-preview-audio" controls autoplay hidden></audio>
+      <video id="cam-preview-video" controls playsinline hidden></video>
       <div class="cam-fallback" id="cam-fallback" hidden role="alert">
         <p id="cam-fallback-msg"></p>
         <div class="row"><button type="button" id="cam-retry">Try again</button><button type="button" class="quiet" id="cam-fallback-pick">Choose a file</button></div>
       </div>
     </div>
-    <div class="cam-toolbar">
-      <button type="button" class="big" id="cam-snap" hidden>Take photo</button>
-      <button type="button" class="big" id="cam-record">Start recording</button>
-      <button type="button" class="big" id="cam-stop" hidden>Stop</button>
-      <button type="button" id="cam-retake" hidden>Retake</button>
-      <button type="button" id="cam-save" hidden disabled>Use this</button>
-      <button type="button" class="quiet" id="cam-pick">Choose a file</button>
-      <button type="button" class="quiet" id="cam-cancel">Cancel</button>
+    <div class="cam-controls">
+      <div class="side left">
+        <button type="button" class="cam-round" id="cam-pause" aria-label="Pause" hidden>{% ic "pause" "ic-lg" %}</button>
+        <button type="button" class="cam-text" id="cam-retake" hidden>Retake</button>
+      </div>
+      <div class="cam-main">
+        <button type="button" class="cam-big shutter" id="cam-snap" aria-label="Take photo" hidden></button>
+        <button type="button" class="cam-big" id="cam-record" aria-label="Start recording" hidden></button>
+        <button type="button" class="cam-big stop" id="cam-stop" aria-label="Stop recording" hidden></button>
+        <button type="button" class="cam-use" id="cam-save" hidden disabled>Use this</button>
+      </div>
+      <div class="side right">
+        <button type="button" class="cam-round" id="cam-pick" aria-label="Choose one you already have">{% ic "image" "ic-lg" %}</button>
+      </div>
     </div>
-  </div>
+    <p class="cam-hint" id="cam-hint" role="status"></p>
+  </dialog>
 
-  <div class="captures" id="captures" hidden>
-    <p class="muted" id="captures-summary"></p>
-    <ul class="captures-thumbs" id="captures-thumbs"></ul>
-    <input type="file" id="cap-photo" name="files" hidden>
-    <input type="file" id="cap-video" name="files" hidden>
-    <input type="file" id="cap-voice" name="files" hidden>
-  </div>
-
+  <input type="file" id="cap-photo" name="files" hidden>
+  <input type="file" id="cap-video" name="files" hidden>
+  <input type="file" id="cap-voice" name="files" hidden>
   <input type="file" name="files" multiple id="pick" hidden>
-  <noscript><label for="pick-plain">Choose files</label><input type="file" name="files" multiple id="pick-plain"></noscript>
-  <label class="drop" id="drop" for="pick"><strong>Drop files here</strong><span class="muted">Photos, videos, voice notes, PDFs and documents.</span></label>
 
-  <p class="chosen" id="chosen" aria-live="polite"></p>
-  <label for="words">Say something about it <span class="muted">Kept exactly as you write it.</span></label>
-  <textarea id="words" name="words" placeholder="Who is in it, what happened, why it matters"></textarea>
-  <label for="happened_on">When did it happen? <span class="muted">Photos usually know. Leave it if you are not sure.</span></label>
-  <input type="date" id="happened_on" name="happened_on" max="{{ today }}">
+  <section id="say" class="say" hidden aria-labelledby="say-title">
+    <div class="say-head">
+      <button type="button" class="icon-btn" id="say-back" aria-label="Back">{% ic "chevron-left" "ic-lg" %}</button>
+      <h1 id="say-title">Say something about it</h1>
+    </div>
+    <div class="card">
+      <div class="player" id="say-player" hidden>
+        <button type="button" class="play" id="say-play" aria-label="Play">{% ic "play" %}</button>
+        <canvas class="wave" id="say-wave" aria-hidden="true"></canvas>
+        <time id="say-dur">0:00</time>
+        <audio id="say-audio" hidden></audio>
+      </div>
+      <ul class="previews" id="captures-thumbs"></ul>
+    </div>
 
-  <p class="hint muted" id="send-hint">Add a photo, video, voice note or file, or write a note, to send.</p>
-  <div class="sendbar"><button type="submit" class="big" id="go" disabled>Send</button></div>
-  <div class="sending" id="sending" hidden role="status">
-    <progress id="send-progress" max="100" value="0" aria-label="Sending"></progress>
-    <p id="send-text">Sending…</p>
-    <button type="button" class="quiet" id="send-cancel">Cancel</button>
-  </div>
-  <p class="notice ok" id="send-done" hidden role="status">{% ic "check" %}<span><span id="send-done-text">Saved.</span> <a href="{% url 'artifacts:library' %}">See it in Library</a></span></p>
-  <p class="notice err" id="send-error" hidden role="alert"></p>
+    <label for="words">What is this? <span class="muted">Kept exactly as you write it. Edit freely.</span></label>
+    <textarea id="words" name="words" placeholder="Who is in it, what happened, why it matters"></textarea>
+
+    <label for="tag-input">Tags <span class="muted">Optional. Press return after each one.</span></label>
+    <div class="tags" id="tags"><input type="text" id="tag-input" placeholder="+ Add tag" enterkeyhint="done" autocomplete="off" autocapitalize="none"></div>
+    <input type="hidden" name="tags" id="tags-value">
+
+    <div class="card" style="margin-top: var(--s5)">
+      <p class="q" style="margin-top:0">Who appears or is heard?</p>
+      <label class="switch-row" for="consent"><span>Everyone in it agreed it can be shown</span><input class="switch" role="switch" type="checkbox" id="consent" name="consent"></label>
+    </div>
+
+    <label for="happened_on">When did it happen? <span class="muted">Photos usually know. Leave it if you are not sure.</span></label>
+    <input type="date" id="happened_on" name="happened_on" max="{{ today }}">
+
+    <p class="notice err" id="send-error" hidden role="alert"></p>
+    <div class="sending" id="sending" hidden role="status">
+      <progress id="send-progress" max="100" value="0" aria-label="Sending"></progress>
+      <p id="send-text">Sending…</p>
+      <button type="button" class="quiet" id="send-cancel">Cancel</button>
+    </div>
+    <div class="say-bar"><button type="submit" class="big" id="go">Send to inbox</button></div>
+  </section>
 </form>
+
+<dialog class="sheet" id="link-sheet" aria-labelledby="link-title">
+  <div class="sheet-top"><div class="grabber"></div><div class="sheet-head"><h2 id="link-title">Add a link</h2><button type="button" data-close>Cancel</button></div></div>
+  <form method="post" action="{% url 'artifacts:add_link' %}" class="sheet-body sheet-form">{% csrf_token %}
+    <input type="hidden" name="back" value="{% url 'artifacts:send' %}">
+    <label for="link-url">Link <span class="muted">An article, a post, a report online.</span></label>
+    <input type="url" id="link-url" name="url" placeholder="https://" required>
+    <label for="link-words">What does it show? <span class="muted">Optional.</span></label>
+    <textarea id="link-words" name="words" style="min-height:4.5rem"></textarea>
+    <p class="sheet-actions"><button type="submit" class="big">Save link</button></p>
+  </form>
+</dialog>
+
+<dialog class="sheet" id="number-sheet" aria-labelledby="number-title">
+  <div class="sheet-top"><div class="grabber"></div><div class="sheet-head"><h2 id="number-title">Add a number</h2><button type="button" data-close>Cancel</button></div></div>
+  <form method="post" action="{% url 'artifacts:add_number' %}" class="sheet-body sheet-form">{% csrf_token %}
+    <input type="hidden" name="back" value="{% url 'artifacts:send' %}">
+    <label for="num-value">The number</label>
+    <input type="text" id="num-value" name="value" inputmode="decimal" placeholder="40" required>
+    <label for="num-what">What does it count?</label>
+    <input type="text" id="num-what" name="what" placeholder="Founders in the spring cohort" required>
+    <label for="num-where">Where did it come from? <span class="muted">So readers can check it.</span></label>
+    <input type="text" id="num-where" name="where" placeholder="Program roster, exported 1 Oct" required>
+    <p class="sheet-actions"><button type="submit" class="big">Save number</button></p>
+  </form>
+</dialog>
+
+<dialog class="sheet" id="discard" aria-labelledby="discard-title">
+  <div class="sheet-top"><div class="grabber"></div><div class="sheet-head"><h2 id="discard-title">Discard this?</h2></div></div>
+  <div class="sheet-body">
+    <p class="muted" style="margin-top:0">It has not been sent yet.</p>
+    <p class="sheet-actions"><button type="button" class="big" id="discard-keep" data-close>Keep it</button></p>
+    <p class="sheet-actions"><button type="button" class="big quiet" id="discard-go" data-close>Discard</button></p>
+  </div>
+</dialog>
 
 <input type="file" id="cap-pick-photo" accept="image/*" hidden>
 <input type="file" id="cap-pick-video" accept="video/*" hidden>
 <input type="file" id="cap-pick-voice" accept="audio/*" hidden>
-
-<h2>Bring in what you already have</h2>
-<ul class="inset">
-  <li><a href="{% url 'artifacts:ways' %}#drive">{% ic "drive" "ic-lg" %}<span><b>Google Drive</b><small>Copy a shared folder. We never change it.</small></span>{% ic "chevron" "chev" %}</a></li>
-  <li><a href="{% url 'artifacts:ways' %}#email">{% ic "mail" "ic-lg" %}<span><b>Email it in</b><small>Forward photos and files to your Story Kit address.</small></span>{% ic "chevron" "chev" %}</a></li>
-  <li><a href="{% url 'artifacts:ways' %}#phone">{% ic "phone" "ic-lg" %}<span><b>From your phone</b><small>Open Story Kit on your phone and add it to your home screen.</small></span>{% ic "chevron" "chev" %}</a></li>
-</ul>
 {% endblock %}
 {% block scripts %}
 <script>
 // Offer "add to home screen" on a phone that has not installed Story Kit yet.
 (function () {
   var box = document.getElementById('install'), go = document.getElementById('install-go'), text = document.getElementById('install-text');
+  var noBtn = document.getElementById('install-no');
   var installed = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
   var phone = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   var dismissed = false; try { dismissed = localStorage.getItem('storykit-install-no') === '1'; } catch (e) {}
+  noBtn.addEventListener('click', function () { box.hidden = true; try { localStorage.setItem('storykit-install-no', '1'); } catch (e) {} });
   if (installed || !phone || dismissed) return;
   if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) { text.textContent = 'Keep Story Kit on your home screen: tap Share, then Add to Home Screen.'; box.hidden = false; }
   var deferred = null;
   window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); deferred = e; go.hidden = false; box.hidden = false; });
   go.addEventListener('click', function () { if (deferred) { deferred.prompt(); deferred.userChoice.then(function () { box.hidden = true; }); } });
 })();
-(function () {
-  var noBtn = document.getElementById('install-no');
-  if (!noBtn) return;
-  noBtn.addEventListener('click', function () {
-    var b = document.getElementById('install');
-    if (b) b.hidden = true;
-    try { localStorage.setItem('storykit-install-no', '1'); } catch (e) {}
-  }, false);
-})();
 </script>
-<script>
-(function () {
-  var form = document.getElementById('send'), chosen = document.getElementById('chosen'), drop = document.getElementById('drop'), pick = document.getElementById('pick');
-
-  function refreshChosen() {
-    var n = 0, names = [];
-    form.querySelectorAll('input[type=file]').forEach(function (i) { for (var f of i.files) { n++; names.push(f.name); } });
-    chosen.textContent = n ? n + (n === 1 ? ' item ready: ' : ' items ready: ') + names.slice(0, 4).join(', ') + (n > 4 ? '…' : '') : '';
-    var cap = document.getElementById('captures'), sum = document.getElementById('captures-summary');
-    var thumbs = document.getElementById('captures-thumbs');
-    thumbs.innerHTML = '';
-    thumbs._urls = thumbs._urls || [];
-    thumbs._urls.forEach(function (u) { try { URL.revokeObjectURL(u); } catch (_) {} });
-    thumbs._urls = [];
-    var labels = [];
-    [['cap-photo', 'photo'], ['cap-video', 'video'], ['cap-voice', 'voice']].forEach(function (x) {
-      var inp = document.getElementById(x[0]);
-      if (inp.files && inp.files[0]) labels.push(x[1] + ': ' + inp.files[0].name);
-    });
-    form.querySelectorAll('input[type=file]').forEach(function (i) {
-      for (var f of i.files) {
-        var li = document.createElement('li');
-        li.className = 'capture-thumb';
-        if (f.type.indexOf('image') === 0) {
-          var img = document.createElement('img');
-          var u = URL.createObjectURL(f);
-          thumbs._urls.push(u);
-          img.src = u; img.alt = f.name;
-          li.appendChild(img);
-        } else if (f.type.indexOf('video') === 0) {
-          var v = document.createElement('video');
-          v.src = URL.createObjectURL(f); v.muted = true; v.playsInline = true;
-          thumbs._urls.push(v.src);
-          li.appendChild(v);
-        } else {
-          var a = document.createElement('span'); a.className = 'capture-icon'; a.innerHTML = '<svg class="ic ic-xl" aria-hidden="true" focusable="false"><use href="#i-mic"></use></svg>';
-          li.appendChild(a);
-        }
-        var nm = document.createElement('span'); nm.className = 'capture-name'; nm.textContent = f.name;
-        li.appendChild(nm);
-        thumbs.appendChild(li);
-      }
-    });
-    if (labels.length) { sum.textContent = 'Ready to send: ' + labels.join(', '); cap.hidden = false; }
-    else { sum.textContent = ''; cap.hidden = true; }
-    updateSend();
-  }
-  function fileCount() { var n = 0; form.querySelectorAll('input[type=file]').forEach(function (i) { n += i.files ? i.files.length : 0; }); return n; }
-  var goBtn = document.getElementById('go'), hint = document.getElementById('send-hint'), words = document.getElementById('words');
-  function updateSend() {
-    var n = fileCount(), note = words.value.trim().length > 0, ok = n > 0 || note;
-    goBtn.disabled = !ok || !!form._sending;
-    goBtn.textContent = n > 1 ? 'Send ' + n + ' items' : n === 1 ? 'Send 1 item' : note ? 'Send note' : 'Send';
-    hint.hidden = ok;
-  }
-  words.addEventListener('input', updateSend);
-  form.addEventListener('change', refreshChosen);
-  if (drop) {
-    ['dragenter', 'dragover'].forEach(function (e) { drop.addEventListener(e, function (ev) { ev.preventDefault(); drop.classList.add('over'); }); });
-    ['dragleave', 'drop'].forEach(function (e) { drop.addEventListener(e, function () { drop.classList.remove('over'); }); });
-    drop.addEventListener('drop', function (ev) { ev.preventDefault(); pick.files = ev.dataTransfer.files; refreshChosen(); });
-  }
-  var sendingBox = document.getElementById('sending'), bar = document.getElementById('send-progress'), barText = document.getElementById('send-text');
-  var doneBox = document.getElementById('send-done'), errBox = document.getElementById('send-error'), xhr = null;
-  function hideNotices() { doneBox.hidden = true; errBox.hidden = true; }
-  function showError(msg) { errBox.textContent = msg; errBox.hidden = false; }
-  window.addEventListener('beforeunload', function (e) { if (fileCount() > 0 && !form._sending) { e.preventDefault(); e.returnValue = ''; } });
-  form.addEventListener('submit', function (ev) {
-    if (!window.XMLHttpRequest || !window.FormData) return;           // the plain form post still works
-    ev.preventDefault();
-    if (goBtn.disabled) return;
-    hideNotices(); form._sending = true; updateSend();
-    sendingBox.hidden = false; bar.value = 0; barText.textContent = 'Sending…';
-    xhr = new XMLHttpRequest(); xhr.open('POST', form.getAttribute('action') || location.href);
-    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest'); xhr.setRequestHeader('Accept', 'application/json');
-    xhr.upload.onprogress = function (e) {
-      if (!e.lengthComputable) return;
-      var pct = Math.round(e.loaded * 100 / e.total); bar.value = pct; barText.textContent = pct < 100 ? 'Sending… ' + pct + '%' : 'Saving…';
-    };
-    function end() { form._sending = false; sendingBox.hidden = true; updateSend(); }
-    xhr.onload = function () {
-      var r = {}; try { r = JSON.parse(xhr.responseText); } catch (_) {}
-      end();
-      if (xhr.status === 200 && r.ok) {
-        document.getElementById('send-done-text').textContent = r.message || 'Saved.'; doneBox.hidden = false;
-        form.querySelectorAll('input[type=file]').forEach(function (i) { i.value = ''; });
-        words.value = ''; document.getElementById('happened_on').value = ''; refreshChosen();
-      } else {
-        showError((r.error || 'That did not go through.') + ' Everything you added is still here. Tap Send to try again.');
-      }
-    };
-    xhr.onerror = xhr.ontimeout = function () {
-      end();
-      showError((navigator.onLine === false ? 'You are offline.' : 'The connection dropped.') + ' Everything you added is still here. Tap Send when you are back online.');
-    };
-    xhr.onabort = function () { end(); showError('Stopped. Nothing was sent, and everything you added is still here.'); };
-    xhr.send(new FormData(form));
-  });
-  document.getElementById('send-cancel').addEventListener('click', function () { if (xhr) xhr.abort(); });
-
-  var cam = document.getElementById('cam');
-  var camVideo = document.getElementById('cam-video');
-  var camEmpty = document.getElementById('cam-empty');
-  var camTimer = document.getElementById('cam-timer');
-  var camPreviewImg = document.getElementById('cam-preview-img');
-  var camPreviewVideo = document.getElementById('cam-preview-video');
-  var camPreviewAudio = document.getElementById('cam-preview-audio');
-  var camSnapBtn = document.getElementById('cam-snap');
-  var camRecordBtn = document.getElementById('cam-record');
-  var camStopBtn = document.getElementById('cam-stop');
-  var camRetakeBtn = document.getElementById('cam-retake');
-  var camSaveBtn = document.getElementById('cam-save');
-  var camCancelBtn = document.getElementById('cam-cancel');
-  var camPickBtn = document.getElementById('cam-pick');
-  var camStats = document.getElementById('cam-stats');
-  var camModeLabel = document.getElementById('cam-mode');
-  var camFallback = document.getElementById('cam-fallback');
-  var camFallbackMsg = document.getElementById('cam-fallback-msg');
-
-  var state = { mode: null, stream: null, recorder: null, chunks: [], timerId: null, blob: null, mime: null, lumaId: null };
-
-  function fmt(s) { var m = Math.floor(s / 60), r = s % 60; return (m < 10 ? '0' : '') + m + ':' + (r < 10 ? '0' : '') + r; }
-  function startTimer() { var t = 0; camTimer.hidden = false; camTimer.textContent = fmt(t); state.timerId = setInterval(function () { t++; camTimer.textContent = fmt(t); }, 1000); }
-  function stopTimer() { if (state.timerId) { clearInterval(state.timerId); state.timerId = null; } camTimer.hidden = true; }
-
-  function ready() {
-    if (!state.stream) return false;
-    if (state.mode === 'voice') return true;
-    return camVideo.videoWidth > 0;
-  }
-
-  function setUI() {
-    var has = !!state.blob, recording = state.recorder && state.recorder.state === 'recording';
-    var isPhoto = state.mode === 'photo';
-    var can = ready();
-    camSnapBtn.hidden = !isPhoto || recording || has || !can;
-    camRecordBtn.hidden = isPhoto || recording || has || !can;
-    camStopBtn.hidden = !recording;
-    camRetakeBtn.hidden = !has;
-    camSaveBtn.hidden = !has;
-    camSaveBtn.disabled = !has;
-  }
-
-  var camRetry = document.getElementById('cam-retry');
-  function showFallback(msg, noRetry) { camFallbackMsg.textContent = msg; camRetry.hidden = !!noRetry; camFallback.hidden = false; }
-  // Say what happened and what to do next, in plain words. Never show a browser error to a person.
-  function friendly(a, b) {
-    var err = (a && typeof a === 'object') ? a : b, kind = typeof a === 'string' ? a : 'device';
-    if (err && window.console) console.warn('Story Kit capture:', err);
-    var name = (err && err.name) || '', dev = state.mode === 'voice' ? 'microphone' : 'camera';
-    var what = ({photo: 'photo', video: 'video', voice: 'voice note'})[state.mode] || 'file';
-    if (kind === 'unsupported') return "This browser can't record here. Choose a " + what + ' you already have, or open Story Kit in Safari or Chrome.';
-    if (kind === 'notready') return 'The ' + dev + ' is still starting. Give it a moment, then tap Try again.';
-    if (kind === 'start' || kind === 'recording') return "Recording didn't start. Tap Try again, or choose a " + what + ' you already have.';
-    if (/NotAllowed|Security|PermissionDenied/.test(name)) return 'Story Kit needs your ' + dev + '. Turn it on for this site in your browser settings, then tap Try again.';
-    if (/NotFound|Overconstrained/.test(name)) return 'No ' + dev + ' was found on this device. You can choose a ' + what + ' you already have.';
-    if (/NotReadable|Abort/.test(name)) return 'Another app is using the ' + dev + '. Close it, then tap Try again.';
-    return 'The ' + dev + " didn't start. Tap Try again, or choose a " + what + ' you already have.';
-  }
-  function clearFallback() { camFallback.hidden = true; camFallbackMsg.textContent = ''; }
-
-  function resetCam() {
-    if (state.stream) state.stream.getTracks().forEach(function (t) { t.stop(); });
-    if (state.recorder && state.recorder.state !== 'inactive') { try { state.recorder.stop(); } catch (_) {} }
-    if (state.lumaId) { clearInterval(state.lumaId); state.lumaId = null; }
-    state.stream = null; state.recorder = null; state.chunks = []; state.blob = null; state.mime = null;
-    camVideo.srcObject = null;
-    camPreviewImg.src = ''; camPreviewImg.hidden = true;
-    camPreviewVideo.removeAttribute('src'); camPreviewVideo.load(); camPreviewVideo.hidden = true;
-    camPreviewAudio.removeAttribute('src'); camPreviewAudio.load(); camPreviewAudio.hidden = true;
-    camEmpty.hidden = true; camVideo.hidden = true; camTimer.hidden = true;
-    camStats.hidden = true; camStats.textContent = '';
-    clearFallback(); stopTimer();
-    setUI();
-  }
-
-  async function openMode(mode) {
-    resetCam();
-    state.mode = mode;
-    camModeLabel.textContent = ({photo: 'Take photo', video: 'Record video', voice: 'Voice note'})[mode];
-    cam.hidden = false;
-    setUI();
-    camVideo.hidden = mode === 'voice'; camEmpty.hidden = mode !== 'voice';
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      showFallback(friendly('unsupported'), true);
-      return;
-    }
-    var wantsVideo = mode !== 'voice';
-    var wantsAudio = mode === 'voice' || mode === 'video';
-    var tries = wantsVideo
-      ? [{ video: true, audio: wantsAudio }, { video: { facingMode: 'user' }, audio: wantsAudio }]
-      : [{ audio: true }];
-    var lastErr = null;
-    for (var i = 0; i < tries.length; i++) {
-      try {
-        state.stream = await navigator.mediaDevices.getUserMedia(tries[i]);
-        if (wantsVideo) {
-          camVideo.srcObject = state.stream;
-          try { await camVideo.play(); } catch (_) {}
-          startLumaReadout();
-        }
-        pollVideoReady();
-        setUI();
-        return;
-      } catch (e) { lastErr = e; }
-    }
-    showFallback(friendly(lastErr || 'device'));
-  }
-
-  camCancelBtn.addEventListener('click', function () { resetCam(); cam.hidden = true; });
-
-  function awaitReady(timeoutMs) {
-    if (camVideo.videoWidth > 0) return Promise.resolve();
-    return new Promise(function (resolve) {
-      var done = false;
-      var finish = function () { if (!done) { done = true; resolve(); } };
-      camVideo.addEventListener('loadeddata', finish, { once: true });
-      camVideo.addEventListener('playing', finish, { once: true });
-      setTimeout(finish, timeoutMs || 3000);
-    });
-  }
-
-  function pollVideoReady() {
-    if (state.mode === 'voice') { setUI(); return; }
-    var tries = 0, max = 60;
-    function tick() {
-      tries++;
-      if (camVideo.videoWidth > 0 || tries >= max) { setUI(); return; }
-      requestAnimationFrame(tick);
-    }
-    if (camVideo.videoWidth > 0) { setUI(); return; }
-    if (camVideo.requestVideoFrameCallback) {
-      camVideo.requestVideoFrameCallback(function () { setUI(); });
-    }
-    requestAnimationFrame(tick);
-  }
-
-  async function snapPhoto() {
-    await awaitReady(3000);
-    var w = camVideo.videoWidth, h = camVideo.videoHeight;
-    if (!w || !h) { showFallback(friendly('notready')); return; }
-    var c = document.createElement('canvas');
-    c.width = w; c.height = h;
-    c.getContext('2d').drawImage(camVideo, 0, 0, w, h);
-    c.toBlob(function (b) {
-      state.blob = b; state.mime = 'image/jpeg';
-      camPreviewImg.src = URL.createObjectURL(b); camPreviewImg.hidden = false;
-      camVideo.hidden = true;
-      setUI();
-    }, 'image/jpeg', 0.9);
-  }
-  camSnapBtn.addEventListener('click', snapPhoto);
-
-  function startRecording() {
-    if (!state.stream) { showFallback(friendly('notready')); return; }
-    if (typeof MediaRecorder === 'undefined') { showFallback(friendly('unsupported'), true); return; }
-    var mime = (state.mode === 'video') ? pickVideoMime() : pickAudioMime();
-    var rec;
-    try { rec = new MediaRecorder(state.stream, { mimeType: mime }); state.mime = mime; }
-    catch (e1) {
-      try { rec = new MediaRecorder(state.stream); state.mime = rec.mimeType; }
-      catch (e2) { showFallback(friendly('start', e2)); return; }
-    }
-    state.recorder = rec; state.chunks = [];
-    rec.ondataavailable = function (e) { if (e.data && e.data.size) state.chunks.push(e.data); };
-    rec.onerror = function (e) { showFallback(friendly('recording', e && e.error)); };
-    rec.onstop = function () {
-      state.blob = new Blob(state.chunks, { type: state.mime });
-      if (state.mode === 'video') {
-        camPreviewVideo.src = URL.createObjectURL(state.blob); camPreviewVideo.hidden = false; camVideo.hidden = true;
-        camPreviewVideo.play().catch(function () {});
-      } else if (state.mode === 'voice') {
-        camPreviewAudio.src = URL.createObjectURL(state.blob); camPreviewAudio.hidden = false;
-        camPreviewAudio.play().catch(function () {});
-      }
-      setUI();
-    };
-    try { rec.start(250); }
-    catch (e) { showFallback(friendly('start', e)); return; }
-    startTimer();
-    setUI();
-  }
-  camRecordBtn.addEventListener('click', startRecording);
-
-  function stopRecording() {
-    if (state.recorder && state.recorder.state !== 'inactive') state.recorder.stop();
-    stopTimer();
-    setUI();
-  }
-  camStopBtn.addEventListener('click', stopRecording);
-
-  camRetakeBtn.addEventListener('click', function () {
-    try { camPreviewVideo.pause(); } catch (_) {}
-    try { camPreviewAudio.pause(); } catch (_) {}
-    if (state.blob && state.mode !== 'voice') camVideo.hidden = false;
-    camPreviewImg.hidden = true;
-    camPreviewVideo.removeAttribute('src'); camPreviewVideo.load(); camPreviewVideo.hidden = true;
-    camPreviewAudio.removeAttribute('src'); camPreviewAudio.load(); camPreviewAudio.hidden = true;
-    state.blob = null; state.mime = null;
-    setUI();
-  });
-
-  // Webm first: Chrome and Firefox encode it reliably. iOS Safari has no webm at
-// all, so it falls through to mp4 there. Preferring mp4 on Chrome makes
-// isTypeSupported() pass while producing files that will not play back.
-function pickVideoMime() { var c = ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4']; for (var i = 0; i < c.length; i++) if (window.MediaRecorder && MediaRecorder.isTypeSupported(c[i])) return c[i]; return 'video/webm'; }
-  function pickAudioMime() { var c = ['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus','audio/mp4','audio/aac']; for (var i = 0; i < c.length; i++) if (window.MediaRecorder && MediaRecorder.isTypeSupported(c[i])) return c[i]; return 'audio/webm'; }
-
-  function ext(m) { if (m.indexOf('mp4') !== -1) return 'mp4'; if (m.indexOf('jpeg') !== -1 || m.indexOf('jpg') !== -1) return 'jpg'; if (m.indexOf('png') !== -1) return 'png'; return 'webm'; }
-
-  function attach() {
-    if (!state.blob || !state.mode) return;
-    var fname = state.mode + '-' + new Date().toISOString().replace(/[:.]/g, '-') + '.' + ext(state.mime);
-    var f = new File([state.blob], fname, { type: state.mime });
-    var target = document.getElementById('cap-' + state.mode);
-    var dt = new DataTransfer(); dt.items.add(f);
-    target.files = dt.files;
-    refreshChosen();
-    resetCam();
-    cam.hidden = true;
-  }
-  camSaveBtn.addEventListener('click', attach);
-
-  function startLumaReadout() {
-    if (state.lumaId) return;
-    var sample = document.createElement('canvas'); sample.width = 16; sample.height = 16;
-    var ctx = sample.getContext('2d', { willReadFrequently: true });
-    var frames = 0;
-    var lastLuma = null;
-    state.lumaId = setInterval(function () {
-      frames++;
-      var w = camVideo.videoWidth, h = camVideo.videoHeight;
-      if (!w || !h) { camStats.textContent = 'no frames yet'; camStats.hidden = false; return; }
-      try {
-        ctx.drawImage(camVideo, 0, 0, 16, 16);
-        var px = ctx.getImageData(0, 0, 16, 16).data;
-        var sum = 0, n = 0;
-        for (var i = 0; i < px.length; i += 4) { sum += (px[i] * 0.299 + px[i+1] * 0.587 + px[i+2] * 0.114); n++; }
-        lastLuma = Math.round(sum / n);
-      } catch (_) {}
-      camStats.textContent = w + '×' + h + ' · luma ' + (lastLuma == null ? '?' : lastLuma) + '/255 · ' + frames + ' frames';
-      camStats.hidden = false;
-    }, 500);
-  }
-
-  function pickExisting() {
-    document.getElementById('cap-pick-' + state.mode).click();
-  }
-  camPickBtn.addEventListener('click', pickExisting);
-
-  ['cap-pick-photo', 'cap-pick-video', 'cap-pick-voice'].forEach(function (id) {
-    document.getElementById(id).addEventListener('change', function (e) {
-      var f = e.target.files && e.target.files[0];
-      if (!f) return;
-      var mode = id.replace('cap-pick-', '');
-      var target = document.getElementById('cap-' + mode);
-      var dt = new DataTransfer(); dt.items.add(new File([f], mode + '-' + f.name, { type: f.type }));
-      target.files = dt.files;
-      e.target.value = '';
-      refreshChosen();
-      resetCam();
-      cam.hidden = true;
-    });
-  });
-
-  camRetry.addEventListener('click', function () { if (state.mode) openMode(state.mode); });
-  document.getElementById('cam-fallback-pick').addEventListener('click', function () { pickExisting(); });
-  document.getElementById('open-file').addEventListener('click', function () { document.getElementById('pick').click(); });
-  var linkPanel = document.getElementById('link-panel');
-  document.getElementById('open-link').addEventListener('click', function (e) {
-    e.preventDefault(); linkPanel.hidden = !linkPanel.hidden;
-    if (!linkPanel.hidden) { document.getElementById('link-url').focus(); linkPanel.scrollIntoView({block: 'nearest', behavior: 'smooth'}); }
-  });
-  document.getElementById('link-cancel').addEventListener('click', function () { linkPanel.hidden = true; });
-  document.getElementById('rec-photo').addEventListener('click', function () { openMode('photo'); });
-  document.getElementById('rec-video').addEventListener('click', function () { openMode('video'); });
-  document.getElementById('rec-voice').addEventListener('click', function () { openMode('voice'); });
-
-  camVideo.addEventListener('loadedmetadata', function () { if (state.stream) setUI(); });
-  camVideo.addEventListener('playing', function () { setUI(); });
-  camVideo.addEventListener('canplay', function () { setUI(); });
-})();
-</script>
-<style>
-.cam { background: #101512; color: #fff; border-radius: var(--radius-lg); margin: var(--s4) 0; padding: var(--s4); }
-.cam[hidden] { display: none; }
-.cam-mode { margin: 0 0 var(--s2); color: #c9d1cc; font-weight: 600; }
-.cam-stats { margin: 0 0 .6rem; font: 600 var(--t-foot) ui-monospace, monospace; color: #c9d1cc; }
-.cam-stage { position: relative; aspect-ratio: 4 / 3; max-height: 60vh; background: #000; border-radius: var(--radius); display: flex; align-items: center; justify-content: center; overflow: hidden; }
-.cam-stage video, .cam-stage img { max-width: 100%; max-height: 100%; object-fit: contain; }
-.cam-empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; color: #e3e8e5; padding: 2rem; text-align: center; }
-.cam-empty[hidden] { display: none; }
-.cam-timer { position: absolute; top: .8rem; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.65); color: #fff; padding: .3rem .8rem; border-radius: 999px; font: 700 1.05rem ui-monospace, monospace; }
-.cam-fallback { position: absolute; inset: 0; background: rgba(16,21,18,.94); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; padding: 1.25rem; text-align: center; }
-.cam-fallback[hidden] { display: none; }
-.cam-fallback p { max-width: 30rem; margin: 0; color: #fff; }
-.cam-toolbar { margin-top: var(--s3); display: flex; flex-wrap: wrap; gap: var(--s2); align-items: center; }
-.cam-toolbar .big { flex: 1 1 100%; }
-.cam-toolbar button:not(.big):not(.quiet) { background: #fff; color: var(--ink); }
-.cam-toolbar .quiet { background: transparent; color: #e3e8e5; border-color: #5d6862; }
-.cam-toolbar .quiet:hover { background: rgba(255,255,255,.1); color: #fff; border-color: #fff; }
-.cam-fallback .quiet { background: transparent; color: #fff; border-color: #8a948e; }
-.captures { padding: var(--s3) var(--s4); background: var(--accent-soft); border-radius: var(--radius-lg); margin: var(--s4) 0; }
-.captures p { margin: 0; color: var(--ink-2); }
-.captures-thumbs { list-style: none; padding: .6rem 0 0; margin: 0; display: flex; flex-wrap: wrap; gap: var(--s3); }
-.capture-thumb { background: var(--paper); border-radius: var(--radius); padding: .3rem; display: flex; flex-direction: column; align-items: center; gap: .25rem; max-width: 130px; }
-.capture-thumb img, .capture-thumb video { width: 120px; height: 90px; object-fit: cover; border-radius: var(--radius-sm); display: block; }
-.capture-thumb .capture-icon { display: flex; justify-content: center; padding: 1.4rem 0; color: var(--accent); }
-.capture-thumb .capture-name { font-size: var(--t-foot); color: var(--ink-3); text-align: center; word-break: break-word; max-width: 120px; }
-</style>
+<script src="{% static 'artifacts/capture.js' %}" defer></script>
 {% endblock %}

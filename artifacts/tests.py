@@ -416,7 +416,7 @@ class DemoTests(Base):
 
     def test_visitor_gets_own_copy_signed_in(self):
         r = self.client.get(reverse("artifacts:demo"))
-        self.assertRedirects(r, reverse("artifacts:library"), fetch_redirect_response=False)
+        self.assertRedirects(r, reverse("artifacts:library") + "?show=inbox", fetch_redirect_response=False)
         from .models import DemoCopy
         d = DemoCopy.objects.get()
         copy = Artifact.objects.get(org=d.org)
@@ -496,16 +496,35 @@ class ShellTests(Base):
         self.assertEqual(page.count('<main id="main"'), 1)
         self.assertIn("viewport-fit=cover", page)
 
-    def test_tab_bar_and_sidebar_mark_the_current_place(self):
+    def test_top_bar_marks_the_current_place(self):
         for name, label in (("library", "Library"), ("stories", "Stories"), ("collections", "Collections")):
             page = self.client.get(reverse(f"artifacts:{name}")).content.decode()
-            self.assertEqual(page.count('aria-current="page"'), 2, name)  # sidebar and tab bar
-            self.assertRegex(page, rf'aria-current="page"[^>]*>[^<]*<svg[^>]*>.*?</svg><span>{label}</span>', name)
+            nav = page.split('<nav class="topnav"')[1].split("</nav>")[0]
+            self.assertEqual(nav.count('aria-current="page"'), 1, name)
+            self.assertRegex(nav, rf'aria-current="page">{label}</a>', name)
 
-    def test_add_is_always_in_reach(self):
+    def test_phone_has_three_tabs_and_marks_the_current_one(self):
         page = self.client.get(reverse("artifacts:stories")).content.decode()
-        self.assertIn('class="tab-add"', page)
-        self.assertIn("Add a photo, video or voice note", page)
+        tabs = page.split('<nav class="tabs"')[1].split("</nav>")[0]
+        self.assertEqual(tabs.count("<a "), 3)
+        for label in ("Capture", "My uploads", "Stories"):
+            self.assertIn(f"<span>{label}</span>", tabs)
+        self.assertRegex(tabs, r'aria-current="page"[^>]*>.*?<span>Stories</span>')
+        self.assertEqual(tabs.count('aria-current="page"'), 1)
+
+    def test_everything_else_is_in_the_account_sheet(self):
+        page = self.client.get(reverse("artifacts:stories")).content.decode()
+        sheet = page.split('<dialog class="sheet" id="account"')[1].split("</dialog>")[0]
+        for place in ("send", "library", "stories", "collections", "ways", "labels"):
+            self.assertIn(reverse(f"artifacts:{place}"), sheet, place)
+        self.assertIn('data-open="account"', page)
+        self.assertIn(">LE</button>", page)  # initials of lead@example.org
+
+    def test_inbox_count_sits_beside_inbox(self):
+        self.assertNotIn("&middot; 1", self.client.get(reverse("artifacts:stories")).content.decode())
+        add_file(self.org, data=png_bytes("pink"), filename="p.png", source=self.upload)
+        page = self.client.get(reverse("artifacts:stories")).content.decode()
+        self.assertRegex(page, r'Inbox<span class="n">&middot; 1</span>')
 
     def test_signed_out_welcome_has_no_app_navigation(self):
         self.client.logout()
@@ -554,11 +573,99 @@ class SendUploadTests(Base):
 
     def test_page_offers_every_way_to_add_and_explains_a_disabled_send(self):
         page = self.client.get(reverse("artifacts:send")).content.decode()
-        for needle in ('id="rec-photo"', 'id="rec-video"', 'id="rec-voice"', 'id="open-link"', 'id="open-file"'):
+        for needle in ('id="rec-photo"', 'id="rec-video"', 'id="rec-voice"', 'id="open-file"',
+                       'data-open="link-sheet"', 'data-open="number-sheet"'):
             self.assertIn(needle, page)
-        self.assertIn('id="go" disabled', page)
-        self.assertIn("to send.", page)  # the hint beside a disabled Send says why
+        self.assertIn("What did you see today?", page)
+        self.assertIn("Send to inbox", page)
         self.assertNotIn("Click a button", page)
+
+    def test_the_camera_takes_the_screen_as_a_dialog_with_a_way_out(self):
+        page = self.client.get(reverse("artifacts:send")).content.decode()
+        self.assertRegex(page, r'<dialog id="cam" class="cam" aria-labelledby="cam-mode-text">')
+        self.assertIn('aria-label="Close"', page)
+        self.assertIn('id="cam-pick"', page)           # choose one you already have
+        self.assertIn('id="cam-fallback" hidden role="alert"', page)
+        self.assertIn("Up to 3 minutes", page)
+
+    def test_say_something_has_words_tags_consent_and_a_date(self):
+        page = self.client.get(reverse("artifacts:send")).content.decode()
+        say = page.split('id="say"')[1]
+        for needle in ('name="words"', 'name="tags"', 'name="consent"', 'name="happened_on"', 'role="switch"'):
+            self.assertIn(needle, say)
+        self.assertNotIn("transcri", page.lower())     # nothing here transcribes yet, so nothing says it does
+
+    def test_tags_and_consent_travel_with_the_upload(self):
+        f = SimpleUploadedFile("c.png", png_bytes("teal"), content_type="image/png")
+        r = self.client.post(reverse("artifacts:send"), {"files": [f], "words": "Rosa", "tags": "mentoring, Food Business",
+                                                         "consent": "on"}, **self.ajax)
+        self.assertEqual(r.status_code, 200)
+        a = Artifact.objects.get(org=self.org)
+        self.assertEqual(sorted(t.name for t in a.tags.all()), ["food business", "mentoring"])
+        self.assertTrue(a.consent)
+        self.assertEqual(r.json()["items"][0]["title"], "Rosa")
+
+    def test_without_the_switch_nobody_is_recorded_as_agreeing(self):
+        f = SimpleUploadedFile("d.png", png_bytes("gold"), content_type="image/png")
+        self.client.post(reverse("artifacts:send"), {"files": [f]}, **self.ajax)
+        self.assertFalse(Artifact.objects.get(org=self.org).consent)
+
+    def test_what_you_sent_shows_where_each_piece_stands(self):
+        mine, _ = add_file(self.org, data=png_bytes("#101010"), filename="m1.png", source=self.upload, words="In a story one", added_by=self.user)
+        signed, _ = add_file(self.org, data=png_bytes("#202020"), filename="m2.png", source=self.upload, words="Signed one", added_by=self.user)
+        waiting, _ = add_file(self.org, data=png_bytes("#303030"), filename="m3.png", source=self.upload, words="Waiting one", added_by=self.user)
+        add_file(self.org, data=png_bytes("#404040"), filename="m4.png", source=self.upload, words="Somebody else's")
+        Story.objects.create(org=self.org, title="S", slug="s1")
+        StoryBlock.objects.create(story=Story.objects.get(slug="s1"), artifact=mine, text="")
+        Artifact.objects.filter(pk=signed.pk).update(claim_id=7, status="kept")
+        Artifact.objects.filter(pk=mine.pk).update(status="kept")
+        page = self.client.get(reverse("artifacts:send")).content.decode()
+        self.assertIn("You sent this week", page)
+        self.assertRegex(page, r'state-chip ">In a story<')
+        self.assertRegex(page, r'state-chip signed">Signed<')
+        self.assertRegex(page, r'state-chip inbox">In inbox<')
+        self.assertNotIn("Somebody else", page)
+
+    def test_when_nothing_is_from_this_week_it_says_recently(self):
+        old, _ = add_file(self.org, data=png_bytes("#505050"), filename="o.png", source=self.upload, words="Old one", added_by=self.user)
+        from datetime import timedelta
+        from django.utils import timezone
+        Artifact.objects.filter(pk=old.pk).update(received_at=timezone.now() - timedelta(days=30))
+        page = self.client.get(reverse("artifacts:send")).content.decode()
+        self.assertIn("You sent recently", page)
+        self.assertIn("Old one", page)
+
+    def test_a_phone_opens_on_capture_and_a_laptop_on_the_inbox(self):
+        add_file(self.org, data=png_bytes("#606060"), filename="w.png", source=self.upload)
+        phone = self.client.get(reverse("artifacts:home"), HTTP_USER_AGENT="Mozilla/5.0 (iPhone; CPU iPhone OS 17_0) Mobile/15E148")
+        self.assertRedirects(phone, reverse("artifacts:send"), fetch_redirect_response=False)
+        laptop = self.client.get(reverse("artifacts:home"), HTTP_USER_AGENT="Mozilla/5.0 (X11; Linux x86_64) Chrome/130")
+        self.assertRedirects(laptop, reverse("artifacts:library") + "?show=inbox", fetch_redirect_response=False)
+
+
+class NumberTests(Base):
+    """A number is kept with what it counts and where it came from, or it is not kept."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_login(self.user)
+        self.post = lambda **d: self.client.post(reverse("artifacts:add_number"), d)
+
+    def test_a_number_keeps_what_it_counts_and_where_it_came_from(self):
+        r = self.post(value="40", what="Founders in the spring cohort", where="Program roster, exported 1 Oct")
+        self.assertRedirects(r, reverse("artifacts:send"), fetch_redirect_response=False)
+        a = Artifact.objects.get(org=self.org)
+        self.assertEqual((a.kind, a.title, a.about, a.source_ref, a.added_by),
+                         (ArtifactKind.DATA, "40", "Founders in the spring cohort", "Program roster, exported 1 Oct", self.user))
+
+    def test_a_number_without_its_source_is_refused(self):
+        self.post(value="40", what="Founders", where="")
+        self.assertEqual(Artifact.objects.filter(org=self.org).count(), 0)
+
+    def test_the_same_figure_twice_is_two_numbers(self):
+        for _ in range(2):
+            self.post(value="40", what="Founders", where="Roster")
+        self.assertEqual(Artifact.objects.filter(org=self.org, kind=ArtifactKind.DATA).count(), 2)
 
 
 class LibraryTests(Base):
@@ -595,6 +702,20 @@ class LibraryTests(Base):
         search = page.split('role="search"')[1].split("</form>")[0]
         self.assertIn('name="kind" value="photo"', search)
         self.assertIn('name="sort" value="oldest"', search)
+
+    def test_inbox_is_what_nobody_has_looked_at_yet(self):
+        Artifact.objects.filter(words="Lease signed").update(status="kept")
+        inbox = self.page("?show=inbox")
+        self.assertIn("Bakery counter", inbox)
+        self.assertNotIn("Lease signed", inbox)
+        nav = inbox.split('<nav class="topnav"')[1].split("</nav>")[0]
+        self.assertRegex(nav, r'show=inbox"[^>]*aria-current="page"')
+        self.assertIn("Lease signed", self.page())
+
+    def test_my_uploads_marks_its_own_tab(self):
+        page = self.page("?person=lead%40example.org")
+        tabs = page.split('<nav class="tabs"')[1].split("</nav>")[0]
+        self.assertRegex(tabs, r'aria-current="page"[^>]*>.*?<span>My uploads</span>')
 
     def test_nothing_here_yet_points_at_adding(self):
         Artifact.objects.filter(org=self.org).delete()

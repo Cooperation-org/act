@@ -4,13 +4,15 @@ Who: a program or comms lead at a small org, not technical, on a phone or a lapt
 Every page answers one question for them; anything else is a link away.
 """
 import json
+import uuid
+from datetime import timedelta
 from functools import wraps
 from urllib.parse import urlencode
 
 from django.conf import settings
 from django.contrib import messages
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Exists, OuterRef, Q
 from django.http import Http404, HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -76,7 +78,7 @@ def demo_open(request):
         mine = user_orgs(request.user).filter(demo_copy__isnull=False).order_by("-pk").first()
         if mine:
             request.session[SESSION_ORG] = mine.pk
-            return redirect("artifacts:library")
+            return _landing(request, mine)
     demo.remove_old()
     guest, org = demo.make_copy(sample)
     if request.user.is_authenticated:  # someone signed in trying the demo keeps their login
@@ -85,7 +87,7 @@ def demo_open(request):
         from django.contrib.auth import login
         login(request, guest, backend="django.contrib.auth.backends.ModelBackend")
     request.session[SESSION_ORG] = org.pk
-    return redirect("artifacts:library")
+    return _landing(request, org)
 
 
 def demo_leave(request):
@@ -96,6 +98,16 @@ def demo_leave(request):
     return redirect(f"{reverse('artifacts:signin')}?{urlencode({'next': reverse('artifacts:start')})}")
 
 
+def _landing(request, org):
+    """Where someone starts: a phone opens on Capture, a laptop on what is waiting in the inbox."""
+    ua = request.META.get("HTTP_USER_AGENT", "")
+    if "Mobi" in ua or "iPhone" in ua or "Android" in ua:
+        return redirect("artifacts:send")
+    if Artifact.objects.filter(org=org, status=ArtifactStatus.NEW).exists():
+        return redirect(f"{reverse('artifacts:library')}?show=inbox")
+    return redirect("artifacts:library")
+
+
 def home(request):
     if not request.user.is_authenticated:
         return render(request, "artifacts/welcome.html", {"demo_on": demo.sample_org() is not None})
@@ -104,7 +116,7 @@ def home(request):
         return redirect("artifacts:start")
     if not Artifact.objects.filter(org=org).exists():
         return redirect("artifacts:ways")
-    return redirect("artifacts:library")
+    return _landing(request, org)
 
 
 def _unique_slug(model, base, field="slug", size=46):
@@ -192,16 +204,41 @@ def _files_from(request, field="files"):
 
 
 def _store_uploads(request, org, files, words, when=None):
+    """Store each file. Returns [(artifact, created)] in the order sent."""
     source = _source(org, SourceKind.UPLOAD) or Source.objects.create(org=org, kind=SourceKind.UPLOAD,
                                                                       label="Phone and computer")
     who = request.user.email or request.user.get_username()
-    new = 0
-    for f in files:
-        _, created = add_file(org, data=f.read(), filename=f.name, content_type=f.content_type or "",
-                              source=source, words=words, sent_by=who, added_by=request.user,
-                              happened_at=when)
-        new += created
-    return new
+    return [add_file(org, data=f.read(), filename=f.name, content_type=f.content_type or "",
+                     source=source, words=words, sent_by=who, added_by=request.user, happened_at=when)
+            for f in files]
+
+
+def _with_extras(request, org, saved):
+    """Apply what was said on the way in: labels, and whether everyone shown agreed."""
+    labels = _tags_from(org, request.POST.get("tags"))
+    agreed = request.POST.get("consent") == "on"
+    for a, _ in saved:
+        if labels:
+            a.tags.add(*labels)
+        if agreed and not a.consent:
+            a.consent = True
+            a.save(update_fields=["consent"])
+
+
+def _sent_row(a):
+    """One piece as the page's script shows it after a send."""
+    return {"kind": a.kind, "kind_label": a.get_kind_display() if a.kind != "data" else "Number",
+            "title": a.title or (a.words[:90] if a.words else a.filename or a.source_url or a.get_kind_display()),
+            "when": a.when.strftime("%a %d %b").replace(" 0", " "), "url": reverse("artifacts:artifact", args=[a.pk])}
+
+
+def _sent_by_me(request, org, limit=3):
+    """What this person sent this week, or their latest few when nothing is from this week."""
+    mine = Artifact.objects.filter(org=org, added_by=request.user).exclude(status=ArtifactStatus.HIDDEN) \
+        .annotate(in_story=Exists(StoryBlock.objects.filter(artifact=OuterRef("pk")))).order_by("-received_at")
+    week = mine.filter(received_at__gte=timezone.now() - timedelta(days=7))
+    this_week = week.exists()
+    return list((week if this_week else mine)[:limit]), this_week
 
 
 @org_required
@@ -220,21 +257,27 @@ def send(request):
             messages.error(request, "Choose a photo, video or file, or write something.")
             return redirect("artifacts:send")
         if files:
-            new = _store_uploads(request, org, files, words, when)
+            saved = _store_uploads(request, org, files, words, when)
+            new = sum(1 for _, created in saved if created)
             same = len(files) - new
             text = (f"Saved {new} {'item' if new == 1 else 'items'}."
                     + (f" {same} {'was' if same == 1 else 'were'} already here." if same else ""))
         else:
             source = _source(org, SourceKind.UPLOAD)
-            add_file(org, data=words.encode(), filename="note.txt", content_type="text/plain", source=source,
-                     words=words, sent_by=request.user.email or request.user.get_username(),
-                     added_by=request.user, happened_at=when)
+            saved = [add_file(org, data=words.encode(), filename="note.txt", content_type="text/plain", source=source,
+                              words=words, sent_by=request.user.email or request.user.get_username(),
+                              added_by=request.user, happened_at=when)]
             new, text = 1, "Saved your note."
+        _with_extras(request, org, saved)
         if ajax:
-            return JsonResponse({"ok": True, "saved": new, "message": text, "library": reverse("artifacts:library")})
+            return JsonResponse({"ok": True, "saved": new, "message": text, "library": reverse("artifacts:library"),
+                                 "items": [_sent_row(a) for a, _ in saved][:3]})
         messages.success(request, text)
         return redirect("artifacts:send")
-    return render(request, "artifacts/send.html", {"org": org, "nav": "send", "today": timezone.localdate().isoformat()})
+    sent, this_week = _sent_by_me(request, org)
+    return render(request, "artifacts/send.html", {
+        "org": org, "nav": "send", "today": timezone.localdate().isoformat(), "sent": sent, "this_week": this_week,
+        "mine": request.user.email or request.user.get_username()})
 
 
 @csrf_exempt
@@ -252,7 +295,7 @@ def share_target(request):
     files = _files_from(request)
     link = (request.POST.get("url") or "").strip()
     if files:
-        new = _store_uploads(request, org, files, words)
+        new = sum(1 for _, created in _store_uploads(request, org, files, words) if created)
         messages.success(request, f"Saved {new} shared {'item' if new == 1 else 'items'}.")
     elif link.startswith(("http://", "https://")):
         add_reference(org, kind=ArtifactKind.LINK, url=link, words=words, source=_source(org, SourceKind.LINK),
@@ -279,6 +322,29 @@ def add_link(request):
                                added_by=request.user, happened_at=timezone.now())
     messages.success(request, "Saved the link." if created else "That link is already here.")
     return redirect(request.POST.get("back") or "artifacts:ways")
+
+
+@org_required
+@require_POST
+def add_number(request):
+    """A figure someone can quote, kept with what it counts and where it came from."""
+    org = request.org
+    value = (request.POST.get("value") or "").strip()[:60]
+    what = (request.POST.get("what") or "").strip()[:300]
+    where = (request.POST.get("where") or "").strip()[:300]
+    back = request.POST.get("back") or "artifacts:send"
+    if not value or not what or not where:
+        messages.error(request, "Give the number, say what it counts, and say where it came from.")
+        return redirect(back)
+    source = _source(org, SourceKind.UPLOAD) or Source.objects.create(org=org, kind=SourceKind.UPLOAD,
+                                                                      label="Phone and computer")
+    a, _ = add_reference(org, kind=ArtifactKind.DATA, url=f"number:{uuid.uuid4().hex}", title=value, source=source,
+                         sent_by=request.user.email or request.user.get_username(), added_by=request.user,
+                         happened_at=timezone.now(), source_ref=where)
+    a.about = what
+    a.save(update_fields=["about"])
+    messages.success(request, "Saved the number.")
+    return redirect(back)
 
 
 @org_required
@@ -334,10 +400,13 @@ SORTS = {"": ("-received_at",), "happened": ("-happened_at", "-received_at"),
 
 def filtered(org, f):
     qs = Artifact.objects.filter(org=org).select_related("source").prefetch_related("tags")
-    if f.get("show") != "hidden":
-        qs = qs.exclude(status=ArtifactStatus.HIDDEN)
-    else:
+    qs = qs.annotate(in_story=Exists(StoryBlock.objects.filter(artifact=OuterRef("pk"))))
+    if f.get("show") == "hidden":
         qs = qs.filter(status=ArtifactStatus.HIDDEN)
+    else:
+        qs = qs.exclude(status=ArtifactStatus.HIDDEN)
+        if f.get("show") == "inbox":
+            qs = qs.filter(status=ArtifactStatus.NEW)
     if f.get("kind"):
         qs = qs.filter(kind=f["kind"])
     for key in MULTI_KEYS:  # every chosen label must be on the item
@@ -506,7 +575,9 @@ def library(request):
     return render(request, "artifacts/library.html", {
         "kind_links": kind_links, "active": _active(f),
         "keep_all": [(k, x) for k, val in f.items() if k != "q" for x in (val if isinstance(val, list) else [val])],
-        "org": org, "nav": "library", "items": qs[:300], "total": qs.count(), "f": f, "filter_json": json.dumps(f),
+        "org": org, "items": qs[:300], "total": qs.count(), "f": f, "filter_json": json.dumps(f),
+        "nav": "inbox" if f.get("show") == "inbox" else
+               "mine" if f.get("person") in (request.user.email, request.user.get_username()) and len(f) == 1 else "library",
         "any_at_all": everything.exists(),
         "kinds": [(k, label) for k, label in ArtifactKind.choices if everything.filter(kind=k).exists()],
         "parts": _chips(f, "part", [t for t in in_use if t.group == TagGroup.PART]),
