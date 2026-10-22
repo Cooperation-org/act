@@ -213,20 +213,26 @@ def send(request):
         words = (request.POST.get("words") or "").strip()
         day = parse_date(request.POST.get("happened_on") or "")
         when = timezone.make_aware(timezone.datetime(day.year, day.month, day.day, 12)) if day else None
+        ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"  # the page's own script, for progress
         if not files and not words:
+            if ajax:
+                return JsonResponse({"ok": False, "error": "Choose a photo, video or file, or write something."}, status=400)
             messages.error(request, "Choose a photo, video or file, or write something.")
             return redirect("artifacts:send")
         if files:
             new = _store_uploads(request, org, files, words, when)
             same = len(files) - new
-            messages.success(request, f"Saved {new} {'item' if new == 1 else 'items'}."
-                             + (f" {same} {'was' if same == 1 else 'were'} already here." if same else ""))
+            text = (f"Saved {new} {'item' if new == 1 else 'items'}."
+                    + (f" {same} {'was' if same == 1 else 'were'} already here." if same else ""))
         else:
             source = _source(org, SourceKind.UPLOAD)
             add_file(org, data=words.encode(), filename="note.txt", content_type="text/plain", source=source,
                      words=words, sent_by=request.user.email or request.user.get_username(),
                      added_by=request.user, happened_at=when)
-            messages.success(request, "Saved your note.")
+            new, text = 1, "Saved your note."
+        if ajax:
+            return JsonResponse({"ok": True, "saved": new, "message": text, "library": reverse("artifacts:library")})
+        messages.success(request, text)
         return redirect("artifacts:send")
     return render(request, "artifacts/send.html", {"org": org, "nav": "send", "today": timezone.localdate().isoformat()})
 

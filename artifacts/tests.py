@@ -512,3 +512,50 @@ class ShellTests(Base):
         page = self.client.get(reverse("artifacts:home")).content.decode()
         self.assertNotIn('class="tabs"', page)
         self.assertNotIn('class="rail"', page)
+
+
+class SendUploadTests(Base):
+    """The page's own script uploads with progress and gets JSON back; a plain form post still redirects."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_login(self.user)
+        self.ajax = {"HTTP_X_REQUESTED_WITH": "XMLHttpRequest"}
+
+    def test_script_upload_gets_json_and_no_flash(self):
+        f = SimpleUploadedFile("a.png", png_bytes("blue"), content_type="image/png")
+        r = self.client.post(reverse("artifacts:send"), {"files": [f], "words": "Hello"}, **self.ajax)
+        self.assertEqual(r.status_code, 200)
+        data = r.json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["saved"], 1)
+        self.assertEqual(data["message"], "Saved 1 item.")
+        self.assertEqual(list(r.context["messages"]) if r.context else [], [])
+        again = SimpleUploadedFile("a.png", png_bytes("blue"), content_type="image/png")
+        r2 = self.client.post(reverse("artifacts:send"), {"files": [again]}, **self.ajax)
+        self.assertEqual(r2.json()["saved"], 0)
+        self.assertIn("already here", r2.json()["message"])
+
+    def test_script_upload_with_nothing_is_a_plain_error(self):
+        r = self.client.post(reverse("artifacts:send"), {}, **self.ajax)
+        self.assertEqual(r.status_code, 400)
+        self.assertFalse(r.json()["ok"])
+        self.assertEqual(Artifact.objects.filter(org=self.org).count(), 0)
+
+    def test_note_alone_is_saved(self):
+        r = self.client.post(reverse("artifacts:send"), {"words": "Just a thought"}, **self.ajax)
+        self.assertEqual(r.json()["message"], "Saved your note.")
+        self.assertEqual(Artifact.objects.filter(org=self.org, kind=ArtifactKind.TEXT).count(), 1)
+
+    def test_plain_form_post_still_redirects(self):
+        f = SimpleUploadedFile("b.png", png_bytes("green"), content_type="image/png")
+        r = self.client.post(reverse("artifacts:send"), {"files": [f]})
+        self.assertRedirects(r, reverse("artifacts:send"))
+
+    def test_page_offers_every_way_to_add_and_explains_a_disabled_send(self):
+        page = self.client.get(reverse("artifacts:send")).content.decode()
+        for needle in ('id="rec-photo"', 'id="rec-video"', 'id="rec-voice"', 'id="open-link"', 'id="open-file"'):
+            self.assertIn(needle, page)
+        self.assertIn('id="go" disabled', page)
+        self.assertIn("to send.", page)  # the hint beside a disabled Send says why
+        self.assertNotIn("Click a button", page)

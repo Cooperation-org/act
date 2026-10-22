@@ -3,22 +3,33 @@
 {% block title %}Send · Story Kit{% endblock %}
 {% block head %}<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">{% endblock %}
 {% block content %}
-<h1>Send a photo, video or voice note</h1>
-<p class="lede">Click a button below to open your camera or microphone directly — no file picker.</p>
+<h1>Add something new</h1>
+<p class="lede">Capture it now, or bring in what you already have.</p>
 <div class="install" id="install" hidden>
   <span id="install-text">Keep Story Kit on your home screen.</span>
   <button type="button" id="install-go" hidden>Add to home screen</button>
   <button type="button" class="quiet" id="install-no" aria-label="Not now">{% ic "x" %}</button>
 </div>
-<form method="post" enctype="multipart/form-data" class="narrow" id="send">{% csrf_token %}
-  <div class="picks">
-    <button type="button" id="rec-photo" class="btn">{% ic "camera" "ic-xl" %}<span>Take photo</span></button>
-    <button type="button" id="rec-video" class="btn">{% ic "video" "ic-xl" %}<span>Record video</span></button>
-    <button type="button" id="rec-voice" class="btn">{% ic "mic" "ic-xl" %}<span>Voice note</span></button>
-  </div>
 
+<div class="capture-tiles" role="group" aria-label="What would you like to add?">
+  <button type="button" id="rec-photo" class="cap-tile">{% ic "camera" "ic-xl" %}<span>Photo</span></button>
+  <button type="button" id="rec-video" class="cap-tile">{% ic "video" "ic-xl" %}<span>Video</span></button>
+  <button type="button" id="rec-voice" class="cap-tile">{% ic "mic" "ic-xl" %}<span>Voice</span></button>
+  <a href="{% url 'artifacts:ways' %}#link" id="open-link" class="cap-tile">{% ic "link" "ic-xl" %}<span>Link</span></a>
+  <button type="button" id="open-file" class="cap-tile">{% ic "file" "ic-xl" %}<span>File</span></button>
+</div>
+
+<form method="post" action="{% url 'artifacts:add_link' %}" class="panel" id="link-panel" hidden>{% csrf_token %}
+  <label for="link-url">Link <span class="muted">An article, a post, a report online.</span></label>
+  <input type="url" id="link-url" name="url" placeholder="https://" required>
+  <label for="link-words">What does it show? <span class="muted">Optional.</span></label>
+  <textarea id="link-words" name="words" style="min-height:4rem"></textarea>
+  <p class="row"><button type="submit">Save link</button><button type="button" class="quiet" id="link-cancel">Cancel</button></p>
+</form>
+
+<form method="post" enctype="multipart/form-data" id="send" class="capture">{% csrf_token %}
   <div id="cam" class="cam" hidden>
-    <p class="cam-mode muted" id="cam-mode">Camera</p>
+    <p class="cam-mode" id="cam-mode">Camera</p>
     <p class="cam-stats muted" id="cam-stats" hidden></p>
     <div class="cam-stage">
       <video id="cam-video" autoplay playsinline muted></video>
@@ -27,17 +38,18 @@
       <img id="cam-preview-img" alt="" hidden>
       <video id="cam-preview-video" controls autoplay playsinline hidden></video>
       <audio id="cam-preview-audio" controls autoplay hidden></audio>
-      <div class="cam-fallback" id="cam-fallback" hidden>
-        <p id="cam-fallback-msg" style="color:#fff"></p>
+      <div class="cam-fallback" id="cam-fallback" hidden role="alert">
+        <p id="cam-fallback-msg"></p>
+        <div class="row"><button type="button" id="cam-retry">Try again</button><button type="button" class="quiet" id="cam-fallback-pick">Choose a file</button></div>
       </div>
     </div>
     <div class="cam-toolbar">
-      <button type="button" class="big" id="cam-snap" hidden>Snap photo</button>
+      <button type="button" class="big" id="cam-snap" hidden>Take photo</button>
       <button type="button" class="big" id="cam-record">Start recording</button>
       <button type="button" class="big" id="cam-stop" hidden>Stop</button>
       <button type="button" id="cam-retake" hidden>Retake</button>
-      <button type="button" id="cam-save" hidden disabled>Save</button>
-      <button type="button" class="quiet" id="cam-pick">Pick from files</button>
+      <button type="button" id="cam-save" hidden disabled>Use this</button>
+      <button type="button" class="quiet" id="cam-pick">Choose a file</button>
       <button type="button" class="quiet" id="cam-cancel">Cancel</button>
     </div>
   </div>
@@ -50,25 +62,37 @@
     <input type="file" id="cap-voice" name="files" hidden>
   </div>
 
-  <details>
-    <summary class="muted" style="cursor:pointer;padding:.6rem 0">Already have files? Choose or drag them here</summary>
-    <label class="drop" id="drop">
-      <strong>Or choose files</strong>
-      <span class="muted">Photos, videos, voice notes, PDFs, documents. Drop them here on a computer.</span>
-      <input type="file" name="files" multiple id="pick">
-    </label>
-  </details>
+  <input type="file" name="files" multiple id="pick" hidden>
+  <noscript><label for="pick-plain">Choose files</label><input type="file" name="files" multiple id="pick-plain"></noscript>
+  <label class="drop" id="drop" for="pick"><strong>Drop files here</strong><span class="muted">Photos, videos, voice notes, PDFs and documents.</span></label>
 
   <p class="chosen" id="chosen" aria-live="polite"></p>
-  <label for="words">What is this? <span class="muted">(your own words, kept exactly)</span></label>
+  <label for="words">Say something about it <span class="muted">Kept exactly as you write it.</span></label>
   <textarea id="words" name="words" placeholder="Who is in it, what happened, why it matters"></textarea>
-  <label for="happened_on">When did it happen? <span class="muted">(photos usually know; leave as is if unsure)</span></label>
+  <label for="happened_on">When did it happen? <span class="muted">Photos usually know. Leave it if you are not sure.</span></label>
   <input type="date" id="happened_on" name="happened_on" max="{{ today }}">
-  <p style="margin-top:1.4rem"><button type="submit" class="big" id="go">Send</button></p>
+
+  <p class="hint muted" id="send-hint">Add a photo, video, voice note or file, or write a note, to send.</p>
+  <div class="sendbar"><button type="submit" class="big" id="go" disabled>Send</button></div>
+  <div class="sending" id="sending" hidden role="status">
+    <progress id="send-progress" max="100" value="0" aria-label="Sending"></progress>
+    <p id="send-text">Sending…</p>
+    <button type="button" class="quiet" id="send-cancel">Cancel</button>
+  </div>
+  <p class="notice ok" id="send-done" hidden role="status">{% ic "check" %}<span><span id="send-done-text">Saved.</span> <a href="{% url 'artifacts:library' %}">See it in Library</a></span></p>
+  <p class="notice err" id="send-error" hidden role="alert"></p>
 </form>
+
 <input type="file" id="cap-pick-photo" accept="image/*" hidden>
 <input type="file" id="cap-pick-video" accept="video/*" hidden>
 <input type="file" id="cap-pick-voice" accept="audio/*" hidden>
+
+<h2>Bring in what you already have</h2>
+<ul class="inset">
+  <li><a href="{% url 'artifacts:ways' %}#drive">{% ic "drive" "ic-lg" %}<span><b>Google Drive</b><small>Copy a shared folder. We never change it.</small></span>{% ic "chevron" "chev" %}</a></li>
+  <li><a href="{% url 'artifacts:ways' %}#email">{% ic "mail" "ic-lg" %}<span><b>Email it in</b><small>Forward photos and files to your Story Kit address.</small></span>{% ic "chevron" "chev" %}</a></li>
+  <li><a href="{% url 'artifacts:ways' %}#phone">{% ic "phone" "ic-lg" %}<span><b>From your phone</b><small>Open Story Kit on your phone and add it to your home screen.</small></span>{% ic "chevron" "chev" %}</a></li>
+</ul>
 {% endblock %}
 {% block scripts %}
 <script>
@@ -137,16 +161,62 @@
         thumbs.appendChild(li);
       }
     });
-    if (labels.length) { sum.textContent = 'Captured ' + labels.join(', '); cap.hidden = false; }
+    if (labels.length) { sum.textContent = 'Ready to send: ' + labels.join(', '); cap.hidden = false; }
     else { sum.textContent = ''; cap.hidden = true; }
+    updateSend();
   }
+  function fileCount() { var n = 0; form.querySelectorAll('input[type=file]').forEach(function (i) { n += i.files ? i.files.length : 0; }); return n; }
+  var goBtn = document.getElementById('go'), hint = document.getElementById('send-hint'), words = document.getElementById('words');
+  function updateSend() {
+    var n = fileCount(), note = words.value.trim().length > 0, ok = n > 0 || note;
+    goBtn.disabled = !ok || !!form._sending;
+    goBtn.textContent = n > 1 ? 'Send ' + n + ' items' : n === 1 ? 'Send 1 item' : note ? 'Send note' : 'Send';
+    hint.hidden = ok;
+  }
+  words.addEventListener('input', updateSend);
   form.addEventListener('change', refreshChosen);
   if (drop) {
     ['dragenter', 'dragover'].forEach(function (e) { drop.addEventListener(e, function (ev) { ev.preventDefault(); drop.classList.add('over'); }); });
     ['dragleave', 'drop'].forEach(function (e) { drop.addEventListener(e, function () { drop.classList.remove('over'); }); });
     drop.addEventListener('drop', function (ev) { ev.preventDefault(); pick.files = ev.dataTransfer.files; refreshChosen(); });
   }
-  form.addEventListener('submit', function () { var b = document.getElementById('go'); b.textContent = 'Sending…'; b.disabled = true; });
+  var sendingBox = document.getElementById('sending'), bar = document.getElementById('send-progress'), barText = document.getElementById('send-text');
+  var doneBox = document.getElementById('send-done'), errBox = document.getElementById('send-error'), xhr = null;
+  function hideNotices() { doneBox.hidden = true; errBox.hidden = true; }
+  function showError(msg) { errBox.textContent = msg; errBox.hidden = false; }
+  window.addEventListener('beforeunload', function (e) { if (fileCount() > 0 && !form._sending) { e.preventDefault(); e.returnValue = ''; } });
+  form.addEventListener('submit', function (ev) {
+    if (!window.XMLHttpRequest || !window.FormData) return;           // the plain form post still works
+    ev.preventDefault();
+    if (goBtn.disabled) return;
+    hideNotices(); form._sending = true; updateSend();
+    sendingBox.hidden = false; bar.value = 0; barText.textContent = 'Sending…';
+    xhr = new XMLHttpRequest(); xhr.open('POST', form.getAttribute('action') || location.href);
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest'); xhr.setRequestHeader('Accept', 'application/json');
+    xhr.upload.onprogress = function (e) {
+      if (!e.lengthComputable) return;
+      var pct = Math.round(e.loaded * 100 / e.total); bar.value = pct; barText.textContent = pct < 100 ? 'Sending… ' + pct + '%' : 'Saving…';
+    };
+    function end() { form._sending = false; sendingBox.hidden = true; updateSend(); }
+    xhr.onload = function () {
+      var r = {}; try { r = JSON.parse(xhr.responseText); } catch (_) {}
+      end();
+      if (xhr.status === 200 && r.ok) {
+        document.getElementById('send-done-text').textContent = r.message || 'Saved.'; doneBox.hidden = false;
+        form.querySelectorAll('input[type=file]').forEach(function (i) { i.value = ''; });
+        words.value = ''; document.getElementById('happened_on').value = ''; refreshChosen();
+      } else {
+        showError((r.error || 'That did not go through.') + ' Everything you added is still here. Tap Send to try again.');
+      }
+    };
+    xhr.onerror = xhr.ontimeout = function () {
+      end();
+      showError((navigator.onLine === false ? 'You are offline.' : 'The connection dropped.') + ' Everything you added is still here. Tap Send when you are back online.');
+    };
+    xhr.onabort = function () { end(); showError('Stopped. Nothing was sent, and everything you added is still here.'); };
+    xhr.send(new FormData(form));
+  });
+  document.getElementById('send-cancel').addEventListener('click', function () { if (xhr) xhr.abort(); });
 
   var cam = document.getElementById('cam');
   var camVideo = document.getElementById('cam-video');
@@ -191,7 +261,22 @@
     camSaveBtn.disabled = !has;
   }
 
-  function showFallback(msg) { camFallbackMsg.textContent = msg; camFallback.hidden = false; }
+  var camRetry = document.getElementById('cam-retry');
+  function showFallback(msg, noRetry) { camFallbackMsg.textContent = msg; camRetry.hidden = !!noRetry; camFallback.hidden = false; }
+  // Say what happened and what to do next, in plain words. Never show a browser error to a person.
+  function friendly(a, b) {
+    var err = (a && typeof a === 'object') ? a : b, kind = typeof a === 'string' ? a : 'device';
+    if (err && window.console) console.warn('Story Kit capture:', err);
+    var name = (err && err.name) || '', dev = state.mode === 'voice' ? 'microphone' : 'camera';
+    var what = ({photo: 'photo', video: 'video', voice: 'voice note'})[state.mode] || 'file';
+    if (kind === 'unsupported') return "This browser can't record here. Choose a " + what + ' you already have, or open Story Kit in Safari or Chrome.';
+    if (kind === 'notready') return 'The ' + dev + ' is still starting. Give it a moment, then tap Try again.';
+    if (kind === 'start' || kind === 'recording') return "Recording didn't start. Tap Try again, or choose a " + what + ' you already have.';
+    if (/NotAllowed|Security|PermissionDenied/.test(name)) return 'Story Kit needs your ' + dev + '. Turn it on for this site in your browser settings, then tap Try again.';
+    if (/NotFound|Overconstrained/.test(name)) return 'No ' + dev + ' was found on this device. You can choose a ' + what + ' you already have.';
+    if (/NotReadable|Abort/.test(name)) return 'Another app is using the ' + dev + '. Close it, then tap Try again.';
+    return 'The ' + dev + " didn't start. Tap Try again, or choose a " + what + ' you already have.';
+  }
   function clearFallback() { camFallback.hidden = true; camFallbackMsg.textContent = ''; }
 
   function resetCam() {
@@ -217,7 +302,7 @@
     setUI();
     camVideo.hidden = mode === 'voice'; camEmpty.hidden = mode !== 'voice';
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      showFallback('In-page recording is not supported in this browser. Choose an existing file from the box below.');
+      showFallback(friendly('unsupported'), true);
       return;
     }
     var wantsVideo = mode !== 'voice';
@@ -239,10 +324,7 @@
         return;
       } catch (e) { lastErr = e; }
     }
-    var hint = wantsVideo
-      ? 'Allow camera access in your browser, or use "Already have files" below.'
-      : 'Allow microphone access in your browser, or use "Already have files" below.';
-    showFallback('Camera/microphone unavailable (' + (lastErr && lastErr.name || 'error') + '). ' + hint);
+    showFallback(friendly(lastErr || 'device'));
   }
 
   camCancelBtn.addEventListener('click', function () { resetCam(); cam.hidden = true; });
@@ -276,7 +358,7 @@
   async function snapPhoto() {
     await awaitReady(3000);
     var w = camVideo.videoWidth, h = camVideo.videoHeight;
-    if (!w || !h) { showFallback('Camera not ready yet. Wait a moment and try again.'); return; }
+    if (!w || !h) { showFallback(friendly('notready')); return; }
     var c = document.createElement('canvas');
     c.width = w; c.height = h;
     c.getContext('2d').drawImage(camVideo, 0, 0, w, h);
@@ -290,18 +372,18 @@
   camSnapBtn.addEventListener('click', snapPhoto);
 
   function startRecording() {
-    if (!state.stream) { showFallback('Camera or microphone is not ready yet. Allow access, then try again.'); return; }
-    if (typeof MediaRecorder === 'undefined') { showFallback('Your browser cannot record in-page. Pick from files below.'); return; }
+    if (!state.stream) { showFallback(friendly('notready')); return; }
+    if (typeof MediaRecorder === 'undefined') { showFallback(friendly('unsupported'), true); return; }
     var mime = (state.mode === 'video') ? pickVideoMime() : pickAudioMime();
     var rec;
     try { rec = new MediaRecorder(state.stream, { mimeType: mime }); state.mime = mime; }
     catch (e1) {
       try { rec = new MediaRecorder(state.stream); state.mime = rec.mimeType; }
-      catch (e2) { showFallback('Could not start recording: ' + (e2 && e2.message || 'unsupported')); return; }
+      catch (e2) { showFallback(friendly('start', e2)); return; }
     }
     state.recorder = rec; state.chunks = [];
     rec.ondataavailable = function (e) { if (e.data && e.data.size) state.chunks.push(e.data); };
-    rec.onerror = function (e) { showFallback('Recording error: ' + (e && e.error && e.error.name || 'unknown')); };
+    rec.onerror = function (e) { showFallback(friendly('recording', e && e.error)); };
     rec.onstop = function () {
       state.blob = new Blob(state.chunks, { type: state.mime });
       if (state.mode === 'video') {
@@ -314,7 +396,7 @@
       setUI();
     };
     try { rec.start(250); }
-    catch (e) { showFallback('Could not start recording: ' + (e && e.message || 'failed')); return; }
+    catch (e) { showFallback(friendly('start', e)); return; }
     startTimer();
     setUI();
   }
@@ -401,6 +483,15 @@ function pickVideoMime() { var c = ['video/webm;codecs=vp9,opus','video/webm;cod
     });
   });
 
+  camRetry.addEventListener('click', function () { if (state.mode) openMode(state.mode); });
+  document.getElementById('cam-fallback-pick').addEventListener('click', function () { pickExisting(); });
+  document.getElementById('open-file').addEventListener('click', function () { document.getElementById('pick').click(); });
+  var linkPanel = document.getElementById('link-panel');
+  document.getElementById('open-link').addEventListener('click', function (e) {
+    e.preventDefault(); linkPanel.hidden = !linkPanel.hidden;
+    if (!linkPanel.hidden) { document.getElementById('link-url').focus(); linkPanel.scrollIntoView({block: 'nearest', behavior: 'smooth'}); }
+  });
+  document.getElementById('link-cancel').addEventListener('click', function () { linkPanel.hidden = true; });
   document.getElementById('rec-photo').addEventListener('click', function () { openMode('photo'); });
   document.getElementById('rec-video').addEventListener('click', function () { openMode('video'); });
   document.getElementById('rec-voice').addEventListener('click', function () { openMode('voice'); });
@@ -411,34 +502,30 @@ function pickVideoMime() { var c = ['video/webm;codecs=vp9,opus','video/webm;cod
 })();
 </script>
 <style>
-.cam { background: #1a1a1a; color: #fff; border-radius: var(--radius); margin: 1rem 0; padding: 1rem; }
+.cam { background: #101512; color: #fff; border-radius: var(--radius-lg); margin: var(--s4) 0; padding: var(--s4); }
 .cam[hidden] { display: none; }
-.cam-mode { margin: 0 0 .2rem; color: #ccc; font-weight: 600; }
-.cam-stats { margin: 0 0 .6rem; font: 600 .85rem ui-monospace, monospace; }
-.cam-stage { position: relative; aspect-ratio: 4 / 3; max-height: 60vh; background: #000; border-radius: 8px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.cam-mode { margin: 0 0 var(--s2); color: #c9d1cc; font-weight: 600; }
+.cam-stats { margin: 0 0 .6rem; font: 600 var(--t-foot) ui-monospace, monospace; color: #c9d1cc; }
+.cam-stage { position: relative; aspect-ratio: 4 / 3; max-height: 60vh; background: #000; border-radius: var(--radius); display: flex; align-items: center; justify-content: center; overflow: hidden; }
 .cam-stage video, .cam-stage img { max-width: 100%; max-height: 100%; object-fit: contain; }
-.cam-empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; color: #ddd; padding: 2rem; text-align: center; }
+.cam-empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; color: #e3e8e5; padding: 2rem; text-align: center; }
 .cam-empty[hidden] { display: none; }
-.cam-empty .mic { font-size: 2.5rem; line-height: 1; }
-.cam-timer { position: absolute; top: .8rem; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.65); color: #fff; padding: .3rem .8rem; border-radius: 6px; font: 700 1.05rem ui-monospace, monospace; }
-.cam-fallback { position: absolute; inset: 0; background: rgba(0,0,0,.92); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; padding: 1rem; text-align: center; }
+.cam-timer { position: absolute; top: .8rem; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.65); color: #fff; padding: .3rem .8rem; border-radius: 999px; font: 700 1.05rem ui-monospace, monospace; }
+.cam-fallback { position: absolute; inset: 0; background: rgba(16,21,18,.94); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; padding: 1.25rem; text-align: center; }
 .cam-fallback[hidden] { display: none; }
-.cam-fallback p { max-width: 32rem; }
-.cam-toolbar { margin-top: .8rem; display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
-.cam-toolbar .big { background: var(--brand); color: #fff; border-color: var(--brand); }
-.cam-toolbar .quiet { background: transparent; color: #ccc; border: 1px solid #555; }
-.cam-toolbar button:disabled { opacity: .5; cursor: not-allowed; }
-.captures { padding: .8rem; background: var(--accent-soft); border-radius: var(--radius); margin-bottom: 1rem; }
-.captures p { margin: 0; }
-.captures-thumbs { list-style: none; padding: .6rem 0 0; margin: 0; display: flex; flex-wrap: wrap; gap: .6rem; }
-.capture-thumb { background: var(--bg-2, #222); border-radius: 8px; padding: .3rem; display: flex; flex-direction: column; align-items: center; gap: .25rem; max-width: 130px; }
-.capture-thumb img, .capture-thumb video { width: 120px; height: 90px; object-fit: cover; border-radius: 6px; display: block; }
+.cam-fallback p { max-width: 30rem; margin: 0; color: #fff; }
+.cam-toolbar { margin-top: var(--s3); display: flex; flex-wrap: wrap; gap: var(--s2); align-items: center; }
+.cam-toolbar .big { flex: 1 1 100%; }
+.cam-toolbar button:not(.big):not(.quiet) { background: #fff; color: var(--ink); }
+.cam-toolbar .quiet { background: transparent; color: #e3e8e5; border-color: #5d6862; }
+.cam-toolbar .quiet:hover { background: rgba(255,255,255,.1); color: #fff; border-color: #fff; }
+.cam-fallback .quiet { background: transparent; color: #fff; border-color: #8a948e; }
+.captures { padding: var(--s3) var(--s4); background: var(--accent-soft); border-radius: var(--radius-lg); margin: var(--s4) 0; }
+.captures p { margin: 0; color: var(--ink-2); }
+.captures-thumbs { list-style: none; padding: .6rem 0 0; margin: 0; display: flex; flex-wrap: wrap; gap: var(--s3); }
+.capture-thumb { background: var(--paper); border-radius: var(--radius); padding: .3rem; display: flex; flex-direction: column; align-items: center; gap: .25rem; max-width: 130px; }
+.capture-thumb img, .capture-thumb video { width: 120px; height: 90px; object-fit: cover; border-radius: var(--radius-sm); display: block; }
 .capture-thumb .capture-icon { display: flex; justify-content: center; padding: 1.4rem 0; color: var(--accent); }
-.capture-thumb .capture-name { font-size: .78rem; color: var(--text-2, #bbb); text-align: center; word-break: break-word; max-width: 120px; }
-.picks .btn { line-height: 1.2; }
-.picks .btn span { display: inline; }
-.install { display: flex; align-items: center; gap: .6rem; padding: .8rem 1rem; background: var(--accent-soft); border-radius: var(--radius); margin: 1rem 0; flex-wrap: wrap; }
-.install[hidden] { display: none; }
-#install-no { background: transparent; color: var(--text-2, #888); border: 1px solid var(--text-2, #888); border-radius: 6px; font-size: 1rem; line-height: 1; min-width: 2.4rem; min-height: 2.4rem; padding: 0; cursor: pointer; }
+.capture-thumb .capture-name { font-size: var(--t-foot); color: var(--ink-3); text-align: center; word-break: break-word; max-width: 120px; }
 </style>
 {% endblock %}
