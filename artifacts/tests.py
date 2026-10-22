@@ -67,6 +67,38 @@ class IntakeTests(Base):
         self.assertEqual(kind_for("audio/m4a"), ArtifactKind.VOICE)
         self.assertEqual(kind_for("", "report.pdf"), ArtifactKind.FILE)
 
+    def test_generic_type_is_settled_by_the_extension(self):
+        for ctype in ("application/octet-stream", "binary/octet-stream", "", "Application/Octet-Stream; charset=binary"):
+            self.assertEqual(kind_for(ctype, "IMG_0042.HEIC"), ArtifactKind.PHOTO, ctype)
+            self.assertEqual(kind_for(ctype, "IMG_0043.MOV"), ArtifactKind.VIDEO, ctype)
+            self.assertEqual(kind_for(ctype, "Voice Memo 12.m4a"), ArtifactKind.VOICE, ctype)
+        for name, kind in (("a.heif", ArtifactKind.PHOTO), ("a.JPG", ArtifactKind.PHOTO), ("a.dng", ArtifactKind.PHOTO),
+                           ("clip.mp4", ArtifactKind.VIDEO), ("clip.3gp", ArtifactKind.VIDEO), ("clip.webm", ArtifactKind.VIDEO),
+                           ("note.caf", ArtifactKind.VOICE), ("note.amr", ArtifactKind.VOICE), ("note.mp3", ArtifactKind.VOICE),
+                           ("notes.txt", ArtifactKind.TEXT)):
+            self.assertEqual(kind_for("application/octet-stream", name), kind, name)
+
+    def test_generic_type_with_nothing_to_go_on_stays_a_file(self):
+        for name in ("", "archive", "report.pdf", "data.xyz", "photo.heic.zip", ".hidden"):
+            self.assertEqual(kind_for("application/octet-stream", name), ArtifactKind.FILE, name)
+
+    def test_a_real_type_is_never_overruled_by_the_extension(self):
+        self.assertEqual(kind_for("image/png", "oops.mov"), ArtifactKind.PHOTO)
+        self.assertEqual(kind_for("application/pdf", "scan.jpg"), ArtifactKind.FILE)
+        self.assertEqual(kind_for("audio/mp4", "memo.mov"), ArtifactKind.VOICE)
+
+    def test_add_file_files_an_iphone_upload_by_what_it_is(self):
+        for name, kind in (("IMG_1.HEIC", ArtifactKind.PHOTO), ("IMG_2.MOV", ArtifactKind.VIDEO), ("Memo.m4a", ArtifactKind.VOICE)):
+            a, _ = add_file(self.org, data=name.encode(), filename=name, content_type="application/octet-stream")
+            self.assertEqual(a.kind, kind, name)
+
+    def test_an_iphone_upload_through_the_send_page_is_filed_by_what_it_is(self):
+        self.client.force_login(self.user)
+        for name, kind in (("IMG_3.HEIC", ArtifactKind.PHOTO), ("IMG_4.MOV", ArtifactKind.VIDEO), ("Memo 2.m4a", ArtifactKind.VOICE)):
+            f = SimpleUploadedFile(name, name.encode(), content_type="application/octet-stream")
+            self.client.post(reverse("artifacts:send"), {"files": [f]})
+            self.assertEqual(Artifact.objects.get(org=self.org, filename=name).kind, kind, name)
+
     def test_words_kept_verbatim(self):
         words = "  She opened the shop on Main St.\n\nFirst day: 40 customers!  "
         a, _ = add_file(self.org, data=b"x", filename="n.txt", words=words)
@@ -106,6 +138,19 @@ class EmailTests(Base):
         # the same email again changes nothing
         file_email(src, parse_email(self._mail()))
         self.assertEqual(Artifact.objects.filter(org=self.org).count(), 1)
+
+    def test_an_iphone_attachment_with_a_generic_type_is_still_a_photo(self):
+        m = EmailMessage()
+        m["From"] = "Program Lead <lead@example.org>"
+        m["To"] = "stories-o1@intake.example"
+        m["Subject"] = "From my phone"
+        m["Message-ID"] = "<iphone@example.org>"
+        m.set_content("Sent from my iPhone")
+        m.add_attachment(b"not really a heic", maintype="application", subtype="octet-stream", filename="IMG_7788.HEIC")
+        m.add_attachment(b"not really a mov", maintype="application", subtype="octet-stream", filename="IMG_7789.MOV")
+        src = Source.objects.create(org=self.org, kind=SourceKind.EMAIL, config={"address": "stories-o1@intake.example"})
+        made = file_email(src, parse_email(m.as_bytes()))
+        self.assertEqual([a.kind for a, _ in made], [ArtifactKind.PHOTO, ArtifactKind.VIDEO])
 
     def test_email_without_files_is_a_text_artifact(self):
         src = Source.objects.create(org=self.org, kind=SourceKind.EMAIL)

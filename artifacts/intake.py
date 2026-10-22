@@ -4,6 +4,7 @@ import hashlib
 import io
 import logging
 import mimetypes
+import os
 from datetime import datetime
 
 from django.core.files.base import ContentFile
@@ -19,8 +20,34 @@ EXIF_DATETIME = 306
 EXIF_IFD = 0x8769
 
 
+# What a phone or a mail app says when it does not know what it is sending.
+GENERIC_TYPES = {"", "application/octet-stream", "binary/octet-stream", "application/binary", "application/x-binary",
+                 "application/unknown", "application/x-unknown", "application/download", "application/x-download",
+                 "application/force-download"}
+
+# iPhone and Android files that arrive with a generic type are told apart by their extension.
+# Our own list, so the answer does not depend on the server's mime database. A .3gp is
+# a phone video far more often than a sound, and a .webm from a browser is a video.
+EXTENSION_KINDS = (
+    (ArtifactKind.PHOTO, {".jpg", ".jpeg", ".jfif", ".png", ".gif", ".webp", ".heic", ".heif", ".avif", ".bmp",
+                          ".tif", ".tiff", ".dng"}),
+    (ArtifactKind.VIDEO, {".mp4", ".m4v", ".mov", ".qt", ".webm", ".mkv", ".avi", ".3gp", ".3g2", ".mpg", ".mpeg",
+                          ".wmv", ".mts", ".m2ts"}),
+    (ArtifactKind.VOICE, {".m4a", ".mp3", ".wav", ".aac", ".ogg", ".oga", ".opus", ".amr", ".caf", ".flac", ".aif",
+                          ".aiff", ".wma", ".3ga"}),
+)
+
+
 def kind_for(content_type: str, filename: str = "") -> str:
-    ct = (content_type or mimetypes.guess_type(filename)[0] or "").lower()
+    """Photo, Video, Voice, Text or File. A real type decides; a generic one (octet-stream and the like)
+    is settled by the file's extension, so iPhone photos, videos and voice notes are not filed as plain files."""
+    ct = (content_type or "").split(";")[0].strip().lower()
+    if ct in GENERIC_TYPES:
+        ext = os.path.splitext(filename or "")[1].lower()
+        for kind, extensions in EXTENSION_KINDS:
+            if ext in extensions:
+                return kind
+        ct = (mimetypes.guess_type(filename or "")[0] or "").lower()
     if ct.startswith("image/"):
         return ArtifactKind.PHOTO
     if ct.startswith("video/"):
