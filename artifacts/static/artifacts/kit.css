@@ -707,3 +707,8 @@ summary { min-height: var(--touch); }
 details > summary { display: flex; align-items: center; }
 .list .end a { display: inline-flex; align-items: center; justify-content: center; min-width: var(--touch); min-height: var(--touch); }
 table.labels td a { display: inline-flex; align-items: center; min-height: var(--touch); }
+
+.next-steps { max-width: 34rem; margin-top: var(--s7); }
+.next-steps h2 { margin-top: 0; font-size: var(--t-title3); }
+.next-steps ol { margin: 0; padding-left: 24px; display: grid; gap: var(--s3); color: var(--ink-2); }
+.next-steps li::marker { font-family: var(--mono); color: var(--ink-3); }

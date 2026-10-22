@@ -225,13 +225,21 @@ class PageTests(Base):
         self.client.force_login(u)
         self.assertRedirects(self.client.get(reverse("artifacts:library")), reverse("artifacts:start"))
         r = self.client.post(reverse("artifacts:start"), {"name": "Entrepreneurs Together", "website": "et.example"})
-        self.assertRedirects(r, reverse("artifacts:ways"))
+        self.assertRedirects(r, reverse("artifacts:send"))      # a new organization starts on Capture
         org = Org.objects.get(name="Entrepreneurs Together")
         self.assertEqual(org.website, "https://et.example")
         self.assertTrue(VolunteerProfile.objects.filter(user=u, org=org, is_approver=True).exists())
         self.assertTrue(Source.objects.filter(org=org, kind=SourceKind.EMAIL).exists())
         page = self.client.get(reverse("artifacts:ways")).content.decode()
         self.assertIn("Your email address is being set up", page)
+        self.assertRedirects(self.client.get(reverse("artifacts:home")), reverse("artifacts:send"))   # still empty
+
+    def test_the_start_page_says_what_happens_next(self):
+        self.client.force_login(self.user)
+        page = self.client.get(reverse("artifacts:start")).content.decode()
+        for needle in ("What is your organization called?", "Create and start", "What happens next", "You start on Capture", "Inbox"):
+            self.assertIn(needle, page)
+        self.assertNotIn("LinkedClaims about you", page)     # plain words, not the product's own name for it
 
     def test_upload_then_library(self):
         f = SimpleUploadedFile("shop.png", png_bytes(), content_type="image/png")

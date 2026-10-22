@@ -115,7 +115,7 @@ def home(request):
     if org is None:
         return redirect("artifacts:start")
     if not Artifact.objects.filter(org=org).exists():
-        return redirect("artifacts:ways")
+        return redirect("artifacts:send")   # a new organization starts by capturing its first moment
     return _landing(request, org)
 
 
@@ -155,7 +155,7 @@ def start(request):
                     Source.objects.create(org=org, kind=SourceKind.LINKEDCLAIMS, label="LinkedClaims about us",
                                           config={"subject": website})
             request.session[SESSION_ORG] = org.pk
-            return redirect("artifacts:ways")
+            return redirect("artifacts:send")
     return render(request, "artifacts/start.html", {"error": error, "orgs": user_orgs(request.user)})
 
 
