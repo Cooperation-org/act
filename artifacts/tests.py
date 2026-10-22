@@ -12,7 +12,7 @@ from django.urls import reverse
 
 from campaigns.models import Org, VolunteerProfile
 
-from .intake import add_file, kind_for
+from .intake import add_file, add_reference, kind_for
 from .models import Artifact, ArtifactKind, Collection, Source, SourceKind, Story, StoryBlock, Tag, TagGroup
 from .spouts import drive_folder_id, file_email, import_claims, parse_email
 
@@ -787,6 +787,45 @@ class PublicStoryTests(Base):
 
     def test_no_side_stripe_on_quotes(self):
         self.assertNotRegex(self.page, r"border-left:\s*[3-9]px")
+
+    def test_a_photo_can_be_checked_without_showing_who_sent_it(self):
+        self.assertIn("Check this photo", self.page)
+        card = self.page.split('<dl class="proof-card">')[1].split("</dl>")[0]
+        for needle in ("Taken", "Came in", "Signed", "Consent", "Everyone shown agreed"):
+            self.assertIn(needle, card)
+
+    def test_the_footer_counts_signatures_honestly_and_offers_share_and_print(self):
+        self.assertIn("0 of 2 pieces are signed.", self.page)
+        self.assertIn('id="share"', self.page)
+        self.assertIn("Download as PDF", self.page)
+        Artifact.objects.filter(org=self.org).update(claim_id=5)
+        page = self.client.get(reverse("artifacts:story", args=["first-weeks"])).content.decode()
+        self.assertIn("Every piece in this story links to a signed record.", page)
+
+    def test_a_number_is_a_card_with_its_source_and_whether_it_is_signed(self):
+        n, _ = add_reference(self.org, kind=ArtifactKind.DATA, url="number:t1", title="40", source=self.upload,
+                             source_ref="Program roster, exported 1 Oct")
+        n.about = "founders in the spring cohort"
+        n.save()
+        StoryBlock.objects.create(story=self.story, order=9, artifact=n)
+        page = self.client.get(reverse("artifacts:story", args=["first-weeks"])).content.decode()
+        card = page.split('class="stat-card"')[1].split("</div>")[0]
+        for needle in ("40", "founders in the spring cohort", "Source: Program roster, exported 1 Oct", "Not signed yet"):
+            self.assertIn(needle, card)
+
+    def test_the_masthead_names_the_collection_and_the_month(self):
+        c = Collection.objects.create(org=self.org, name="Spring cohort")
+        self.story.collection = c
+        self.story.save()
+        page = self.client.get(reverse("artifacts:story", args=["first-weeks"])).content.decode()
+        self.assertRegex(page, r'class="eyebrow">Spring cohort &middot; [A-Z][a-z]+ 20\d\d<')
+
+    def test_a_voice_note_has_a_player_that_works_without_script(self):
+        v, _ = add_file(self.org, data=b"RIFFxxxxWAVE", filename="v.wav", content_type="audio/wav", source=self.upload, words="I almost gave up")
+        StoryBlock.objects.create(story=self.story, order=8, artifact=v)
+        page = self.client.get(reverse("artifacts:story", args=["first-weeks"])).content.decode()
+        self.assertIn("data-hear", page)
+        self.assertRegex(page, r"<audio id=\"hear-\d+\" src=\"[^\"]+\" controls")
 
 
 class EditorTests(Base):

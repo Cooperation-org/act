@@ -879,7 +879,8 @@ def story(request, slug):
                 b.month = month = m
     return render(request, "artifacts/story.html", {
         "s": s, "blocks": blocks, "first_image": first_image, "is_member": is_member, "lt_embed": settings.LT_EMBED,
-        "pieces": [b.artifact for b in blocks if b.artifact]})
+        "pieces": [b.artifact for b in blocks if b.artifact],
+        "signed_n": sum(1 for b in blocks if b.artifact and b.artifact.claim_id)})
 
 
 # ---- install as an app (phone share sheet) -----------------------------------

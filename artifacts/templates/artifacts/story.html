@@ -2,111 +2,193 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{{ s.title }} · {{ s.org.name }}</title>
 {% if s.statement %}<meta name="description" content="{{ s.statement|truncatechars:200 }}">{% endif %}
 <meta property="og:title" content="{{ s.title }}">
 {% if s.statement %}<meta property="og:description" content="{{ s.statement|truncatechars:200 }}">{% endif %}
 {% if first_image %}<meta property="og:image" content="{{ first_image.file.url }}">{% endif %}
 {% if s.status != "published" %}<meta name="robots" content="noindex">{% endif %}
+<meta name="theme-color" content="#ffffff">
 <link rel="stylesheet" href="{% static 'artifacts/kit.css' %}">
 <script src="{{ lt_embed }}/badge.js" defer></script>
+<script>document.documentElement.classList.add('js');</script>
 <style>
   body { background: var(--paper); }
-  .story { max-width: 46rem; margin: 0 auto; padding: 0 20px 96px; font-family: var(--font-story); }
-  .draftbar { background: var(--warn-bg); color: var(--warn-ink); text-align: center; padding: .6rem 1rem; font-size: .95rem; }
-  .story header { padding: 5rem 0 2.5rem; }
-  .story .org { font: 600 var(--t-foot)/1.2 var(--font); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 1rem; }
+  .draftbar { background: var(--warn-bg); color: var(--warn-ink); text-align: center; padding: .6rem 1rem; font-size: var(--t-sub); }
+  .draftbar.member { background: var(--accent-soft); color: var(--ink); }
+  .sitebar { display: flex; align-items: center; justify-content: space-between; gap: var(--s4); padding: var(--s4) max(var(--s5), env(safe-area-inset-right)) var(--s4) max(var(--s5), env(safe-area-inset-left)); border-bottom: 1px solid var(--rule); font-size: var(--t-sub); }
+  .sitebar a, .sitebar b { color: var(--ink); font-weight: 600; text-decoration: none; }
+  .sitebar span { color: var(--ink-3); font-size: var(--t-foot); text-align: right; }
+  .story { max-width: 46rem; margin: 0 auto; padding: 0 max(var(--s5), env(safe-area-inset-right)) 6rem max(var(--s5), env(safe-area-inset-left)); font-family: var(--font-story); }
   .story h1, .story h2 { overflow-wrap: anywhere; }
-  .story h1 { font-family: var(--font); font-weight: 700; font-size: clamp(2.2rem, 6vw, 3.4rem); line-height: 1.06; letter-spacing: -.028em; margin: 0 0 1.2rem; }
-  .story .statement { font-size: 1.35rem; line-height: 1.45; color: var(--ink-2); margin: 0; }
-  .story .rule { width: 3rem; height: 3px; background: var(--accent); border: 0; border-radius: 2px; margin: 2.5rem 0 0; }
-  .piece { margin: 3.5rem 0; }
+  .masthead { padding: clamp(2.5rem, 8vw, 4.5rem) 0 var(--s6); }
+  .eyebrow { margin: 0 0 var(--s4); font: 500 var(--t-foot)/1.3 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent-strong); }
+  .story h1 { font-family: var(--font); font-weight: 700; font-size: clamp(2.375rem, 7.4vw, 3.75rem); line-height: 1.04; letter-spacing: -.03em; margin: 0 0 var(--s5); text-wrap: balance; }
+  .statement { font-size: clamp(1.25rem, 3.4vw, 1.5rem); line-height: 1.45; color: var(--ink-2); margin: 0 0 var(--s4); text-wrap: pretty; }
+  .built { display: flex; gap: var(--s2); align-items: flex-start; margin: 0; font: 400 var(--t-sub)/1.45 var(--font); color: var(--ink-2); }
+  .built .ic { color: var(--accent); margin-top: .15em; }
+  .piece { margin: var(--s7) 0; }
   .piece figure { margin: 0; }
-  .piece .wide { margin: 0 calc(50% - min(50vw, 32rem)); }
-  .piece img, .piece video { display: block; width: 100%; height: auto; max-height: 85vh; object-fit: contain; background: #f4f4f2; }
+  .piece .wide { margin: 0 calc(50% - min(50vw, 32rem) + var(--s5)); }
+  .piece img, .piece video { display: block; width: 100%; height: auto; max-height: 85vh; object-fit: contain; background: #f1f2ee; border-radius: 24px; }
   .piece audio { width: 100%; }
-  .note-head { font-size: var(--t-sub); color: var(--ink-3); margin: 0; }
-  .piece figcaption { font-size: var(--t-sub); color: var(--ink-3); margin-top: .7rem; }
+  .note-head { font: 400 var(--t-sub) var(--font); color: var(--ink-3); margin: 0; }
+  .piece figcaption { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--s2) var(--s4); margin-top: var(--s3); font: 400 var(--t-sub)/1.4 var(--font); color: var(--ink-3); }
+  .piece figcaption .cap { flex: 1 1 14rem; min-width: 0; }
+  .check { flex: 0 0 auto; }
+  .check[open] { flex: 1 1 100%; }
+  .piece figcaption .cap { padding-top: .6rem; }
+  .check summary { display: inline-flex; align-items: center; gap: 6px; min-height: var(--touch); padding: 0 var(--s4); border-radius: 999px; background: var(--info-bg); color: var(--info-ink); font: 600 var(--t-sub) var(--font); cursor: pointer; list-style: none; }
+  .check summary::-webkit-details-marker { display: none; }
+  .check[open] summary { background: var(--info-ink); color: #fff; }
+  .proof-card { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: var(--s3) var(--s5); margin: var(--s3) 0 0; padding: var(--s4); background: #fafaf8; border: 1px solid var(--rule); border-radius: var(--radius-lg); font-family: var(--font); flex-basis: 100%; color: var(--ink); }
+  .proof-card dt { font: 500 var(--t-cap) var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 2px; }
+  .proof-card dd { margin: 0; font-size: var(--t-sub); }
   .proof { display: inline-flex; align-items: center; gap: .3rem; color: var(--accent-strong); font-weight: 600; }
-  .piece .text { font-size: 1.2rem; line-height: 1.65; margin: 1.2rem 0 0; white-space: pre-line; }
-  .piece blockquote { margin: 1.2rem 0 0; padding: 0; font-size: 1.2rem; line-height: 1.6; color: var(--ink); white-space: pre-line; }
-  .piece blockquote::before { content: "\201C"; display: block; font: 700 2.4rem/.7 var(--font-display); color: var(--accent); margin-bottom: .2rem; }
-  .piece .link { display: block; border: 1px solid var(--rule); border-radius: var(--radius); padding: 1rem 1.2rem; text-decoration: none; color: var(--ink); }
-  .piece .link span { display: block; color: var(--accent); overflow-wrap: anywhere; font-size: .95rem; }
-  .story footer { border-top: 1px solid var(--rule); padding-top: 1.5rem; margin-top: 4rem; font-size: var(--t-sub); color: var(--ink-3); }
+  .piece .text { font-size: clamp(1.1875rem, 3vw, 1.375rem); line-height: 1.65; margin: var(--s5) 0 0; white-space: pre-line; text-wrap: pretty; }
+  .piece blockquote { margin: var(--s5) 0 0; padding: 0; font-size: clamp(1.1875rem, 3vw, 1.375rem); line-height: 1.6; color: var(--ink); white-space: pre-line; }
+  .piece.voice blockquote, .piece.quote blockquote { font-size: clamp(1.625rem, 5vw, 2.125rem); line-height: 1.25; font-style: italic; letter-spacing: -.01em; white-space: normal; }
+  .piece.voice blockquote::before, .piece.quote blockquote::before { content: "\201C"; }
+  .piece.voice blockquote::after, .piece.quote blockquote::after { content: "\201D"; }
+  .hear-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s4); margin: var(--s4) 0 0; font: 400 var(--t-sub)/1.4 var(--font); color: var(--ink-3); }
+  .hear { display: none; align-items: center; gap: var(--s2); min-height: 3rem; padding: 0 var(--s5) 0 var(--s4); border-radius: 999px; background: var(--dark); color: var(--on-dark); font: 600 var(--t-sub) var(--font); }
+  .hear:hover { background: var(--dark-2); color: var(--on-dark); }
+  .hear .ic { fill: currentColor; }
+  .js .hear { display: inline-flex; }
+  .js .piece.voice audio { display: none; }
+  .stat-card { padding: var(--s5); border-radius: var(--radius-lg); background: var(--k-data); font-family: var(--font); }
+  .stat-card .n { margin: 0; font: 700 clamp(2.5rem, 9vw, 3.5rem)/1 var(--font); letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+  .stat-card .what { margin: var(--s2) 0 var(--s3); font-size: var(--t-body); }
+  .stat-card .src { margin: 0; font-size: var(--t-sub); color: var(--ink-2); }
+  .piece .link { display: block; border: 1px solid var(--rule); border-radius: var(--radius-lg); padding: var(--s4) var(--s5); text-decoration: none; color: var(--ink); font-family: var(--font); }
+  .piece .link span { display: block; color: var(--accent); overflow-wrap: anywhere; font-size: var(--t-sub); }
+  .story-foot { margin-top: var(--s7); padding-top: var(--s5); border-top: 1px solid var(--rule); font: 400 var(--t-sub)/1.5 var(--font); color: var(--ink-3); }
+  .foot-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--s3) var(--s5); align-items: center; }
+  .foot-row p { margin: 0; flex: 1 1 18rem; }
+  .foot-row .acts { display: flex; gap: var(--s4); flex: 0 0 auto; }
+  .linkish { background: transparent; color: var(--accent); border: 0; padding: 0 var(--s1); min-height: var(--touch); font: 500 var(--t-sub) var(--font); text-decoration: underline; text-underline-offset: .2em; }
+  .linkish:hover { background: transparent; color: var(--accent-strong); }
   .how summary { cursor: pointer; color: var(--ink); font-weight: 600; min-height: var(--touch); display: flex; align-items: center; }
   .how ul { list-style: none; margin: .4rem 0 1.2rem; padding: 0; }
   .how li { display: grid; grid-template-columns: 1.5rem 1fr; gap: .2rem .6rem; padding: .6rem 0; border-top: 1px solid var(--rule); }
   .how li .ic { color: var(--accent); margin-top: .15rem; }
   .how b { color: var(--ink); font-weight: 600; }
-  .how small { display: block; }
+  .how small { display: block; font-size: var(--t-sub); }
+  .credit { margin: var(--s4) 0 0; }
   /* Timeline: dates down the left, a line joining the pieces */
-  .timeline .piece { margin: 0; padding: 0 0 2.5rem 1.6rem; border-left: 2px solid var(--rule); position: relative; }
+  .timeline .piece { margin: 0; padding: 0 0 var(--s6) var(--s5); border-left: 2px solid var(--rule); position: relative; }
   .timeline .piece::before { content: ""; position: absolute; left: -7px; top: .35rem; width: 12px; height: 12px; border-radius: 50%; background: var(--brand); }
   .timeline .piece.note::before { display: none; }
-  .timeline .when { font: 600 var(--t-foot)/1.2 var(--font); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 .6rem; }
-  .timeline h2.month { font-size: 1.5rem; margin: 2.5rem 0 1.2rem; }
+  .timeline .when { font: 500 var(--t-foot)/1.2 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 var(--s3); }
+  .timeline h2.month { font-family: var(--font); font-size: var(--t-title2); margin: var(--s6) 0 var(--s4); }
   .timeline .piece .wide { margin: 0; }
   /* One page: everything on one screen or one printed sheet */
   .onepage { max-width: 64rem; }
-  .onepage header { padding: 2.5rem 0 1.2rem; }
+  .onepage .masthead { padding: var(--s6) 0 var(--s4); }
   .onepage h1 { font-size: clamp(1.8rem, 4vw, 2.6rem); }
   .onepage .statement { font-size: 1.1rem; }
-  .onepage .pieces { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+  .onepage .pieces { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s4); }
   .onepage .piece { margin: 0; }
   .onepage .piece .wide { margin: 0; }
-  .onepage .piece img, .onepage .piece video { aspect-ratio: 4 / 3; object-fit: cover; max-height: none; }
-  .onepage .piece .text, .onepage .piece blockquote { font-size: .95rem; line-height: 1.45; margin-top: .5rem; }
+  .onepage .piece img, .onepage .piece video { aspect-ratio: 4 / 3; object-fit: cover; max-height: none; border-radius: var(--radius-lg); }
+  .onepage .piece .text, .onepage .piece blockquote { font-size: .95rem; line-height: 1.45; margin-top: .5rem; font-style: normal; }
+  .onepage .piece.voice blockquote { font-size: 1rem; }
   .onepage .piece.note { grid-column: 1 / -1; }
-  .onepage footer { margin-top: 1.5rem; }
-  @media (max-width: 760px) { .onepage .pieces { grid-template-columns: repeat(2, 1fr); } }
-  @media print { .draftbar { display: none; } .onepage .pieces { grid-template-columns: repeat(3, 1fr); } .onepage header { padding-top: 0; } }
-  @media (max-width: 760px) { .story header { padding: 3rem 0 1.5rem; } .piece { margin: 2.5rem 0; } .piece .wide { margin: 0 -20px; } }
+  .onepage .story-foot { margin-top: var(--s5); }
+  @media (max-width: 760px) { .onepage .pieces { grid-template-columns: repeat(2, 1fr); } .piece .wide { margin: 0; } .piece { margin: var(--s6) 0; } }
+  @media print {
+    .draftbar, .foot-row .acts, .hear, .check summary { display: none !important; }
+    .onepage .pieces { grid-template-columns: repeat(3, 1fr); }
+    .onepage .masthead { padding-top: 0; }
+    .how:not([open]) > *:not(summary) { display: block; }
+    .js .piece.voice audio { display: block; }
+  }
 </style>
 </head>
 <body>
 {% include "artifacts/_icons.html" %}
 {% if s.status != "published" %}<div class="draftbar">Preview. Only your team can see this until it is published. <a href="{% url 'artifacts:story_edit' s.slug %}">Back to editing</a></div>
-{% elif is_member %}<div class="draftbar" style="background:var(--accent-soft);color:var(--ink)"><a href="{% url 'artifacts:story_edit' s.slug %}">Edit this story</a></div>{% endif %}
+{% elif is_member %}<div class="draftbar member"><a href="{% url 'artifacts:story_edit' s.slug %}">Edit this story</a></div>{% endif %}
+<div class="sitebar">{% if s.org.website %}<a href="{{ s.org.website }}">{{ s.org.name }}</a>{% else %}<b>{{ s.org.name }}</b>{% endif %}<span>A story told with Story Kit</span></div>
 <main id="main"><article class="story{% if s.template %} {{ s.template }}{% endif %}">
-  <header>
-    <p class="org">{% if s.org.website %}<a href="{{ s.org.website }}" style="color:inherit;text-decoration:none">{{ s.org.name }}</a>{% else %}{{ s.org.name }}{% endif %}</p>
+  <header class="masthead">
+    <p class="eyebrow">{% if s.collection %}{{ s.collection.name }}{% else %}{{ s.org.name }}{% endif %} &middot; {{ s.published_at|default:s.updated|date:"F Y" }}</p>
     <h1>{{ s.title }}</h1>
     {% if s.statement %}<p class="statement">{{ s.statement }}</p>{% endif %}
-    <hr class="rule">
+    {% if pieces and s.template != "onepage" %}<p class="built">{% ic "signed" "ic-sm" %}<span>Built from {{ pieces|length }} {{ pieces|length|pluralize:"piece,pieces" }} sent in as they happened. Open <b>Check</b> on a photo, video or voice note to see where it came from.</span></p>{% endif %}
   </header>
   {% if s.template == "onepage" %}<div class="pieces">{% endif %}
   {% for b in blocks %}
   {% if s.template == "timeline" and b.month %}<h2 class="month">{{ b.month }}</h2>{% endif %}
-  <section class="piece{% if not b.artifact %} note{% endif %}">
-    {% if s.template == "timeline" and b.artifact %}<p class="when">{{ b.artifact.when|date:"j F Y" }}</p>{% endif %}
-    {% with a=b.artifact %}
+  {% with a=b.artifact %}
+  <section class="piece{% if not a %} note{% elif a.is_audio %} voice{% elif a.kind == 'data' %} stat{% endif %}">
+    {% if s.template == "timeline" and a %}<p class="when">{{ a.when|date:"j F Y" }}</p>{% endif %}
     {% if a %}
-      {% if a.is_image %}<figure><div class="wide"><img src="{{ a.file.url }}" alt="{{ b.text|default:a.words|default:a.title|truncatechars:160 }}" loading="{% if forloop.first %}eager{% else %}lazy{% endif %}"></div>
-        {% if s.template != "timeline" %}<figcaption>{{ a.when|date:"j F Y" }}{% if a.about %} · {{ a.about }}{% endif %} · {{ a|how_sent }}{% if a.consent %} · Everyone shown agreed{% endif %}</figcaption>{% endif %}</figure>
-      {% elif a.is_video %}<figure><div class="wide"><video src="{{ a.file.url }}" controls playsinline preload="metadata"></video></div>
-        {% if s.template != "timeline" %}<figcaption>{{ a.when|date:"j F Y" }}{% if a.about %} · {{ a.about }}{% endif %} · {{ a|how_sent }}{% if a.consent %} · Everyone shown agreed{% endif %}</figcaption>{% endif %}</figure>
-      {% elif a.is_audio %}<figure><audio src="{{ a.file.url }}" controls preload="metadata"></audio><figcaption>Voice note{% if s.template != "timeline" %} · {{ a.when|date:"j F Y" }}{% endif %} · {{ a|how_sent }}</figcaption></figure>
-      {% elif a.claim_id %}<linked-badge claim-id="{{ a.claim_id }}" layout="row" theme="light"></linked-badge>
-      {% elif a.kind == "link" %}<a class="link" href="{{ a.source_url }}" rel="noopener">{{ a.title|default:"Read more" }}<span>{{ a.source_url }}</span></a>
-      {% elif a.kind == "text" and s.template != "timeline" %}<p class="note-head">{{ a.when|date:"j F Y" }}{% if a.title %} · {{ a.title }}{% endif %}</p>
-      {% elif a.file and a.kind == "file" %}<a class="link" href="{{ a.file.url }}">{{ a.title|default:a.filename }}<span>{{ a.filename }}</span></a>{% endif %}
-      {% if b.text %}<p class="text">{{ b.text }}</p>{% elif a.words and not a.claim_id %}<blockquote>{{ a.words }}</blockquote>{% endif %}
+      {% if a.is_image or a.is_video %}
+        <figure><div class="wide">{% if a.is_image %}<img src="{{ a.file.url }}" alt="{{ b.text|default:a.words|default:a.title|truncatechars:160 }}" loading="{% if forloop.first %}eager{% else %}lazy{% endif %}">{% else %}<video src="{{ a.file.url }}" controls playsinline preload="metadata"></video>{% endif %}</div>
+        {% if s.template != "timeline" %}<figcaption><span class="cap">{% if a.title or a.about %}{{ a.title|default:a.about }} &middot; {% endif %}{{ a.when|date:"j F Y" }}{% if a.consent %} &middot; Everyone shown agreed{% endif %}</span>
+          <details class="check"><summary>{% ic "signed" "ic-sm" %}Check this {% if a.is_image %}photo{% else %}video{% endif %}</summary>{% include "artifacts/_proof.html" %}</details></figcaption>{% endif %}</figure>
+        {% if b.text %}<p class="text">{{ b.text }}</p>{% elif a.words and not a.claim_id %}<blockquote>{{ a.words }}</blockquote>{% endif %}
+      {% elif a.is_audio %}
+        {% if b.text %}<p class="text">{{ b.text }}</p>{% endif %}
+        {% if a.words and not a.claim_id %}<blockquote>{{ a.words }}</blockquote>{% endif %}
+        <div class="hear-row"><button type="button" class="hear" data-hear="hear-{{ a.pk }}">{% ic "play" "ic-sm" %}<span>Hear it</span></button>
+          <audio id="hear-{{ a.pk }}" src="{{ a.file.url }}" controls preload="none"></audio>
+          {% if s.template != "timeline" %}<span>Voice note &middot; {{ a.when|date:"j F Y" }}{% if a.consent %} &middot; Everyone shown agreed{% endif %}</span>{% endif %}
+          <details class="check"><summary>{% ic "signed" "ic-sm" %}Check this voice note</summary>{% include "artifacts/_proof.html" %}</details></div>
+      {% elif a.kind == "data" %}
+        <div class="stat-card"><p class="n">{{ a.title }}</p><p class="what">{{ a.about }}</p>
+          <p class="src">Source: {{ a.source_ref|default:"not given" }} &middot; {% if a.claim_id %}<span class="proof">{% ic "signed" "ic-sm" %}Signed</span>{% else %}Not signed yet{% endif %}</p></div>
+        {% if b.text %}<p class="text">{{ b.text }}</p>{% endif %}
+      {% else %}
+        {% if a.claim_id %}<linked-badge claim-id="{{ a.claim_id }}" layout="row" theme="light"></linked-badge>
+        {% elif a.kind == "link" %}<a class="link" href="{{ a.source_url }}" rel="noopener">{{ a.title|default:"Read more" }}<span>{{ a.source_url }}</span></a>
+        {% elif a.kind == "text" and s.template != "timeline" %}<p class="note-head">{{ a.when|date:"j F Y" }}{% if a.title %} &middot; {{ a.title }}{% endif %}</p>
+        {% elif a.file and a.kind == "file" %}<a class="link" href="{{ a.file.url }}">{{ a.title|default:a.filename }}<span>{{ a.filename }}</span></a>{% endif %}
+        {% if b.text %}<p class="text">{{ b.text }}</p>{% elif a.words and not a.claim_id %}<blockquote>{{ a.words }}</blockquote>{% endif %}
+      {% endif %}
     {% else %}
       <p class="text">{{ b.text }}</p>
     {% endif %}
-    {% endwith %}
   </section>
+  {% endwith %}
   {% endfor %}
   {% if s.template == "onepage" %}</div>{% endif %}
-  <footer>
-    {% if pieces %}<details class="how"><summary>How this story was made · {{ pieces|length }} {{ pieces|length|pluralize:"piece,pieces" }}</summary>
+  <footer class="story-foot">
+    {% if pieces %}<div class="foot-row">
+      <p>{% if signed_n == pieces|length %}Every piece in this story links to a signed record.{% else %}{{ signed_n }} of {{ pieces|length }} {{ pieces|length|pluralize:"piece is,pieces are" }} signed.{% endif %} <a href="#how" data-open-how>See all {{ pieces|length }} {{ pieces|length|pluralize:"piece,pieces" }}</a></p>
+      <p class="acts"><button type="button" class="linkish" id="share">Share</button><button type="button" class="linkish" id="print">Download as PDF</button></p>
+    </div>
+    <details class="how" id="how"><summary>How this story was made &middot; {{ pieces|length }} {{ pieces|length|pluralize:"piece,pieces" }}</summary>
       <p>Each piece was sent in to {{ s.org.name }} as it happened and kept exactly as it arrived. Pieces with a signature say so.</p>
-      <ul>{% for a in pieces %}<li>{% ic a.kind|kind_icon %}<span><b>{{ a.title|default:a.get_kind_display }}</b><small>{{ a.when|date:"j F Y" }} · {{ a|how_sent }} · {% if a.claim_id %}<span class="proof">{% ic "signed" "ic-sm" %}Signed</span>{% else %}Not signed yet{% endif %}</small></span></li>{% endfor %}</ul>
+      <ul>{% for a in pieces %}<li>{% ic a.kind|kind_icon %}<span><b>{{ a.title|default:a.get_kind_display }}</b><small>{{ a.when|date:"j F Y" }} &middot; {{ a|how_sent }} &middot; {% if a.claim_id %}<span class="proof">{% ic "signed" "ic-sm" %}Signed</span>{% else %}Not signed yet{% endif %}</small></span></li>{% endfor %}</ul>
     </details>{% endif %}
-    {{ s.org.name }}{% if s.published_at %} · {{ s.published_at|date:"j F Y" }}{% endif %}
+    <p class="credit">{{ s.org.name }}{% if s.published_at %} &middot; {{ s.published_at|date:"j F Y" }}{% endif %}</p>
   </footer>
 </article></main>
+<script>
+(function () {
+  document.querySelectorAll('[data-hear]').forEach(function (b) {
+    var audio = document.getElementById(b.dataset.hear), label = b.querySelector('span'), use = b.querySelector('use');
+    function paint(playing) { label.textContent = playing ? 'Pause' : 'Hear it'; use.setAttribute('href', playing ? '#i-pause' : '#i-play'); }
+    b.addEventListener('click', function () {
+      if (audio.paused) { document.querySelectorAll('audio').forEach(function (o) { if (o !== audio) o.pause(); }); audio.play().catch(function () {}); } else audio.pause();
+    });
+    audio.addEventListener('play', function () { paint(true); });
+    audio.addEventListener('pause', function () { paint(false); });
+    audio.addEventListener('ended', function () { paint(false); });
+  });
+  var how = document.getElementById('how');
+  document.querySelectorAll('[data-open-how]').forEach(function (a) { a.addEventListener('click', function () { if (how) how.open = true; }); });
+  var share = document.getElementById('share'), print = document.getElementById('print');
+  if (share) share.addEventListener('click', function () {
+    var data = { title: document.title, url: location.href };
+    if (navigator.share) { navigator.share(data).catch(function () {}); return; }
+    if (navigator.clipboard) navigator.clipboard.writeText(location.href).then(function () { share.textContent = 'Link copied'; setTimeout(function () { share.textContent = 'Share'; }, 2200); }).catch(function () {});
+  });
+  if (print) print.addEventListener('click', function () { if (how) how.open = true; window.print(); });
+})();
+</script>
 </body>
 </html>
