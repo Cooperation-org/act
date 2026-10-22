@@ -20,13 +20,15 @@ from ...models import ArtifactKind, Source, SourceKind, Tag, TagGroup
 STAFF, MENTOR = "jordan@umbrella.example", "lee.mentor@umbrella.example"
 
 # (site, business, owner email, [(date, kind, title, words, extra labels)])
-# kind: photo, voice, video, text, link. Items with labels=None are left unlabeled,
-# so Sort with AI has something to do.
+# kind: photo, voice, video, text, link, data. Items with labels=None are left unlabeled,
+# so Sort with AI has something to do. A data item's title is the number, and its words are
+# "what it counts|where it came from".
 SAMPLE = [
     ("main street", "main street bakery", "maria@mainstreetbakery.example", [
         ("2026-05-12", "photo", "Pitch night", "Maria pitching the bakery plan to the spring cohort.", ["pitch"]),
         ("2026-07-02", "text", "Lease signed", "Signed a two-year lease on the corner storefront. Rent $1,850 a month.", ["milestone"]),
         ("2026-10-08", "photo", "Second oven", "Main Street Bakery bought a second oven with the October sales. Two people hired.", None),
+        ("2026-10-09", "data", "40", "founders in the spring cohort|Program roster, exported 1 Oct", ["milestone"]),
     ]),
     ("riverside", "riverside bike repair", "dev@riversidebikes.example", [
         ("2026-04-20", "photo", "Pop-up stand", "First weekend fixing bikes under a tent by the river path.", ["pop-up"]),
@@ -46,6 +48,7 @@ SAMPLE = [
         ("2026-06-10", "photo", "Reading corner", "The reading corner parents helped build.", ["parents"]),
         ("2026-08-30", "text", "Waitlist", "Hillcrest Family Childcare is full at six children; nine families on the waitlist.", None),
         ("2026-10-15", "voice", "A parent", "A parent at Hillcrest Family Childcare: \"I could take the night shift because Rosa opens at six.\"", None),
+        ("2026-10-12", "data", "9", "families on the Hillcrest waitlist|Rosa's waitlist sheet, 12 Oct", ["milestone"]),
     ]),
     ("hillcrest", "two rivers coffee cart", "sam@tworivers.example", [
         ("2026-05-25", "photo", "Cart build", "Sam and a mentor building the cart from a used trailer.", ["before"]),
@@ -113,7 +116,16 @@ class Command(BaseCommand):
                 sender = [owner, STAFF, MENTOR][n % 3] if kind != "voice" else STAFF
                 when = _when(day)
                 common = dict(words=words, sent_by=sender, happened_at=when)
-                if kind == "link":
+                if kind == "data":
+                    about, _, where = words.partition("|")
+                    a, created = add_reference(org, kind=ArtifactKind.DATA, source=upload, title=title,
+                                               url=f"number:{business}:{title}", source_ref=where, sent_by=sender,
+                                               happened_at=when)
+                    if created:
+                        a.about = about
+                        a.source_url = ""
+                        a.save(update_fields=["about", "source_url"])
+                elif kind == "link":
                     a, created = add_reference(org, kind=ArtifactKind.LINK, source=links, title=title,
                                                url=f"https://{owner.split('@')[1]}/shop", **common)
                 else:

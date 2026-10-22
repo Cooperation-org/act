@@ -643,6 +643,16 @@ class SendUploadTests(Base):
         self.assertRedirects(laptop, reverse("artifacts:library") + "?show=inbox", fetch_redirect_response=False)
 
 
+class SampleOrgTests(Base):
+    def test_the_sample_has_numbers_with_what_they_count_and_where_they_came_from(self):
+        from django.core.management import call_command
+        call_command("sample_org", self.org.slug, stdout=io.StringIO())
+        n = Artifact.objects.filter(org=self.org, kind=ArtifactKind.DATA).get(title="40")
+        self.assertEqual((n.about, n.source_ref, n.source_url), ("founders in the spring cohort", "Program roster, exported 1 Oct", ""))
+        call_command("sample_org", self.org.slug, stdout=io.StringIO())      # safe to run again
+        self.assertEqual(Artifact.objects.filter(org=self.org, kind=ArtifactKind.DATA).count(), 2)
+
+
 class NumberTests(Base):
     """A number is kept with what it counts and where it came from, or it is not kept."""
 
