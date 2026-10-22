@@ -630,3 +630,35 @@ class PublicStoryTests(Base):
 
     def test_no_side_stripe_on_quotes(self):
         self.assertNotRegex(self.page, r"border-left:\s*[3-9]px")
+
+
+class EditorTests(Base):
+    def setUp(self):
+        super().setUp()
+        self.client.force_login(self.user)
+        a = add_file(self.org, data=png_bytes("red"), filename="a.png", content_type="image/png", source=self.upload, words="Counter")[0]
+        self.story = Story.objects.create(org=self.org, title="Our year", slug="our-year")
+        StoryBlock.objects.create(story=self.story, order=0, artifact=a)
+        StoryBlock.objects.create(story=self.story, order=1, text="The end.")
+        self.url = reverse("artifacts:story_edit", args=["our-year"])
+        self.page = lambda: self.client.get(self.url).content.decode()
+
+    def test_every_piece_can_move_without_dragging(self):
+        listed = self.page().split('<ol class="blocks"')[1].split("</ol>")[0]
+        self.assertEqual(listed.count('class="move up"'), 2)
+        self.assertEqual(listed.count('class="move down"'), 2)
+        self.assertEqual(listed.count('aria-label="Take out of story"'), 2)
+
+    def test_state_and_heading(self):
+        page = self.page()
+        self.assertIn('<h1 class="sr">Edit story: Our year</h1>', page)
+        self.assertIn('class="status">Draft</span>', page)
+        self.assertIn('name="action" value="publish"', page)
+        self.story.status = "published"
+        self.story.save()
+        live = self.page()
+        self.assertIn("Published</span>", live)
+        self.assertIn("confirm(", live)  # unpublishing asks first
+
+    def test_a_paragraph_is_labelled_as_one(self):
+        self.assertIn("A paragraph", self.page())
