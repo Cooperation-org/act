@@ -732,7 +732,7 @@ def manifest(request):
     base = settings.BASE_PATH or ""
     data = {
         "name": "Story Kit", "short_name": "Story Kit", "start_url": f"{base}/send/", "scope": f"{base}/",
-        "display": "standalone", "background_color": "#ffffff", "theme_color": "#00718f",
+        "display": "standalone", "background_color": "#f4f5f1", "theme_color": "#0e6b57",
         "icons": [{"src": f"{settings.STATIC_URL}artifacts/icon-192.png", "sizes": "192x192", "type": "image/png"},
                   {"src": f"{settings.STATIC_URL}artifacts/icon-512.png", "sizes": "512x512", "type": "image/png"}],
         "share_target": {
