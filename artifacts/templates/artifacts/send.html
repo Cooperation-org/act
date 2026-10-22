@@ -1,4 +1,5 @@
 {% extends "artifacts/base.html" %}
+{% load kit %}
 {% block title %}Send · Story Kit{% endblock %}
 {% block head %}<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">{% endblock %}
 {% block content %}
@@ -7,13 +8,13 @@
 <div class="install" id="install" hidden>
   <span id="install-text">Keep Story Kit on your home screen.</span>
   <button type="button" id="install-go" hidden>Add to home screen</button>
-  <button type="button" class="quiet" id="install-no" aria-label="Not now">✕</button>
+  <button type="button" class="quiet" id="install-no" aria-label="Not now">{% ic "x" %}</button>
 </div>
 <form method="post" enctype="multipart/form-data" class="narrow" id="send">{% csrf_token %}
   <div class="picks">
-    <button type="button" id="rec-photo" class="btn"><b aria-hidden="true">📷</b><span>Take photo</span></button>
-    <button type="button" id="rec-video" class="btn"><b aria-hidden="true">🎥</b><span>Record video</span></button>
-    <button type="button" id="rec-voice" class="btn"><b aria-hidden="true">🎙</b><span>Voice note</span></button>
+    <button type="button" id="rec-photo" class="btn">{% ic "camera" "ic-xl" %}<span>Take photo</span></button>
+    <button type="button" id="rec-video" class="btn">{% ic "video" "ic-xl" %}<span>Record video</span></button>
+    <button type="button" id="rec-voice" class="btn">{% ic "mic" "ic-xl" %}<span>Voice note</span></button>
   </div>
 
   <div id="cam" class="cam" hidden>
@@ -21,7 +22,7 @@
     <p class="cam-stats muted" id="cam-stats" hidden></p>
     <div class="cam-stage">
       <video id="cam-video" autoplay playsinline muted></video>
-      <div class="cam-empty" id="cam-empty" hidden><span class="mic" aria-hidden="true">🎙</span><span>Recording audio only.</span></div>
+      <div class="cam-empty" id="cam-empty" hidden>{% ic "mic" "ic-xl" %}<span>Recording audio only.</span></div>
       <div class="cam-timer" id="cam-timer" hidden>00:00</div>
       <img id="cam-preview-img" alt="" hidden>
       <video id="cam-preview-video" controls autoplay playsinline hidden></video>
@@ -128,7 +129,7 @@
           thumbs._urls.push(v.src);
           li.appendChild(v);
         } else {
-          var a = document.createElement('span'); a.className = 'capture-icon'; a.textContent = '🎙';
+          var a = document.createElement('span'); a.className = 'capture-icon'; a.innerHTML = '<svg class="ic ic-xl" aria-hidden="true" focusable="false"><use href="#i-mic"></use></svg>';
           li.appendChild(a);
         }
         var nm = document.createElement('span'); nm.className = 'capture-name'; nm.textContent = f.name;
@@ -432,7 +433,7 @@ function pickVideoMime() { var c = ['video/webm;codecs=vp9,opus','video/webm;cod
 .captures-thumbs { list-style: none; padding: .6rem 0 0; margin: 0; display: flex; flex-wrap: wrap; gap: .6rem; }
 .capture-thumb { background: var(--bg-2, #222); border-radius: 8px; padding: .3rem; display: flex; flex-direction: column; align-items: center; gap: .25rem; max-width: 130px; }
 .capture-thumb img, .capture-thumb video { width: 120px; height: 90px; object-fit: cover; border-radius: 6px; display: block; }
-.capture-thumb .capture-icon { font-size: 2rem; line-height: 1; padding: 1.4rem 0; }
+.capture-thumb .capture-icon { display: flex; justify-content: center; padding: 1.4rem 0; color: var(--accent); }
 .capture-thumb .capture-name { font-size: .78rem; color: var(--text-2, #bbb); text-align: center; word-break: break-word; max-width: 120px; }
 .picks .btn { line-height: 1.2; }
 .picks .btn span { display: inline; }

@@ -43,6 +43,13 @@ h3 { font-size: 1.05rem; font-weight: 700; margin: 0 0 .25rem; }
 p { margin: .4rem 0 .8rem; }
 .lede { font-size: 1.15rem; color: var(--ink-2); max-width: 38rem; text-wrap: pretty; }
 .muted, small { color: var(--ink-3); font-size: .875rem; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* line icons from the sprite in _icons.html; they take the color of the text beside them */
+.ic { width: 1.25em; height: 1.25em; flex: none; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; vertical-align: -.22em; }
+.ic-sm { width: 1em; height: 1em; }
+.ic-lg { width: 1.75rem; height: 1.75rem; }
+.ic-xl { width: 2rem; height: 2rem; }
 .skip { position: absolute; left: -100vw; top: .5rem; }
 .skip:focus { left: .75rem; z-index: 100; background: var(--paper); color: var(--ink); padding: .7rem 1rem; border-radius: var(--radius); box-shadow: 0 2px 12px rgba(23, 32, 27, .25); }
 
@@ -81,7 +88,7 @@ form.narrow { max-width: 34rem; }
 /* ways in: one line per way */
 .ways { list-style: none; padding: 0; margin: 1.5rem 0; border-top: 1px solid var(--rule); }
 .ways > li { padding: 1.4rem 0; border-bottom: 1px solid var(--rule); display: grid; grid-template-columns: 2.4rem 1fr; gap: 0 1rem; }
-.ways .icon { font-size: 1.6rem; line-height: 1.2; }
+.ways .icon { color: var(--accent); line-height: 1; padding-top: .15rem; }
 .ways h3 { font-size: 1.15rem; }
 .ways p { color: var(--ink-2); margin: .2rem 0 .6rem; }
 .copy { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
@@ -98,7 +105,7 @@ form.narrow { max-width: 34rem; }
 .picks { display: grid; grid-template-columns: repeat(3, 1fr); gap: .6rem; margin: 1rem 0; }
 .picks label { margin: 0; }
 .picks .btn { width: 100%; height: 100%; text-align: center; padding: .9rem .4rem; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .2rem; line-height: 1.2; }
-.picks .btn b { font-size: 1.5rem; font-weight: 400; }
+.picks .btn .ic { width: 2rem; height: 2rem; }
 .picks input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .chosen { font-size: .95rem; color: var(--ink-2); }
 

@@ -1,4 +1,4 @@
-{% load static %}<!doctype html>
+{% load static kit %}<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -13,6 +13,7 @@
 {% block head %}{% endblock %}
 </head>
 <body>
+{% include "artifacts/_icons.html" %}
 <div class="wrap">
 <header class="kit">
   <a class="mark" href="{% url 'artifacts:home' %}">Story Kit{% if org %} <span>· {{ org.name }}</span>{% endif %}</a>

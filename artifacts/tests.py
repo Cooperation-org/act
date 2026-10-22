@@ -455,3 +455,29 @@ class DemoTests(Base):
         r = self.client.get(reverse("artifacts:demo_leave"))
         self.assertIn(reverse("artifacts:signin"), r["Location"])
         self.assertNotIn("_auth_user_id", self.client.session)
+
+
+class IconTests(TestCase):
+    """Icons come from one sprite; a name that is not in it would show as a blank."""
+
+    def _templates(self):
+        import pathlib
+        return sorted(pathlib.Path(__file__).parent.glob("templates/artifacts/*.html"))
+
+    def test_every_icon_used_is_in_the_sprite(self):
+        import re
+        sprite = (self._templates()[0].parent / "_icons.html").read_text()
+        have = set(re.findall(r'id="i-([a-z-]+)"', sprite))
+        used = set()
+        for f in self._templates():
+            text = f.read_text()
+            used |= set(re.findall(r'{% ic "([a-z-]+)"', text))
+            used |= set(re.findall(r'href="#i-([a-z-]+)"', text))
+        self.assertTrue(used, "no icons found")
+        self.assertFalse(used - have, f"icons missing from the sprite: {sorted(used - have)}")
+
+    def test_no_emoji_icons_in_templates(self):
+        import re
+        emoji = re.compile("[\U0001F300-\U0001FAFF\u2600-\u27BF\u2705\u2715]")
+        for f in self._templates():
+            self.assertIsNone(emoji.search(f.read_text()), f"emoji in {f.name}")

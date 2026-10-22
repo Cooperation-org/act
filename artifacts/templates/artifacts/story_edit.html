@@ -1,4 +1,5 @@
 {% extends "artifacts/base.html" %}
+{% load kit %}
 {% block title %}Edit: {{ s.title }} · Story Kit{% endblock %}
 {% block content %}
 <p><a href="{% url 'artifacts:stories' %}">← Stories</a>{% if s.collection %} · from <a href="{% url 'artifacts:collection' s.collection.pk %}">{{ s.collection.name }}</a>{% endif %}</p>
@@ -16,14 +17,14 @@
     <ol class="blocks" id="blocks">
       {% for b in blocks %}
       <li class="block{% if not b.artifact %} text-only{% endif %}" data-artifact="{{ b.artifact_id|default:'' }}" data-ai="{% if b.by_ai %}1{% endif %}">
-        <span class="grip" aria-label="Drag to reorder" title="Drag to reorder">⠿</span>
+        <span class="grip" title="Drag to reorder" aria-hidden="true">{% ic "grip" %}</span>
         {% if b.artifact %}<div class="thumb">{% include "artifacts/_media.html" with a=b.artifact %}</div>{% endif %}
         <div>
           {% if b.artifact %}<p class="from">{{ b.artifact.get_kind_display }} · {{ b.artifact.when|date:"j M Y" }}{% if b.artifact.sent_by %} · {{ b.artifact.sent_by|truncatechars:40 }}{% endif %}{% if b.artifact.words %} · “{{ b.artifact.words|truncatechars:90 }}”{% endif %}</p>{% endif %}
           {% if b.by_ai %}<span class="ai">AI draft, not yet edited</span>{% endif %}
           <textarea aria-label="Text for this piece" placeholder="{% if b.artifact %}Caption or a line of story (optional){% else %}A paragraph of the story{% endif %}">{{ b.text }}</textarea>
         </div>
-        <button type="button" class="remove" aria-label="Take out of story" title="Take out of story">✕</button>
+        <button type="button" class="remove" aria-label="Take out of story" title="Take out of story">{% ic "x" %}</button>
       </li>
       {% endfor %}
     </ol>
@@ -68,10 +69,10 @@
     var li = document.createElement('li');
     li.className = 'block' + (artifactId ? '' : ' text-only');
     li.dataset.artifact = artifactId || '';
-    li.innerHTML = '<span class="grip" aria-label="Drag to reorder" title="Drag to reorder">⠿</span>' +
+    li.innerHTML = '<span class="grip" title="Drag to reorder" aria-hidden="true"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-grip"></use></svg></span>' +
       (artifactId ? '<div class="thumb">' + thumbHtml + '</div>' : '') +
       '<div>' + (from ? '<p class="from"></p>' : '') + '<textarea aria-label="Text for this piece"></textarea></div>' +
-      '<button type="button" class="remove" aria-label="Take out of story" title="Take out of story">✕</button>';
+      '<button type="button" class="remove" aria-label="Take out of story" title="Take out of story"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-x"></use></svg></button>';
     if (from) li.querySelector('.from').textContent = from;
     li.querySelector('textarea').placeholder = artifactId ? 'Caption or a line of story (optional)' : 'A paragraph of the story';
     list.appendChild(li);
