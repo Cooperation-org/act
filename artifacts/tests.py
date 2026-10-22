@@ -859,6 +859,34 @@ class EditorTests(Base):
     def test_a_paragraph_is_labelled_as_one(self):
         self.assertIn("A paragraph", self.page())
 
+    def test_the_pieces_sit_beside_the_story_and_the_story_reads_as_a_document(self):
+        page = self.page()
+        side = page.split('aria-label="Pieces"')[1].split("</aside>")[0]
+        self.assertIn('id="pool"', side)
+        self.assertIn("Everything you have", side)
+        canvas = page.split('class="canvas"')[1]
+        for needle in ("What this story shows", 'class="title-input"', "Drop a piece here, or start typing", 'class="preview"'):
+            self.assertIn(needle, canvas)
+
+    def test_the_story_helper_is_only_offered_when_it_is_switched_on(self):
+        self.assertNotIn("Story helper", self.page())
+        with mock.patch("artifacts.views.ai.enabled", return_value=True):
+            self.assertIn("Story helper", self.page())
+
+    def test_a_drafted_paragraph_waits_for_a_person_to_use_edit_or_discard_it(self):
+        StoryBlock.objects.filter(story=self.story, text="The end.").update(by_ai=True)
+        page = self.page()
+        self.assertIn("Suggested by the story helper", page)
+        for needle in ("use-ai", "edit-ai", "discard-ai"):
+            self.assertIn(needle, page)
+        StoryBlock.objects.filter(story=self.story).update(by_ai=False)
+        self.assertNotIn("use-ai", self.page().split('<ol class="blocks"')[1].split("</ol>")[0])
+
+    def test_publish_and_preview_stay_in_reach_at_every_width(self):
+        bar = self.page().split('class="story-bar"')[1].split('<div class="builder">')[0]
+        self.assertIn('name="action" value="publish"', bar)
+        self.assertIn("Preview", bar)
+
 
 class WelcomeTests(Base):
     def setUp(self):

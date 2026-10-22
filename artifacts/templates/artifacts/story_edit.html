@@ -1,58 +1,14 @@
 {% extends "artifacts/base.html" %}
 {% load kit %}
 {% block title %}Edit: {{ s.title }} · Story Kit{% endblock %}
+{% block wrapclass %} wide{% endblock %}
 {% block content %}
-<p class="crumb"><a class="back" href="{% url 'artifacts:stories' %}">{% ic "chevron-left" %}Stories</a>{% if s.collection %}<span class="muted"> · from <a href="{% url 'artifacts:collection' s.collection.pk %}">{{ s.collection.name }}</a></span>{% endif %}</p>
 <h1 class="sr">Edit story: {{ s.title }}</h1>
 <form method="post" id="story">{% csrf_token %}
 <input type="hidden" name="blocks" id="blocks-json">
-<div class="editor">
-  <div>
-    <p class="state">{% if s.status == "published" %}<span class="status live">{% ic "check" "ic-sm" %}Published</span>{% else %}<span class="status">Draft</span>{% endif %}<span class="muted">Changes save as you go.</span></p>
-    <label class="sr" for="title">Title</label>
-    <input type="text" id="title" name="title" class="title-input" value="{{ s.title }}" placeholder="Give it a title" required>
-    <div class="layouts" role="radiogroup" aria-label="Layout">{% for v, n in templates %}<label class="chip{% if s.template == v %} on{% endif %}"><input type="radio" name="template" value="{{ v }}"{% if s.template == v %} checked{% endif %}> {{ n }}</label>{% endfor %}</div>
-    <label for="statement">What this story shows <span class="muted">(one or two sentences, shown under the title)</span></label>
-    <textarea id="statement" name="statement" style="min-height:4rem">{{ s.statement }}</textarea>
-    <h2>The story, in order</h2>
-    
-    <ol class="blocks" id="blocks">
-      {% for b in blocks %}
-      <li class="block{% if not b.artifact %} text-only{% endif %}" data-artifact="{{ b.artifact_id|default:'' }}" data-ai="{% if b.by_ai %}1{% endif %}">
-        {% if b.artifact %}<div class="thumb">{% include "artifacts/_media.html" with a=b.artifact %}</div>{% else %}<div class="thumb">{% ic "note" "ic-lg" %}</div>{% endif %}
-        <div class="meta">{% if b.artifact %}<p class="from">{{ b.artifact.get_kind_display }} · {{ b.artifact.when|date:"j M Y" }}{% if b.artifact.sent_by %} · {{ b.artifact.sent_by|truncatechars:40 }}{% endif %}{% if b.artifact.words %} · “{{ b.artifact.words|truncatechars:90 }}”{% endif %}</p>{% else %}<p class="from">A paragraph</p>{% endif %}
-          {% if b.by_ai %}<span class="ai">AI draft, not yet edited</span>{% endif %}</div>
-        <div class="acts">
-          <span class="grip" title="Drag to reorder" aria-hidden="true">{% ic "grip" %}</span>
-          <button type="button" class="move up" aria-label="Move up" title="Move up">{% ic "up" %}</button>
-          <button type="button" class="move down" aria-label="Move down" title="Move down">{% ic "down" %}</button>
-          <button type="button" class="remove" aria-label="Take out of story" title="Take out of story">{% ic "x" %}</button>
-        </div>
-        <textarea aria-label="Text for this piece" placeholder="{% if b.artifact %}Caption or a line of story (optional){% else %}A paragraph of the story{% endif %}">{{ b.text }}</textarea>
-      </li>
-      {% endfor %}
-    </ol>
-    <p><button type="button" class="quiet" id="add-text">+ Add a paragraph</button></p>
-  </div>
-  <div>
-    <h2 style="margin-top:0">Add pieces</h2>
-    <p class="muted">Tap to add at the end, or drag into place.</p>
-    <div class="pool" id="pool">
-      {% for a in pool %}
-      <button type="button" data-artifact="{{ a.pk }}" data-from="{{ a.get_kind_display }} · {{ a.when|date:'j M Y' }}{% if a.sent_by %} · {{ a.sent_by|truncatechars:40 }}{% endif %}{% if a.words %} · “{{ a.words|truncatechars:90 }}”{% endif %}">
-        <span class="thumb">{% include "artifacts/_media.html" %}</span>
-        <span>{{ a.title|default:a.words|default:a.filename|default:a.source_url|truncatechars:70 }}<small>{{ a.when|date:"j M Y" }}</small></span>
-      </button>
-      {% empty %}<p class="muted" style="padding:1rem">Everything is already in the story.</p>{% endfor %}
-    </div>
-    {% if ai_on %}
-    <h2>AI helper</h2>
-    <p class="muted">Writes a first draft from these pieces, using only what they say. It replaces the story below; every line it writes is marked until you edit it.</p>
-    <p><button type="submit" name="action" value="ai" class="quiet" id="ai">Draft from {% if s.collection %}this collection{% else %}these pieces{% endif %}</button></p>
-    {% endif %}
-  </div>
-</div>
-<div class="savebar">
+
+<div class="story-bar">
+  <a class="back" href="{% url 'artifacts:stories' %}">{% ic "chevron-left" %}Stories</a>
   <span class="saved" id="saved" aria-live="polite"></span>
   {% if s.status == "published" %}
     <a class="btn quiet" href="{% url 'artifacts:story' s.slug %}">View story</a>
@@ -62,39 +18,97 @@
     <button type="submit" name="action" value="publish">Publish</button>
   {% endif %}
 </div>
-{% if s.status == "published" %}<p class="muted public-url">Public link: <a href="{{ public_url }}">{{ public_url }}</a></p>{% endif %}
+
+<div class="builder">
+  <aside class="builder-side" aria-label="Pieces">
+    {% if ai_on %}
+    <section class="helper">
+      <p class="helper-title">{% ic "leaf" "ic-sm" %}Story helper</p>
+      <p>Writes a first draft from {% if s.collection %}this collection{% else %}these pieces{% endif %}, using only what they say. Every line it writes is marked until you read and edit it.</p>
+      <button type="submit" name="action" value="ai" id="ai">Draft the story</button>
+    </section>
+    {% endif %}
+    <section class="collection-panel">
+      <p class="mono-label">{% if s.collection %}Collection{% else %}Library{% endif %}</p>
+      <h2>{% if s.collection %}<a href="{% url 'artifacts:collection' s.collection.pk %}">{{ s.collection.name }}</a>{% else %}Everything you have{% endif %}</h2>
+      <p class="muted">Tap a piece to add it at the end, or drag it into place.</p>
+      <div class="pool" id="pool">
+        {% for a in pool %}
+        <button type="button" data-artifact="{{ a.pk }}" data-signed="{% if a.claim_id %}1{% endif %}" data-kind="{{ a.kind }}" data-from="{{ a.get_kind_display }} · {{ a.when|date:'j M Y' }}{% if a.words %} · “{{ a.words|truncatechars:90 }}”{% endif %}">
+          <span class="thumb">{% include "artifacts/_media.html" %}</span>
+          <span class="what">{{ a.title|default:a.words|default:a.filename|default:a.source_url|truncatechars:70 }}<small>{{ a.get_kind_display }} &middot; {{ a.when|date:"j M Y" }} &middot; {% if a.claim_id %}Signed{% else %}Not signed{% endif %}</small></span>
+        </button>
+        {% empty %}<p class="muted" style="padding:1rem">Everything is already in the story.</p>{% endfor %}
+      </div>
+    </section>
+  </aside>
+
+  <div class="canvas">
+    <p class="state">{% if s.status == "published" %}<span class="status live">{% ic "check" "ic-sm" %}Published</span>{% else %}<span class="status">Draft</span>{% endif %}<span class="muted">Changes save as you go.</span></p>
+    <label class="sr" for="title">Title</label>
+    <input type="text" id="title" name="title" class="title-input" value="{{ s.title }}" placeholder="Give it a title" required>
+    <div class="layouts" role="radiogroup" aria-label="Layout">{% for v, n in templates %}<label class="chip{% if s.template == v %} on{% endif %}"><input type="radio" name="template" value="{{ v }}"{% if s.template == v %} checked{% endif %}> {{ n }}</label>{% endfor %}</div>
+    <div class="shows">
+      <label for="statement" class="mono-label">What this story shows</label>
+      <textarea id="statement" name="statement" placeholder="One or two sentences, shown under the title">{{ s.statement }}</textarea>
+      <p class="muted">Each piece below supports this. Readers can check any of them.</p>
+    </div>
+
+    <ol class="blocks" id="blocks">
+      {% for b in blocks %}
+      <li class="block{% if not b.artifact %} text-only{% endif %}{% if b.artifact %} k-{{ b.artifact.kind }}{% endif %}" data-artifact="{{ b.artifact_id|default:'' }}" data-ai="{% if b.by_ai %}1{% endif %}">
+        <div class="blk-tools">
+          <span class="grip" title="Drag to reorder" aria-hidden="true">{% ic "grip" %}</span>
+          <button type="button" class="move up" aria-label="Move up" title="Move up">{% ic "up" %}</button>
+          <button type="button" class="move down" aria-label="Move down" title="Move down">{% ic "down" %}</button>
+          <button type="button" class="remove" aria-label="Take out of story" title="Take out of story">{% ic "x" %}</button>
+        </div>
+        {% if b.by_ai %}<p class="ai-label"><span class="ai">Suggested by the story helper</span>, not yet edited</p>{% endif %}
+        {% if b.artifact %}<div class="preview">{% include "artifacts/_media.html" with a=b.artifact %}</div>
+        <p class="from">{{ b.artifact.get_kind_display }} &middot; {{ b.artifact.when|date:"j M Y" }} &middot; <span class="{% if b.artifact.claim_id %}proof{% endif %}">{% if b.artifact.claim_id %}Signed{% else %}Not signed yet{% endif %}</span>{% if b.artifact.words %} &middot; “{{ b.artifact.words|truncatechars:90 }}”{% endif %}</p>{% else %}<p class="from">A paragraph</p>{% endif %}
+        <textarea aria-label="Text for this piece" placeholder="{% if b.artifact %}Caption or a line of story (optional){% else %}A paragraph of the story{% endif %}">{{ b.text }}</textarea>
+        {% if b.by_ai %}<p class="ai-acts"><button type="button" class="use-ai">Use this</button><button type="button" class="quiet edit-ai">Edit</button><button type="button" class="quiet discard-ai">Discard</button></p>{% endif %}
+      </li>
+      {% endfor %}
+    </ol>
+    <button type="button" class="dropzone" id="add-text"><b>Drop a piece here, or start typing</b><span>Photos, quotes, clips and numbers keep their source link</span></button>
+    {% if s.status == "published" %}<p class="muted public-url">Public link: <a href="{{ public_url }}">{{ public_url }}</a></p>{% endif %}
+  </div>
+</div>
 </form>
 {% endblock %}
 {% block scripts %}
 <script>
 (function () {
   var list = document.getElementById('blocks'), form = document.getElementById('story');
-  function block(artifactId, thumbHtml, from) {
+  function ico(n) { return '<svg class="ic" aria-hidden="true" focusable="false"><use href="#i-' + n + '"></use></svg>'; }
+  function block(artifactId, thumbHtml, from, signed, kind) {
     var li = document.createElement('li');
-    li.className = 'block' + (artifactId ? '' : ' text-only');
+    li.className = 'block' + (artifactId ? ' k-' + (kind || 'file') : ' text-only');
     li.dataset.artifact = artifactId || '';
-    function ico(n) { return '<svg class="ic" aria-hidden="true" focusable="false"><use href="#i-' + n + '"></use></svg>'; }
-    li.innerHTML = '<div class="thumb">' + (artifactId ? thumbHtml : ico('note')) + '</div>' +
-      '<div class="meta"><p class="from">' + (artifactId ? '' : 'A paragraph') + '</p></div>' +
-      '<div class="acts"><span class="grip" title="Drag to reorder" aria-hidden="true">' + ico('grip') + '</span>' +
+    li.innerHTML = '<div class="blk-tools"><span class="grip" title="Drag to reorder" aria-hidden="true">' + ico('grip') + '</span>' +
       '<button type="button" class="move up" aria-label="Move up" title="Move up">' + ico('up') + '</button>' +
       '<button type="button" class="move down" aria-label="Move down" title="Move down">' + ico('down') + '</button>' +
       '<button type="button" class="remove" aria-label="Take out of story" title="Take out of story">' + ico('x') + '</button></div>' +
-      '<textarea aria-label="Text for this piece"></textarea>';
-    if (from) li.querySelector('.from').textContent = from;
+      (artifactId ? '<div class="preview"></div>' : '') + '<p class="from"></p><textarea aria-label="Text for this piece"></textarea>';
+    if (artifactId) li.querySelector('.preview').innerHTML = thumbHtml;
+    li.querySelector('.from').textContent = artifactId ? from + ' · ' + (signed ? 'Signed' : 'Not signed yet') : 'A paragraph';
     li.querySelector('textarea').placeholder = artifactId ? 'Caption or a line of story (optional)' : 'A paragraph of the story';
     list.appendChild(li);
     return li;
   }
+  function addFromPool(b) { return block(b.dataset.artifact, b.querySelector('.thumb').innerHTML, b.dataset.from, b.dataset.signed === '1', b.dataset.kind); }
   document.getElementById('pool').addEventListener('click', function (e) {
     var b = e.target.closest('button[data-artifact]'); if (!b || this.dataset.justDragged) return;
-    block(b.dataset.artifact, b.querySelector('.thumb').innerHTML, b.dataset.from);
-    b.remove();
+    addFromPool(b); b.remove();
   });
   document.getElementById('add-text').addEventListener('click', function () { block('', '', '').querySelector('textarea').focus(); });
+  function settle(li) { li.dataset.ai = ''; var l = li.querySelector('.ai-label'); if (l) l.remove(); var a = li.querySelector('.ai-acts'); if (a) a.remove(); }
   list.addEventListener('click', function (e) {
     var li = e.target.closest('.block'); if (!li) return;
-    if (e.target.closest('.remove')) {
+    if (e.target.closest('.use-ai')) { settle(li); soon(); return; }
+    if (e.target.closest('.edit-ai')) { li.querySelector('textarea').focus(); return; }
+    if (e.target.closest('.remove') || e.target.closest('.discard-ai')) {
       var next = li.nextSibling; li.remove();
       if (window.storyKitToast) window.storyKitToast('Taken out of the story', function () { list.insertBefore(li, next); });
     } else if (e.target.closest('.move.up') && li.previousElementSibling) {
@@ -103,7 +117,7 @@
       list.insertBefore(li.nextElementSibling, li); li.querySelector('.move.down').focus();
     }
   });
-  list.addEventListener('input', function (e) { var li = e.target.closest('.block'); if (li) { li.dataset.ai = ''; var t = li.querySelector('.ai'); if (t) t.remove(); } });
+  list.addEventListener('input', function (e) { var li = e.target.closest('.block'); if (li && li.dataset.ai === '1') settle(li); });
   // Drag to reorder with pointer events, so it works with a finger as well as a mouse.
   var drag = null;
   list.addEventListener('pointerdown', function (e) {
@@ -141,7 +155,7 @@
     form.querySelectorAll('.layouts label').forEach(function (l) { l.classList.toggle('on', l.querySelector('input').checked); });
   }); });
   new MutationObserver(soon).observe(list, {childList: true});
-  // Drag a piece from the right-hand list into the story, at the place you drop it.
+  // Drag a piece from the left-hand list into the story, at the place you drop it.
   var pool = document.getElementById('pool'), carry = null, startY = 0, startX = 0, moved = false;
   pool.addEventListener('dragstart', function (e) { e.preventDefault(); });  // no native image drag
   pool.addEventListener('pointerdown', function (e) {
@@ -158,21 +172,14 @@
     var b = carry; carry = null; b.classList.remove('dragging'); list.classList.remove('drop-here');
     if (!moved) return;  // a tap: the click handler adds it to the end
     var over = document.elementFromPoint(e.clientX, e.clientY);
-    if (!over || !over.closest('#blocks, .blocks')) return;
-    var li = block(b.dataset.artifact, b.querySelector('.thumb').innerHTML, b.dataset.from);
+    if (!over || !over.closest('#blocks, .blocks, .canvas')) return;
+    var li = addFromPool(b);
     var target = over.closest('.block');
     if (target && target !== li) { var r = target.getBoundingClientRect(); list.insertBefore(li, e.clientY < r.top + r.height / 2 ? target : target.nextSibling); }
     b.remove();
     pool.dataset.justDragged = '1'; setTimeout(function () { delete pool.dataset.justDragged; }, 50);
   });
-  form.addEventListener('submit', function () {
-    var out = [];
-    list.querySelectorAll('.block').forEach(function (li) {
-      out.push({artifact: li.dataset.artifact ? parseInt(li.dataset.artifact, 10) : null,
-                text: li.querySelector('textarea').value, by_ai: li.dataset.ai === '1'});
-    });
-    document.getElementById('blocks-json').value = JSON.stringify(out);
-  });
+  form.addEventListener('submit', function () { document.getElementById('blocks-json').value = blocksJson(); });
 })();
 </script>
 {% endblock %}
