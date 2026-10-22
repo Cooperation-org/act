@@ -4,7 +4,7 @@
    pair was checked for contrast: text 4.5:1, field edges and icons 3:1. */
 :root {
   --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --font-display: ui-serif, "New York", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
   --font-story: var(--font-display);
   --ink: #17201b;
   --ink-2: #404b45;
@@ -28,21 +28,29 @@
   --gap: 1.25rem;
   --tab-h: 4.25rem;
   --touch: 2.75rem;
+  --radius-sm: 8px;
+  --radius-lg: 20px;
+  /* spacing on an 8pt grid (1rem = 16pt) */
+  --s1: .25rem; --s2: .5rem; --s3: .75rem; --s4: 1rem; --s5: 1.5rem; --s6: 2rem; --s7: 3rem;
+  /* Apple text styles, in rem so they follow the reader's text size */
+  --t-large: 2.125rem; --t-title1: 1.75rem; --t-title2: 1.375rem; --t-title3: 1.25rem;
+  --t-body: 1.0625rem; --t-sub: .9375rem; --t-foot: .8125rem; --t-cap: .75rem;
+  color-scheme: light;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
-body { margin: 0; background: var(--bg); color: var(--ink); font: 400 1.0625rem/1.55 var(--font); }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 400 var(--t-body)/1.45 var(--font); -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; }
 img, video { max-width: 100%; }
 a { color: var(--accent); text-underline-offset: .15em; }
 a:hover { color: var(--accent-strong); }
 h1, h2 { font-family: var(--font-display); }
-h1 { font-size: 2rem; line-height: 1.15; font-weight: 600; margin: 0 0 .4rem; text-wrap: balance; }
-h2 { font-size: 1.3rem; line-height: 1.25; font-weight: 600; margin: 2.25rem 0 .6rem; }
-h3 { font-size: 1.05rem; font-weight: 700; margin: 0 0 .25rem; }
-p { margin: .4rem 0 .8rem; }
-.lede { font-size: 1.15rem; color: var(--ink-2); max-width: 38rem; text-wrap: pretty; }
-.muted, small { color: var(--ink-3); font-size: .875rem; }
+h1 { font-size: var(--t-title1); line-height: 1.12; font-weight: 600; letter-spacing: -.014em; margin: 0 0 var(--s2); text-wrap: balance; }
+h2 { font-size: var(--t-title2); line-height: 1.2; font-weight: 600; letter-spacing: -.01em; margin: var(--s6) 0 var(--s3); }
+h3 { font-size: var(--t-body); font-weight: 600; margin: 0 0 var(--s1); }
+p { margin: var(--s2) 0 var(--s3); }
+.lede { font-size: var(--t-title3); line-height: 1.4; color: var(--ink-2); max-width: 36rem; text-wrap: pretty; }
+.muted, small { color: var(--ink-3); font-size: var(--t-sub); }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* line icons from the sprite in _icons.html; they take the color of the text beside them */
@@ -66,12 +74,15 @@ header.kit nav a[aria-current="page"] { color: var(--ink); font-weight: 700; bor
 .flash li.error { background: var(--danger-bg); color: var(--danger); }
 
 /* buttons and fields */
-.btn, button { font: 600 1rem/1.2 var(--font); border: 1px solid transparent; border-radius: var(--radius); padding: .65rem 1.1rem; min-height: var(--touch); background: var(--accent); color: var(--accent-ink); cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: .5rem; transition: background-color .15s ease-out, border-color .15s ease-out; }
+.btn, button { font: 600 var(--t-body)/1.2 var(--font); border: 1px solid transparent; border-radius: var(--radius); padding: .65rem 1.1rem; min-height: var(--touch); background: var(--accent); color: var(--accent-ink); cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: .5rem; transition: background-color .15s ease-out, border-color .15s ease-out, transform .18s cubic-bezier(.32, .72, 0, 1), opacity .15s ease-out; }
 .btn:hover, button:hover { background: var(--accent-strong); color: #fff; }
 .btn.quiet, button.quiet { background: var(--paper); color: var(--accent); border-color: var(--edge); }
 .btn.quiet:hover, button.quiet:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-strong); }
-.btn.big { font-size: 1.1rem; padding: .9rem 1.4rem; min-height: 3.25rem; }
+.btn.big { padding: .9rem 1.4rem; min-height: 3.25rem; }
 button:disabled { opacity: .5; cursor: not-allowed; }
+.btn, button, .chip, summary { touch-action: manipulation; }
+.btn:active, button:active, .chip:active { transform: scale(.97); opacity: .88; transition-duration: .08s; }
+@media (hover: none) { .btn:hover, button:hover { background: var(--accent); } .btn.quiet:hover, button.quiet:hover { background: var(--paper); border-color: var(--edge); } }
 label { display: block; font-weight: 600; margin: 1rem 0 .3rem; }
 label .muted { font-weight: 400; }
 input[type=text], input[type=url], input[type=email], input[type=date], input[type=search], textarea, select {
@@ -223,6 +234,10 @@ details.more-chips[open] summary { display: none; }
 .demo-bar .btn { padding: .35rem .9rem; }
 
 /* motion is a nicety, never a requirement */
+/* Increase Contrast: darker edges and text, no soft greys */
+@media (prefers-contrast: more) {
+  :root { --ink-2: #17201b; --ink-3: #2e3832; --edge: #4b5750; --rule: #7a867f; --accent-soft: #d6e4d9; }
+}
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
