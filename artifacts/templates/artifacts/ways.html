@@ -2,19 +2,20 @@
 {% load kit %}
 {% block title %}Ways to send · Story Kit{% endblock %}
 {% block content %}
-<h1>Ways to send us things</h1>
-<p class="lede">Use whichever is easiest. Everything ends up in <a href="{% url 'artifacts:library' %}">What we have</a>{% if count %} ({{ count }} so far){% endif %}, with who sent it and when.</p>
+<h1>Ways to add things</h1>
+<p class="lede">Use whichever is easiest. Everything ends up in your <a href="{% url 'artifacts:library' %}">Library</a>{% if count %} ({{ count }} so far){% endif %}, with who sent it and when.</p>
 
 <ul class="ways">
-  <li>
+  <li id="phone">
     <span class="icon">{% ic "phone" "ic-lg" %}</span>
     <div>
       <h3>From your phone</h3>
       <div class="qr">{{ send_qr }}<p>Scan with your phone's camera. Then add it to your home screen.</p></div>
-      <div class="copy"><code id="send-url">{{ send_url }}</code><button type="button" class="quiet" data-copy="send-url">Copy link</button><a class="btn" href="{% url 'artifacts:send' %}">Open</a></div>
+      <p class="touch-only">You are already on your phone. Open Add and, in your browser's menu, choose Add to Home Screen so Story Kit opens like an app.</p>
+      <div class="copy"><code id="send-url">{{ send_url }}</code><button type="button" class="quiet" data-copy="send-url">Copy link</button><a class="btn" href="{% url 'artifacts:send' %}">Open Add</a></div>
     </div>
   </li>
-  <li>
+  <li id="email">
     <span class="icon">{% ic "mail" "ic-lg" %}</span>
     <div>
       <h3>By email</h3>
@@ -27,7 +28,7 @@
       {% endif %}
     </div>
   </li>
-  <li>
+  <li id="drive">
     <span class="icon">{% ic "drive" "ic-lg" %}</span>
     <div>
       <h3>From a Google Drive folder</h3>
@@ -40,7 +41,7 @@
         <form method="post" action="{% url 'artifacts:check_source' s.pk %}" style="display:inline">{% csrf_token %}<button class="quiet" type="submit">Copy new files now</button></form></li>{% endfor %}</ul>{% endif %}
     </div>
   </li>
-  <li>
+  <li id="link">
     <span class="icon">{% ic "link" "ic-lg" %}</span>
     <div>
       <h3>A link</h3>
@@ -52,7 +53,7 @@
       </form>
     </div>
   </li>
-  <li>
+  <li id="claims">
     <span class="icon">{% ic "signed" "ic-lg" %}</span>
     <div>
       <h3>LinkedClaims about you</h3>

@@ -1,4 +1,5 @@
 {% extends "artifacts/base.html" %}
+{% load kit %}
 {% block title %}Stories · Story Kit{% endblock %}
 {% block content %}
 <h1>Stories</h1>
@@ -25,6 +26,6 @@
 </div>
 {% endif %}
 {% if stories %}
-<ul class="list">{% for s in stories %}<li><span><a href="{% url 'artifacts:story_edit' s.slug %}"><strong>{{ s.title }}</strong></a> · {{ s.get_template_display }} · {{ s.get_status_display }}</span><span>{% if s.status == "published" %}<a href="{% url 'artifacts:story' s.slug %}">View</a> · {% endif %}<small>edited {{ s.updated|timesince }} ago</small></span></li>{% endfor %}</ul>
-{% elif not any %}<div class="empty"><p>Send something first. <a href="{% url 'artifacts:send' %}">Send a photo</a></p></div>{% endif %}
+<ul class="list">{% for s in stories %}<li><span><a href="{% url 'artifacts:story_edit' s.slug %}"><strong>{{ s.title }}</strong></a><small class="sub">{{ s.get_template_display }} · edited {{ s.updated|timesince }} ago</small></span><span class="end"><span class="status{% if s.status == "published" %} live{% endif %}">{{ s.get_status_display }}</span>{% if s.status == "published" %}<a href="{% url 'artifacts:story' s.slug %}">View</a>{% endif %}</span></li>{% endfor %}</ul>
+{% elif not any %}<div class="empty"><span class="empty-icon">{% ic "stories" "ic-xl" %}</span><h2>No stories yet</h2><p>Add a few photos, videos or voice notes first. Then pick them in your Library and make a story.</p><p><a class="btn big" href="{% url 'artifacts:send' %}">{% ic "plus" %}<span>Add something</span></a></p></div>{% endif %}
 {% endblock %}

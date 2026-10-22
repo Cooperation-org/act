@@ -1,4 +1,5 @@
 {% extends "artifacts/base.html" %}
+{% load kit %}
 {% block title %}Labels · Story Kit{% endblock %}
 {% block content %}
 <h1>Labels</h1>
@@ -17,5 +18,5 @@
   {% endfor %}
   </tbody>
 </table>
-{% else %}<div class="empty"><p>No labels yet. Add them on any item, or tick items in <a href="{% url 'artifacts:library' %}">What we have</a>.</p></div>{% endif %}
+{% else %}<div class="empty"><p>No labels yet. Add them on any item, or pick items in your <a href="{% url 'artifacts:library' %}">Library</a>.</p></div>{% endif %}
 {% endblock %}

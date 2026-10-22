@@ -1,8 +1,11 @@
 {% extends "artifacts/base.html" %}
+{% load kit %}
 {% block title %}{{ a }} · Story Kit{% endblock %}
 {% block head %}{% if a.claim_id %}<script src="{{ lt_embed }}/badge.js" defer></script>{% endif %}{% endblock %}
 {% block content %}
-<p><a href="{% url 'artifacts:library' %}">← What we have</a></p>
+<p class="crumb"><a class="back" href="{% url 'artifacts:library' %}">{% ic "chevron-left" %}Library</a></p>
+<h1>{{ a.title|default:a.get_kind_display }}</h1>
+<p class="state">{% if a.claim_id %}<span class="status live">{% ic "signed" "ic-sm" %}Signed</span>{% else %}<span class="status">Not signed yet</span>{% endif %}{% if a.consent %}<span class="status live">{% ic "check" "ic-sm" %}Everyone shown agreed</span>{% endif %}</p>
 <div class="detail">
   <div>
     <div class="media">
@@ -29,7 +32,7 @@
       <label class="row" style="font-weight:400"><input type="checkbox" name="consent"{% if a.consent %} checked{% endif %}> Everyone shown agreed to be in it</label>
       <p><button type="submit">Save</button></p>
     </form>
-    <h2>Where it came from</h2>
+    <section class="provenance"><h2>Where it came from</h2>
     <dl class="facts">
       <dt>Kind</dt><dd>{{ a.get_kind_display }}</dd>
       <dt>Happened</dt><dd>{{ a.happened_at|date:"j M Y, H:i"|default:"not known" }}</dd>
@@ -39,7 +42,7 @@
       {% if a.filename %}<dt>File</dt><dd>{{ a.filename }} · {{ a.size|filesizeformat }}</dd>{% endif %}
       {% if a.claim_id %}<dt>LinkedClaim</dt><dd><a href="{{ a.claim_url }}">{{ a.claim_url }}</a></dd>{% endif %}
       {% for c in a.collections.all %}{% if forloop.first %}<dt>In</dt><dd>{% endif %}<a href="{% url 'artifacts:collection' c.pk %}">{{ c.name }}</a>{% if not forloop.last %}, {% else %}</dd>{% endif %}{% endfor %}
-    </dl>
+    </dl></section>
   </div>
 </div>
 {% endblock %}
