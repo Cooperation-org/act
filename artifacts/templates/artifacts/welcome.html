@@ -1,6 +1,23 @@
 {% extends "artifacts/base.html" %}
+{% load static kit %}
+{% block title %}Story Kit · Real moments. Trusted stories.{% endblock %}
 {% block content %}
-<h1>Collect your stories as they happen.</h1>
-<p class="lede">Send photos, videos, voice notes, links and files from your phone, your email or a Google Drive folder. Everything lands in one place, with who sent it and when. Then put the pieces together into a story you can share.</p>
-<p><a class="btn big" href="{% url 'artifacts:signin' %}?next={% url 'artifacts:start' %}">Sign in to start</a></p>
+<section class="hero">
+  <div class="hero-copy">
+    <h1>Real moments.<br>Trusted stories.</h1>
+    <p class="lede">Send photos, videos and voice notes from your phone. Story Kit keeps them together, with who sent each one and when, then helps you turn them into a story people can trust.</p>
+    <p class="row"><a class="btn big" href="{% url 'artifacts:signin' %}?next={% url 'artifacts:start' %}">Sign in to start</a>{% if demo_on %}<a class="btn big quiet" href="{% url 'artifacts:demo' %}">Try the demo</a>{% endif %}</p>
+  </div>
+  <figure class="device">
+    <div class="screen"><img src="{% static 'artifacts/welcome-capture.png' %}" width="750" height="1624" alt="The Story Kit capture screen on a phone, with buttons to add a photo, video, voice note, link or file."></div>
+  </figure>
+</section>
+<section class="steps" aria-labelledby="how">
+  <h2 id="how" class="sr">How it works</h2>
+  <ol>
+    <li>{% ic "camera" "ic-lg" %}<div><h3>Capture</h3><p>Take a photo, record a voice note, or bring in files you already have.</p></div></li>
+    <li>{% ic "library" "ic-lg" %}<div><h3>Organize</h3><p>Everything lands in one Library, labelled with who sent it and when.</p></div></li>
+    <li>{% ic "stories" "ic-lg" %}<div><h3>Share</h3><p>Build a story from real pieces. Readers can see how each one arrived.</p></div></li>
+  </ol>
+</section>
 {% endblock %}

@@ -418,3 +418,24 @@ input[type=text].title-input:focus { background: var(--paper); border-color: var
 .start-card label.row input { flex: 1 1 auto; width: auto; }
 .start-card label.row { align-items: center; }
 .start-card select { width: 100%; }
+
+/* ── welcome: the real product, one idea at a time ── */
+.hero { display: grid; gap: var(--s6); align-items: center; padding: var(--s6) 0 var(--s5); }
+.hero h1 { font-size: clamp(2.5rem, 9vw, 4.25rem); line-height: 1.04; letter-spacing: -.025em; margin: 0 0 var(--s4); }
+.hero .lede { margin-bottom: var(--s5); }
+.hero .row { gap: var(--s3); }
+.device { position: relative; width: min(17.5rem, 76vw); margin: 0 auto; padding: .55rem; border-radius: 2.75rem; background: #17201b; box-shadow: 0 32px 64px -24px rgba(23, 32, 27, .45), 0 0 0 1px rgba(23, 32, 27, .6); }
+.device::before { content: ""; position: absolute; top: 1.1rem; left: 50%; width: 4.6rem; height: 1.35rem; border-radius: 999px; background: #0b0f0d; transform: translateX(-50%); z-index: 1; }
+.device .screen { padding-top: 1.9rem; background: var(--bg); border-radius: 2.25rem; overflow: hidden; }
+.device img { display: block; width: 100%; height: auto; }
+.steps { padding: var(--s6) 0 var(--s7); }
+.steps ol { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s5); }
+.steps li { display: grid; grid-template-columns: 2rem 1fr; gap: var(--s4); align-items: start; }
+.steps li .ic { color: var(--accent); margin-top: .15rem; }
+.steps h3 { font-size: var(--t-title3); margin: 0 0 var(--s1); }
+.steps p { margin: 0; color: var(--ink-2); max-width: 24rem; }
+@media (min-width: 56rem) {
+  .hero { grid-template-columns: 1.15fr .85fr; gap: var(--s7); padding: var(--s7) 0 var(--s6); }
+  .steps ol { grid-template-columns: repeat(3, 1fr); gap: var(--s6); }
+  .device { width: 18.5rem; margin: 0 auto; }
+}

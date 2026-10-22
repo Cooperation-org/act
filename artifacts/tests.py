@@ -662,3 +662,22 @@ class EditorTests(Base):
 
     def test_a_paragraph_is_labelled_as_one(self):
         self.assertIn("A paragraph", self.page())
+
+
+class WelcomeTests(Base):
+    def setUp(self):
+        super().setUp()
+        self.page = lambda: self.client.get(reverse("artifacts:home")).content.decode()
+
+    def test_front_door_says_what_it_is_and_shows_the_real_screen(self):
+        page = self.page()
+        self.assertIn("Real moments.", page)
+        self.assertIn("Sign in to start", page)
+        self.assertRegex(page, r'<img src="[^"]*welcome-capture[^"]*\.png"[^>]*alt="[^"]{20,}"')
+        for step in ("Capture", "Organize", "Share"):
+            self.assertIn(f"<h3>{step}</h3>", page)
+
+    def test_demo_link_only_when_a_demo_exists(self):
+        self.assertNotIn("Try the demo", self.page())
+        with override_settings(ACT_DEMO_ORG=self.org.slug):
+            self.assertIn("Try the demo", self.page())

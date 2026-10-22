@@ -98,7 +98,7 @@ def demo_leave(request):
 
 def home(request):
     if not request.user.is_authenticated:
-        return render(request, "artifacts/welcome.html")
+        return render(request, "artifacts/welcome.html", {"demo_on": demo.sample_org() is not None})
     org = current_org(request)
     if org is None:
         return redirect("artifacts:start")
