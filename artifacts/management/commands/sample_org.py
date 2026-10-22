@@ -11,13 +11,27 @@ import tempfile
 from datetime import datetime, timezone
 
 from django.core.management.base import BaseCommand, CommandError
+from django.utils import timezone as dj_timezone
 
 from campaigns.models import Org
 
 from ...intake import add_file, add_reference
-from ...models import ArtifactKind, Source, SourceKind, Tag, TagGroup
+from ...models import (Artifact, ArtifactKind, Collection, Source, SourceKind, Story, StoryBlock, StoryStatus,
+                       Tag, TagGroup)
 
 STAFF, MENTOR = "jordan@umbrella.example", "lee.mentor@umbrella.example"
+
+# One finished story, built from the bakery's pieces: (piece title or None, paragraph).
+STORY_SLUG = "main-street-bakery-first-months"
+STORY = [
+    (None, "Maria had a plan for a bakery and a price list that only worked for her."),
+    ("Pitch night", ""),
+    (None, "By July she had signed a lease on the corner storefront."),
+    ("Lease signed", ""),
+    ("40", ""),
+    (None, "By October the bakery had outgrown its oven."),
+    ("Second oven", ""),
+]
 
 # (site, business, owner email, [(date, kind, title, words, extra labels)])
 # kind: photo, voice, video, text, link, data. Items with labels=None are left unlabeled,
@@ -145,4 +159,23 @@ class Command(BaseCommand):
                     a.tags.add(Tag.objects.get_or_create(org=org, name=site, defaults={"group": TagGroup.PART})[0],
                                Tag.objects.get_or_create(org=org, name=business, defaults={"group": TagGroup.PART})[0],
                                *[Tag.objects.get_or_create(org=org, name=x)[0] for x in labels])
+        self._story(org)
         self.stdout.write(f"{made} new sample items in {org.name} ({n} in the sample).")
+
+    def _story(self, org):
+        """A finished story and the collection it came from, so the builder and the public page have something to show."""
+        everything = Artifact.objects.filter(org=org)
+        collection, _ = Collection.objects.get_or_create(org=org, name="Spring cohort", defaults={
+            "description": "Everything the spring cohort sent in."})
+        collection.artifacts.add(*everything)
+        story, created = Story.objects.get_or_create(org=org, slug=STORY_SLUG, defaults={
+            "title": "Main Street Bakery: the first months", "collection": collection, "status": StoryStatus.PUBLISHED,
+            "published_at": dj_timezone.now(), "statement": "Photos, a number and a few lines from the owner, "
+            "sent in as they happened, from the pitch to a second oven."})
+        if not created or story.blocks.exists():
+            return
+        for i, (title, text) in enumerate(STORY):
+            piece = everything.filter(title=title).first() if title else None
+            if title and piece is None:
+                continue
+            StoryBlock.objects.create(story=story, order=i, artifact=piece, text=text)

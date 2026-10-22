@@ -652,6 +652,17 @@ class SampleOrgTests(Base):
         call_command("sample_org", self.org.slug, stdout=io.StringIO())      # safe to run again
         self.assertEqual(Artifact.objects.filter(org=self.org, kind=ArtifactKind.DATA).count(), 2)
 
+    def test_the_sample_has_a_published_story_made_from_its_own_pieces(self):
+        from django.core.management import call_command
+        call_command("sample_org", self.org.slug, stdout=io.StringIO())
+        call_command("sample_org", self.org.slug, stdout=io.StringIO())
+        story = Story.objects.get(org=self.org)
+        self.assertEqual((story.status, story.collection.name), ("published", "Spring cohort"))
+        kinds = [b.artifact.kind if b.artifact else "paragraph" for b in story.blocks.select_related("artifact")]
+        self.assertIn("data", kinds)
+        self.assertEqual(len(kinds), 7)
+        self.assertEqual(Collection.objects.filter(org=self.org).count(), 1)
+
 
 class NumberTests(Base):
     """A number is kept with what it counts and where it came from, or it is not kept."""
