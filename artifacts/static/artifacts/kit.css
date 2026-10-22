@@ -223,7 +223,7 @@ details.more summary { cursor: pointer; color: var(--accent); padding: 4.8px 0; 
 .sending p { margin: 0; color: var(--ink-2); }
 .sending progress { width: 100%; height: .5rem; appearance: none; -webkit-appearance: none; border: 0; border-radius: 999px; background: var(--accent-soft); overflow: hidden; }
 .sending progress::-webkit-progress-bar { background: var(--accent-soft); border-radius: 999px; }
-.sending progress::-webkit-progress-value { background: var(--accent); border-radius: 999px; transition: width .2s ease-out; }
+.sending progress::-webkit-progress-value { background: var(--accent); border-radius: 999px; }
 .sending progress::-moz-progress-bar { background: var(--accent); border-radius: 999px; }
 .notice { display: flex; gap: var(--s3); align-items: flex-start; padding: var(--s3) var(--s4); border-radius: var(--radius); margin: var(--s4) 0 0; }
 .notice.ok { background: var(--accent-soft); }

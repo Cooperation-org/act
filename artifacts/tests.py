@@ -628,6 +628,9 @@ class PublicStoryTests(Base):
     def test_public_page_never_shows_who_sent_it(self):
         self.assertNotIn("private.person@example.org", self.page)
 
+    def test_story_page_has_one_main(self):
+        self.assertEqual(self.page.count("<main"), 1)
+
     def test_no_side_stripe_on_quotes(self):
         self.assertNotRegex(self.page, r"border-left:\s*[3-9]px")
 

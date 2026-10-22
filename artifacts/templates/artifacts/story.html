@@ -69,7 +69,7 @@
 {% include "artifacts/_icons.html" %}
 {% if s.status != "published" %}<div class="draftbar">Preview. Only your team can see this until it is published. <a href="{% url 'artifacts:story_edit' s.slug %}">Back to editing</a></div>
 {% elif is_member %}<div class="draftbar" style="background:var(--accent-soft);color:var(--ink)"><a href="{% url 'artifacts:story_edit' s.slug %}">Edit this story</a></div>{% endif %}
-<article class="story{% if s.template %} {{ s.template }}{% endif %}">
+<main id="main"><article class="story{% if s.template %} {{ s.template }}{% endif %}">
   <header>
     <p class="org">{% if s.org.website %}<a href="{{ s.org.website }}" style="color:inherit;text-decoration:none">{{ s.org.name }}</a>{% else %}{{ s.org.name }}{% endif %}</p>
     <h1>{{ s.title }}</h1>
@@ -107,6 +107,6 @@
     </details>{% endif %}
     {{ s.org.name }}{% if s.published_at %} · {{ s.published_at|date:"j F Y" }}{% endif %}
   </footer>
-</article>
+</article></main>
 </body>
 </html>
