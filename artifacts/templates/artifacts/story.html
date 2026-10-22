@@ -13,10 +13,11 @@
 <script src="{{ lt_embed }}/badge.js" defer></script>
 <style>
   body { background: var(--paper); }
-  .story { max-width: 46rem; margin: 0 auto; padding: 0 1.25rem 6rem; font-family: var(--font-story); }
+  .story { max-width: 46rem; margin: 0 auto; padding: 0 20px 96px; font-family: var(--font-story); }
   .draftbar { background: var(--warn-bg); color: var(--warn-ink); text-align: center; padding: .6rem 1rem; font-size: .95rem; }
   .story header { padding: 5rem 0 2.5rem; }
   .story .org { font: 600 var(--t-foot)/1.2 var(--font); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 1rem; }
+  .story h1, .story h2 { overflow-wrap: anywhere; }
   .story h1 { font-family: var(--font); font-weight: 700; font-size: clamp(2.2rem, 6vw, 3.4rem); line-height: 1.06; letter-spacing: -.028em; margin: 0 0 1.2rem; }
   .story .statement { font-size: 1.35rem; line-height: 1.45; color: var(--ink-2); margin: 0; }
   .story .rule { width: 3rem; height: 3px; background: var(--accent); border: 0; border-radius: 2px; margin: 2.5rem 0 0; }
@@ -61,7 +62,7 @@
   .onepage footer { margin-top: 1.5rem; }
   @media (max-width: 760px) { .onepage .pieces { grid-template-columns: repeat(2, 1fr); } }
   @media print { .draftbar { display: none; } .onepage .pieces { grid-template-columns: repeat(3, 1fr); } .onepage header { padding-top: 0; } }
-  @media (max-width: 760px) { .story header { padding: 3rem 0 1.5rem; } .piece { margin: 2.5rem 0; } .piece .wide { margin: 0 -1.25rem; } }
+  @media (max-width: 760px) { .story header { padding: 3rem 0 1.5rem; } .piece { margin: 2.5rem 0; } .piece .wide { margin: 0 -20px; } }
 </style>
 </head>
 <body>

@@ -681,3 +681,24 @@ class WelcomeTests(Base):
         self.assertNotIn("Try the demo", self.page())
         with override_settings(ACT_DEMO_ORG=self.org.slug):
             self.assertIn("Try the demo", self.page())
+
+
+class LargeTextTests(TestCase):
+    """Spacing and tap sizes are fixed, text is not, so a bigger text setting reflows instead of overflowing."""
+
+    def css(self):
+        import pathlib
+        return (pathlib.Path(__file__).parent / "static/artifacts/kit.css").read_text()
+
+    def test_gutters_do_not_grow_with_the_text(self):
+        import re
+        offenders = re.findall(r"(?<![\w-])(?:padding|margin|gap)(?:-[a-z]+)?: [^;}\n]*\d\.?\d*rem", self.css())
+        self.assertEqual(offenders, [], "spacing in rem grows with the text setting; use the --s tokens or px")
+
+    def test_tap_size_is_fixed(self):
+        self.assertIn("--touch: 44px;", self.css())
+
+    def test_motion_transparency_and_contrast_have_a_way_out(self):
+        css = self.css()
+        for query in ("prefers-reduced-motion", "prefers-reduced-transparency", "prefers-contrast"):
+            self.assertIn(query, css)
