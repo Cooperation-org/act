@@ -43,6 +43,7 @@
   <div class="sheet-top"><div class="grabber"></div>
     <div class="sheet-head"><h2 id="account-title">{{ org.name }}</h2><button type="button" data-close>Done</button></div></div>
   <div class="sheet-body">
+    {% if org.demo_copy %}<p class="who">A practice copy of a sample organization. Change anything; it is cleared after about a day.</p>{% endif %}
     <ul class="menu">
       <li><a href="{% url 'artifacts:send' %}">{% ic "plus" %}<span>Add something</span></a></li>
       <li><a href="{% url 'artifacts:library' %}?show=inbox">{% ic "inbox" %}<span>Inbox</span>{% if chrome.inbox %}<span class="count">{{ chrome.inbox }}</span>{% endif %}</a></li>
@@ -60,7 +61,6 @@
 </dialog>
 {% endif %}
 <main id="main" class="wrap{% block wrapclass %}{% endblock %}">
-{% if org.demo_copy %}<p class="demo-bar"><span>This is your own copy of a made-up organization. Change anything.</span> <a class="btn" href="{% url 'artifacts:demo_leave' %}">Start your own</a></p>{% endif %}
 {% if messages %}<ul class="flash" role="status">{% for m in messages %}<li class="{{ m.tags }}">{{ m }}</li>{% endfor %}</ul>{% endif %}
 {% block content %}{% endblock %}
 </main>

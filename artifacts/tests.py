@@ -477,7 +477,9 @@ class DemoTests(Base):
                          (self.a.file.name, "sample", ["riverside"]))
         self.assertEqual(Story.objects.get(org=d.org).blocks.get().artifact, copy)
         page = self.client.get(reverse("artifacts:library"))
-        self.assertContains(page, "Start your own")
+        self.assertContains(page, "Start your own")        # in the account sheet
+        self.assertNotContains(page, 'class="demo-bar"')   # no strip across the top of every page
+        self.assertContains(page, "A practice copy of a sample organization")
         # an edit in the copy leaves the sample alone
         self.client.post(reverse("artifacts:artifact_quick", args=[copy.pk]), '{"title": "mine"}', content_type="application/json")
         self.a.refresh_from_db()

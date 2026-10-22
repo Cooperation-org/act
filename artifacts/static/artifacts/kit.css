@@ -95,10 +95,6 @@ p { margin: var(--s2) 0 var(--s3); }
 :root { --tab-h: min(3.5rem, 4.5rem); }
 .toolbar, .savebar { bottom: calc(var(--tab-h) + env(safe-area-inset-bottom)); }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 2rem); bottom: calc(var(--tab-h) + env(safe-area-inset-bottom) + var(--s4)); }
-.demo-bar { display: flex; flex-wrap: wrap; gap: var(--s2) var(--s3); align-items: center; justify-content: space-between; background: var(--warn-bg); color: var(--warn-ink); border-radius: var(--radius); padding: var(--s2) var(--s3); margin: 0 0 var(--s4); font-size: var(--t-foot); line-height: 1.35; }
-.demo-bar span { flex: 1 1 8rem; }
-.demo-bar .btn { min-height: var(--touch); flex: 0 1 auto; max-width: 100%; padding: 0 var(--s4); font-size: var(--t-sub); background: transparent; color: var(--warn-ink); border-color: currentColor; }
-.demo-bar .btn:hover { background: rgba(107, 74, 18, .1); color: var(--warn-ink); }
 @media (prefers-reduced-transparency: reduce) { .tabs, .top { background: var(--paper); -webkit-backdrop-filter: none; backdrop-filter: none; } }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .tabs { background: var(--paper); } }
 
@@ -305,7 +301,7 @@ details.more summary { cursor: pointer; color: var(--accent); padding: 4.8px 0; 
 .say-bar { position: sticky; z-index: 5; bottom: 0; display: flex; gap: var(--s3); padding: var(--s3) 0 max(var(--s3), env(safe-area-inset-bottom)); margin-top: var(--s5); background: linear-gradient(to bottom, rgba(244, 245, 241, 0), var(--bg) 28%); }
 .say-bar .big { flex: 1 1 auto; min-height: 3.25rem; border-radius: var(--radius-lg); font-size: var(--t-body); }
 .say-bar .quiet { flex: 0 0 auto; border-radius: var(--radius-lg); }
-body.saying .tabs, body.saying .top, body.saying .demo-bar { display: none; }
+body.saying .tabs, body.saying .top { display: none; }
 body.saying .has-nav .wrap, body.saying.has-nav .wrap { padding-bottom: var(--s5); }
 .sending { margin-top: var(--s4); display: grid; gap: var(--s2); }
 .sending p { margin: 0; color: var(--ink-2); }
@@ -474,9 +470,6 @@ body:has(dialog[open]) { overflow: hidden; }
 .seg a { flex: 1 1 0; padding: 0 var(--s2); }
 @media (max-width: 40rem) { .grid { grid-template-columns: repeat(auto-fill, minmax(min(9.5rem, 100%), 1fr)); } }
 @media (min-width: 40rem) { .lib-bar .search { flex: 1 1 18rem; } }
-.demo-bar { flex-wrap: wrap; align-items: center; }
-.demo-bar span { flex: 1 1 8rem; }
-.demo-bar .btn { flex: 0 1 auto; max-width: 100%; }
 
 /* ── story builder: the helper and the pieces on the left, the story as a document ── */
 .crumb { margin: 0 0 var(--s3); }
