@@ -405,6 +405,35 @@ def _with(f, key, value):
     return f"{reverse('artifacts:library')}?{urlencode(rest, doseq=True)}"
 
 
+def _set(f, key, value):
+    """The library address with one single-valued filter set, or cleared when value is empty."""
+    rest = {k: x for k, x in f.items() if k != key}
+    if value:
+        rest[key] = value
+    q = urlencode(rest, doseq=True)
+    return reverse("artifacts:library") + (f"?{q}" if q else "")
+
+
+KIND_PLURAL = {"photo": "Photos", "video": "Videos", "voice": "Voice", "text": "Notes", "file": "Files",
+               "link": "Links", "claim": "Claims", "data": "Numbers"}
+SEGMENTS = 4  # All plus the four most used kinds fit a phone; the rest are in the filter sheet
+
+
+def _active(f):
+    """(words, address that takes it off) for each filter in force, so each can be removed in one tap."""
+    out = [(v, _without(f, k, v)) for k in MULTI_KEYS for v in f.get(k, [])]
+    if f.get("q"):
+        out.append((f"\u201c{f['q']}\u201d", _set(f, "q", "")))
+    for key, label in (("person", ""), ("since", "From "), ("until", "To ")):
+        if f.get(key):
+            out.append((f"{label}{f[key]}", _set(f, key, "")))
+    if f.get("source"):
+        out.append((dict(SourceKind.choices).get(f["source"], f["source"]), _set(f, "source", "")))
+    if f.get("show") == "hidden":
+        out.append(("Archived", _set(f, "show", "")))
+    return out
+
+
 def _without(f, key, value):
     """The library address with one chosen label taken off."""
     rest = {k: ([x for x in v if x != value] if k == key else v) for k, v in f.items()}
@@ -468,7 +497,15 @@ def library(request):
         n=Count("artifacts", filter=~Q(artifacts__status=ArtifactStatus.HIDDEN), distinct=True)) \
         .filter(n__gt=0).order_by("-n", "name")
     chosen = [(k, v, _without(f, k, v)) for k in MULTI_KEYS for v in f.get(k, [])]
+    present = [k for k, _ in ArtifactKind.choices if everything.filter(kind=k).exists()]
+    shown = present[:SEGMENTS]
+    if f.get("kind") in present and f["kind"] not in shown:
+        shown = shown[:-1] + [f["kind"]]  # the one chosen is always on show
+    kind_links = [("All", _set(f, "kind", ""), not f.get("kind"))] + [
+        (KIND_PLURAL.get(k, k.title()), _set(f, "kind", k), f.get("kind") == k) for k in shown]
     return render(request, "artifacts/library.html", {
+        "kind_links": kind_links, "active": _active(f),
+        "keep_all": [(k, x) for k, val in f.items() if k != "q" for x in (val if isinstance(val, list) else [val])],
         "org": org, "nav": "library", "items": qs[:300], "total": qs.count(), "f": f, "filter_json": json.dumps(f),
         "any_at_all": everything.exists(),
         "kinds": [(k, label) for k, label in ArtifactKind.choices if everything.filter(kind=k).exists()],

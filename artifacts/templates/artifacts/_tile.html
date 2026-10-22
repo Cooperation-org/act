@@ -1,14 +1,14 @@
 {% load kit %}<div class="tile" data-pk="{{ a.pk }}" data-quick="{% url 'artifacts:artifact_quick' a.pk %}">
-  {% if pickable %}<label class="pick"><input type="checkbox" name="ids" value="{{ a.pk }}" form="{{ form_id|default:'bulk' }}" aria-label="Select"></label>
+  {% if pickable %}<label class="pick"><input type="checkbox" name="ids" value="{{ a.pk }}" form="{{ form_id|default:'bulk' }}"><span class="sr">Select {{ a.title|default:a.get_kind_display }}</span></label>
   {% if not form_id %}{% if a.status == "hidden" %}<button type="button" class="x restore" aria-label="Bring back" title="Bring back">{% ic "undo" %}</button>{% else %}<button type="button" class="x archive" aria-label="Archive" title="Archive">{% ic "archive" %}</button>{% endif %}{% endif %}{% endif %}
   <a class="open" href="{% url 'artifacts:artifact' a.pk %}"><div class="media">{% include "artifacts/_media.html" %}</div></a>
   <div class="body">
-    <span class="kind">{{ a.get_kind_display }}</span>
+    <span class="kind">{% ic a.kind|kind_icon "ic-sm" %}{{ a.get_kind_display }}</span>
     {% if pickable %}<h3 class="edit" contenteditable="plaintext-only" spellcheck="true" data-placeholder="Add a title" aria-label="Title">{{ a.title }}</h3>{% elif a.title %}<h3>{{ a.title }}</h3>{% endif %}
     <a class="open" href="{% url 'artifacts:artifact' a.pk %}">
       {% if a.words %}<p>{{ a.words }}</p>{% elif a.filename %}<p class="muted">{{ a.filename }}</p>{% elif a.source_url %}<p class="muted">{{ a.source_url }}</p>{% endif %}
-      <small>{{ a.when|date:"j M Y" }}{% if a.sent_by %} · {{ a.sent_by|truncatechars:32 }}{% endif %}</small>
-      <div>{% for t in a.tags.all %}<span class="tag{% if t.group == 'part' %} part{% endif %}">{{ t.name }}</span>{% endfor %}</div>
+      <small>{{ a.when|date:"j M Y" }}</small>
+      <div class="tile-tags">{% for t in a.tags.all|slice:":2" %}<span class="tag{% if t.group == 'part' %} part{% endif %}">{{ t.name }}</span>{% endfor %}{% with n=a.tags.all|length %}{% if n > 2 %}<span class="tag more">+{{ n|add:"-2" }}</span>{% endif %}{% endwith %}</div>
     </a>
   </div>
 </div>

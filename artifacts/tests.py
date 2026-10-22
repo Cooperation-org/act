@@ -13,7 +13,7 @@ from django.urls import reverse
 from campaigns.models import Org, VolunteerProfile
 
 from .intake import add_file, kind_for
-from .models import Artifact, ArtifactKind, Collection, Source, SourceKind, Story, StoryBlock
+from .models import Artifact, ArtifactKind, Collection, Source, SourceKind, Story, StoryBlock, Tag, TagGroup
 from .spouts import drive_folder_id, file_email, import_claims, parse_email
 
 MEDIA = tempfile.mkdtemp()
@@ -559,3 +559,45 @@ class SendUploadTests(Base):
         self.assertIn('id="go" disabled', page)
         self.assertIn("to send.", page)  # the hint beside a disabled Send says why
         self.assertNotIn("Click a button", page)
+
+
+class LibraryTests(Base):
+    def setUp(self):
+        super().setUp()
+        self.client.force_login(self.user)
+        add_file(self.org, data=png_bytes("red"), filename="a.png", content_type="image/png", source=self.upload, words="Bakery counter")
+        add_file(self.org, data=b"note", filename="n.txt", content_type="text/plain", source=self.upload, words="Lease signed")
+        self.page = lambda q="": self.client.get(reverse("artifacts:library") + q).content.decode()
+
+    def test_segments_filter_by_type_and_mark_the_current_one(self):
+        page = self.page()
+        self.assertRegex(page, r'<a href="[^"]*"[^>]*aria-current="true">All</a>')
+        self.assertIn(">Photos</a>", page)
+        photos = self.page("?kind=photo")
+        self.assertRegex(photos, r'aria-current="true">Photos</a>')
+        self.assertIn("Bakery counter", photos)
+        self.assertNotIn("Lease signed", photos)
+
+    def test_filters_live_in_a_sheet_and_show_as_removable_pills(self):
+        page = self.page()
+        self.assertIn('<dialog id="filters" class="sheet"', page)
+        self.assertIn('data-open="filters"', page)
+        self.assertNotIn('class="pills"', page)
+        tag = Tag.objects.create(org=self.org, name="opening", group=TagGroup.LABEL)
+        Artifact.objects.get(org=self.org, kind=ArtifactKind.PHOTO).tags.add(tag)
+        filtered = self.page("?tag=opening")
+        self.assertIn('class="pills"', filtered)
+        self.assertIn("Remove this filter", filtered)
+        self.assertIn("Clear all", filtered)
+
+    def test_search_keeps_the_other_filters(self):
+        page = self.page("?kind=photo&sort=oldest")
+        search = page.split('role="search"')[1].split("</form>")[0]
+        self.assertIn('name="kind" value="photo"', search)
+        self.assertIn('name="sort" value="oldest"', search)
+
+    def test_nothing_here_yet_points_at_adding(self):
+        Artifact.objects.filter(org=self.org).delete()
+        page = self.page()
+        self.assertIn("Nothing here yet", page)
+        self.assertIn(reverse("artifacts:send"), page)
