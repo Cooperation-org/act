@@ -712,6 +712,39 @@ class LibraryTests(Base):
         self.assertRegex(nav, r'show=inbox"[^>]*aria-current="page"')
         self.assertIn("Lease signed", self.page())
 
+    def test_signed_and_missing_consent_are_one_tap_each(self):
+        Artifact.objects.filter(words="Lease signed").update(claim_id=9, consent=True)
+        signed = self.page("?signed=yes")
+        self.assertIn("Lease signed", signed)
+        self.assertNotIn("Bakery counter", signed)
+        missing = self.page("?consent=missing")
+        self.assertIn("Bakery counter", missing)
+        self.assertNotIn("Lease signed", missing)
+        rail = self.page().split('aria-label="Filters"')[1].split("</aside>")[0]
+        self.assertRegex(rail, r'role="checkbox" aria-checked="false"><span class="box"></span>Signed')
+        self.assertRegex(self.page("?signed=yes").split('aria-label="Filters"')[1], r'aria-checked="true"><span class="box">.*?Signed')
+
+    def test_the_page_offers_the_ways_to_add_above_the_grid(self):
+        page = self.page()
+        strip = page.split('aria-labelledby="add-title"')[1].split("</section>")[0]
+        for needle in ("Upload files", "Add a link", "Add a number", "Drive folder", "Email it in"):
+            self.assertIn(needle, strip)
+
+    def test_a_piece_opens_beside_the_grid_as_a_fragment(self):
+        a = Artifact.objects.get(words="Lease signed")
+        frag = self.client.get(reverse("artifacts:artifact", args=[a.pk]) + "?panel=1").content.decode()
+        self.assertNotIn("<html", frag)
+        self.assertIn("Lease signed", frag)
+        self.assertIn("Not signed yet", frag)
+        self.assertIn("data-panel-close", frag)
+        full = self.client.get(reverse("artifacts:artifact", args=[a.pk])).content.decode()
+        self.assertIn("<html", full)
+
+    def test_every_card_can_be_picked_and_says_if_it_is_signed(self):
+        page = self.page()
+        self.assertEqual(page.count('name="ids"'), 2)
+        self.assertEqual(page.count("Not signed</span>"), 2)
+
     def test_my_uploads_marks_its_own_tab(self):
         page = self.page("?person=lead%40example.org")
         tabs = page.split('<nav class="tabs"')[1].split("</nav>")[0]

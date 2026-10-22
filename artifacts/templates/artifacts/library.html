@@ -1,9 +1,9 @@
 {% extends "artifacts/base.html" %}
 {% load kit %}
-{% block title %}Library · Story Kit{% endblock %}
+{% block title %}{{ title|default:"Library" }} · Story Kit{% endblock %}
 {% block content %}
-<h1>Library</h1>
 {% if not any_at_all %}
+  <h1>Library</h1>
   <div class="empty">
     <span class="empty-icon">{% ic "library" "ic-xl" %}</span>
     <h2>Nothing here yet</h2>
@@ -11,6 +11,36 @@
     <p class="row"><a class="btn big" href="{% url 'artifacts:send' %}">{% ic "plus" %}<span>Add something</span></a> <a class="btn quiet" href="{% url 'artifacts:ways' %}">Other ways to add</a></p>
   </div>
 {% else %}
+<div class="inbox">
+<section class="addstrip" aria-labelledby="add-title">
+  <h2 id="add-title" class="mono-label">Add to the inbox</h2>
+  <ul>
+    <li><a class="drop-card" href="{% url 'artifacts:send' %}">{% ic "upload" %}<span><b>Upload files</b><small>or drop photos, video, PDFs</small></span></a></li>
+    <li><a href="{% url 'artifacts:send' %}?add=link">{% ic "link" %}<span><b>Add a link</b><small>article, post, video page</small></span></a></li>
+    <li><a href="{% url 'artifacts:send' %}?add=number">{% ic "number" %}<span><b>Add a number</b><small>with where it came from</small></span></a></li>
+    <li><a href="{% url 'artifacts:ways' %}#drive">{% ic "drive" %}<span><b>Drive folder</b><small>copy a shared folder</small></span></a></li>
+    <li><a href="{% url 'artifacts:ways' %}#email">{% ic "mail" %}<span><b>Email it in</b><small class="mono">{{ email_address|default:"set up your address" }}</small></span></a></li>
+  </ul>
+</section>
+<div class="inbox-body">
+<aside class="filter-rail" aria-label="Filters">
+  <h3 class="mono-label">Type</h3>
+  <ul class="kpills">{% for label, href, on in all_kind_links %}<li><a href="{{ href }}"{% if on %} aria-current="true"{% endif %}>{{ label }}</a></li>{% endfor %}</ul>
+  <h3 class="mono-label">Checked?</h3>
+  <ul class="checks">{% for label, href, on in checked %}<li><a href="{{ href }}" role="checkbox" aria-checked="{{ on|yesno:'true,false' }}"><span class="box">{% if on %}{% ic "check" "ic-sm" %}{% endif %}</span>{{ label }}</a></li>{% endfor %}</ul>
+  {% if labels.0 or labels.1 %}<h3 class="mono-label">Tags</h3>
+  <ul class="kpills tagpills">{% for t, href, on in labels.0 %}<li><a href="{{ href }}"{% if on %} aria-current="true"{% endif %}>{{ t.name }}</a></li>{% endfor %}{% for t, href, on in labels.1 %}<li><a href="{{ href }}"{% if on %} aria-current="true"{% endif %}>{{ t.name }}</a></li>{% endfor %}</ul>{% endif %}
+  <form method="get" class="rail-form">
+    {% for k, x in rail_keep %}<input type="hidden" name="{{ k }}" value="{{ x }}">{% endfor %}
+    {% if people|length > 1 %}<h3 class="mono-label"><label for="r-person">Sent by</label></h3>
+    <select id="r-person" name="person" data-auto><option value="">Anyone</option>{% for p in people %}<option value="{{ p }}"{% if f.person == p %} selected{% endif %}>{{ p|short_who|default:p }}</option>{% endfor %}</select>{% endif %}
+    <h3 class="mono-label"><label for="r-since">Date</label></h3>
+    <select id="r-since" name="since" data-auto>{% for label, value, on in date_options %}<option value="{{ value }}"{% if on %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+    <noscript><button type="submit" class="quiet">Apply</button></noscript>
+  </form>
+</aside>
+<div class="results">
+<header class="results-head"><h1>{{ title }}{% if not f.sort %} <small>newest first</small>{% endif %}</h1></header>
 <p class="count muted">{{ total }} {{ total|pluralize:"item,items" }}{% if f %} match{% endif %}{% if ai_on and unlabeled %} · {{ unlabeled }} without labels{% endif %}</p>
 <div class="lib-bar">
   <form method="get" class="search" role="search">
@@ -37,16 +67,21 @@
     <strong id="picked-n"></strong>
     <input type="text" name="tags" placeholder="Label" aria-label="Label">
     <button type="submit" name="action" value="tag" class="quiet">Add label</button>
+    <input type="text" name="name" placeholder="Collection name" aria-label="Collection name">
+    <button type="submit" name="action" value="collect" class="quiet">Add to collection</button>
     <button type="submit" name="action" value="story">Make a story</button>
     <details class="more"><summary>More</summary><div class="filters">
       <select name="group" aria-label="Kind of label"><option value="">Label is a topic</option><option value="part">Label is part of {{ org.name }}</option></select>
-      <input type="text" name="name" placeholder="Collection name" aria-label="Collection name">
-      <button type="submit" name="action" value="collect" class="quiet">Collect</button>
       {% if ai_on %}<button type="submit" name="action" value="sort" class="quiet">Sort with AI</button>{% endif %}
       {% if f.show == "hidden" %}<button type="submit" name="action" value="unhide" class="quiet">Bring back</button>{% else %}<button type="submit" name="action" value="hide" class="quiet">Archive</button>{% endif %}
     </div></details>
   </div>
 </form>
+
+</div>
+<aside id="detail" class="detail-panel" aria-live="polite" hidden></aside>
+</div>
+</div>
 
 <dialog id="filters" class="sheet" aria-labelledby="filters-title">
   <div class="sheet-top"><div class="grabber" aria-hidden="true"></div>
@@ -77,7 +112,29 @@
 </dialog>
 {% endif %}
 {% endblock %}
+{% block wrapclass %} wide{% endblock %}
 {% block scripts %}
+<script>
+// A wide screen shows the piece beside the grid; a phone opens its own page.
+(function () {
+  var detail = document.getElementById('detail'), body = document.querySelector('.inbox-body');
+  if (!detail || !body) return;
+  var wide = window.matchMedia('(min-width: 56rem)');
+  function close() { detail.hidden = true; detail.innerHTML = ''; body.classList.remove('has-detail'); document.querySelectorAll('.tile.is-open').forEach(function (t) { t.classList.remove('is-open'); }); }
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('[data-panel-close]')) { close(); return; }
+    if (!wide.matches || document.body.classList.contains('selecting')) return;
+    var a = e.target.closest('.tile a.open'); if (!a) return;
+    var tile = a.closest('.tile'); e.preventDefault();
+    fetch(tile.dataset.panel, { credentials: 'same-origin' }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); }).then(function (html) {
+      detail.innerHTML = html; detail.hidden = false; body.classList.add('has-detail');
+      document.querySelectorAll('.tile.is-open').forEach(function (t) { t.classList.remove('is-open'); }); tile.classList.add('is-open');
+    }).catch(function () { location.href = a.href; });
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !detail.hidden) close(); });
+  document.querySelectorAll('select[data-auto]').forEach(function (s) { s.addEventListener('change', function () { s.form.submit(); }); });
+})();
+</script>
 <script>
 (function () {
   var bar = document.getElementById('bulk'); if (!bar) return;

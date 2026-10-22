@@ -392,7 +392,7 @@ def check_source(request, pk):
 
 # ---- library -----------------------------------------------------------------
 
-FILTER_KEYS = ("kind", "tag", "part", "source", "person", "q", "since", "until", "show", "sort")
+FILTER_KEYS = ("kind", "tag", "part", "source", "person", "q", "since", "until", "show", "sort", "signed", "consent")
 MULTI_KEYS = ("tag", "part")
 SORTS = {"": ("-received_at",), "happened": ("-happened_at", "-received_at"),
          "oldest": ("happened_at", "received_at"), "title": ("title", "filename")}
@@ -415,6 +415,10 @@ def filtered(org, f):
             qs = qs.filter(pk__in=Artifact.objects.filter(org=org, tags__name=name).values("pk"))
     if f.get("source"):
         qs = qs.filter(source__kind=f["source"])
+    if f.get("signed") == "yes":
+        qs = qs.filter(claim_id__isnull=False)
+    if f.get("consent") == "missing":
+        qs = qs.filter(consent=False)
     if f.get("person"):
         qs = qs.filter(sent_by=f["person"])
     if f.get("q"):
@@ -485,6 +489,8 @@ def _set(f, key, value):
 
 KIND_PLURAL = {"photo": "Photos", "video": "Videos", "voice": "Voice", "text": "Notes", "file": "Files",
                "link": "Links", "claim": "Claims", "data": "Numbers"}
+KIND_SINGLE = {"photo": "Photo", "video": "Video", "voice": "Voice", "text": "Note", "file": "File",
+               "link": "Link", "claim": "Claim", "data": "Number"}
 SEGMENTS = 4  # All plus the four most used kinds fit a phone; the rest are in the filter sheet
 
 
@@ -500,7 +506,31 @@ def _active(f):
         out.append((dict(SourceKind.choices).get(f["source"], f["source"]), _set(f, "source", "")))
     if f.get("show") == "hidden":
         out.append(("Archived", _set(f, "show", "")))
+    if f.get("show") == "inbox":
+        out.append(("Not looked at yet", _set(f, "show", "")))
+    if f.get("signed") == "yes":
+        out.append(("Signed", _set(f, "signed", "")))
+    if f.get("consent") == "missing":
+        out.append(("Missing consent", _set(f, "consent", "")))
     return out
+
+
+def _checked(f):
+    """The three questions the inbox is read by: (words, address, on). Each is one tap to set or clear."""
+    out = []
+    for label, key, value in (("Not looked at yet", "show", "inbox"), ("Signed", "signed", "yes"),
+                              ("Missing consent", "consent", "missing")):
+        on = f.get(key) == value
+        out.append((label, _set(f, key, "" if on else value), on))
+    return out
+
+
+def _date_options(f):
+    """Recent-time choices for the rail: (words, since date, chosen)."""
+    today = timezone.localdate()
+    options = [("Any time", ""), ("Last 7 days", (today - timedelta(days=7)).isoformat()),
+               ("Last 30 days", (today - timedelta(days=30)).isoformat()), ("This year", today.replace(month=1, day=1).isoformat())]
+    return [(label, value, f.get("since", "") == value) for label, value in options]
 
 
 def _without(f, key, value):
@@ -572,7 +602,16 @@ def library(request):
         shown = shown[:-1] + [f["kind"]]  # the one chosen is always on show
     kind_links = [("All", _set(f, "kind", ""), not f.get("kind"))] + [
         (KIND_PLURAL.get(k, k.title()), _set(f, "kind", k), f.get("kind") == k) for k in shown]
+    all_kind_links = [("All", _set(f, "kind", ""), not f.get("kind"))] + [
+        (KIND_SINGLE.get(k, k.title()), _set(f, "kind", k), f.get("kind") == k) for k in present]
+    me = request.user.email or request.user.get_username()
+    email_source = _source(org, SourceKind.EMAIL)
     return render(request, "artifacts/library.html", {
+        "title": "Inbox" if f.get("show") == "inbox" else "My uploads" if f.get("person") == me and len(f) == 1 else "Library",
+        "all_kind_links": all_kind_links, "checked": _checked(f), "date_options": _date_options(f),
+        "inbox_count": everything.filter(status=ArtifactStatus.NEW).count(),
+        "email_address": (email_source.config.get("address") if email_source else "") or "",
+        "rail_keep": [(k, x) for k, val in f.items() if k not in ("person", "since") for x in (val if isinstance(val, list) else [val])],
         "kind_links": kind_links, "active": _active(f),
         "keep_all": [(k, x) for k, val in f.items() if k != "q" for x in (val if isinstance(val, list) else [val])],
         "org": org, "items": qs[:300], "total": qs.count(), "f": f, "filter_json": json.dumps(f),
@@ -607,6 +646,8 @@ def artifact(request, pk):
                    + _tags_from(org, request.POST.get("tags")))
         messages.success(request, "Saved.")
         return redirect("artifacts:artifact", pk=a.pk)
+    if request.GET.get("panel"):
+        return render(request, "artifacts/_panel.html", {"a": a, "org": org})
     return render(request, "artifacts/artifact.html", {
         "org": org, "nav": "library", "a": a,
         "part_text": ", ".join(t.name for t in a.tags.all() if t.group == TagGroup.PART),

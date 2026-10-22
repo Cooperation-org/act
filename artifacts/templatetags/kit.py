@@ -84,3 +84,10 @@ def shell(context):
         "mine": user.email or user.get_username(),
         "orgs": orgs if len(orgs) > 1 else [],
     }
+
+
+@register.filter
+def short_who(sent_by):
+    """Who sent it, kept short for a card: jordan.lee@org.example becomes Jordan Lee."""
+    who = (sent_by or "").split("@")[0]
+    return " ".join(w.capitalize() for w in re.split(r"[._+\-]+", who) if w) or ""
