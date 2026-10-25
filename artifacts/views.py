@@ -43,8 +43,7 @@ def current_org(request):
 
 
 def org_required(view):
-    view = never_cache(view)
-
+    @never_cache
     @wraps(view)
     def wrapper(request, *args, **kwargs):
         if not request.user.is_authenticated:
