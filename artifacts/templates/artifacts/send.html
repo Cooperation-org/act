@@ -21,7 +21,7 @@
     <p class="cam-stats muted" id="cam-stats" hidden></p>
     <div class="cam-stage">
       <video id="cam-video" autoplay playsinline muted></video>
-      <div class="cam-empty" id="cam-empty" hidden>Recording audio only.</div>
+      <div class="cam-empty" id="cam-empty" hidden><span class="mic" aria-hidden="true">🎙</span><span>Recording audio only.</span></div>
       <div class="cam-timer" id="cam-timer" hidden>00:00</div>
       <img id="cam-preview-img" alt="" hidden>
       <video id="cam-preview-video" controls autoplay playsinline hidden></video>
@@ -337,8 +337,11 @@
     setUI();
   });
 
-  function pickVideoMime() { var c = ['video/mp4','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm']; for (var i = 0; i < c.length; i++) if (window.MediaRecorder && MediaRecorder.isTypeSupported(c[i])) return c[i]; return 'video/mp4'; }
-  function pickAudioMime() { var c = ['audio/mp4','audio/m4a','audio/aac','audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus']; for (var i = 0; i < c.length; i++) if (window.MediaRecorder && MediaRecorder.isTypeSupported(c[i])) return c[i]; return 'audio/mp4'; }
+  // Webm first: Chrome and Firefox encode it reliably. iOS Safari has no webm at
+// all, so it falls through to mp4 there. Preferring mp4 on Chrome makes
+// isTypeSupported() pass while producing files that will not play back.
+function pickVideoMime() { var c = ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4']; for (var i = 0; i < c.length; i++) if (window.MediaRecorder && MediaRecorder.isTypeSupported(c[i])) return c[i]; return 'video/webm'; }
+  function pickAudioMime() { var c = ['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus','audio/mp4','audio/aac']; for (var i = 0; i < c.length; i++) if (window.MediaRecorder && MediaRecorder.isTypeSupported(c[i])) return c[i]; return 'audio/webm'; }
 
   function ext(m) { if (m.indexOf('mp4') !== -1) return 'mp4'; if (m.indexOf('jpeg') !== -1 || m.indexOf('jpg') !== -1) return 'jpg'; if (m.indexOf('png') !== -1) return 'png'; return 'webm'; }
 
@@ -413,9 +416,12 @@
 .cam-stats { margin: 0 0 .6rem; font: 600 .85rem ui-monospace, monospace; }
 .cam-stage { position: relative; aspect-ratio: 4 / 3; max-height: 60vh; background: #000; border-radius: 8px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
 .cam-stage video, .cam-stage img { max-width: 100%; max-height: 100%; object-fit: contain; }
-.cam-empty { color: #ddd; padding: 2rem; text-align: center; }
+.cam-empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; color: #ddd; padding: 2rem; text-align: center; }
+.cam-empty[hidden] { display: none; }
+.cam-empty .mic { font-size: 2.5rem; line-height: 1; }
 .cam-timer { position: absolute; top: .8rem; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.65); color: #fff; padding: .3rem .8rem; border-radius: 6px; font: 700 1.05rem ui-monospace, monospace; }
 .cam-fallback { position: absolute; inset: 0; background: rgba(0,0,0,.92); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; padding: 1rem; text-align: center; }
+.cam-fallback[hidden] { display: none; }
 .cam-fallback p { max-width: 32rem; }
 .cam-toolbar { margin-top: .8rem; display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
 .cam-toolbar .big { background: var(--brand); color: #fff; border-color: var(--brand); }
