@@ -43,6 +43,8 @@ def current_org(request):
 
 
 def org_required(view):
+    view = never_cache(view)
+
     @wraps(view)
     def wrapper(request, *args, **kwargs):
         if not request.user.is_authenticated:
@@ -55,6 +57,7 @@ def org_required(view):
     return wrapper
 
 
+@never_cache
 def signin(request):
     nxt = request.GET.get("next") or reverse("artifacts:home")
     if not nxt.startswith("/") or nxt.startswith("//"):
@@ -67,6 +70,7 @@ def signin(request):
     return redirect(f"{reverse('admin:login')}?{urlencode({'next': nxt})}")
 
 
+@never_cache
 def demo_open(request):
     """The live demo: your own copy of the sample org, no sign-in needed."""
     sample = demo.sample_org()
@@ -88,6 +92,7 @@ def demo_open(request):
     return redirect("artifacts:library")
 
 
+@never_cache
 def demo_leave(request):
     """From a demo copy to starting your own: a guest signs out and signs in for real."""
     from django.contrib.auth import logout
@@ -96,6 +101,7 @@ def demo_leave(request):
     return redirect(f"{reverse('artifacts:signin')}?{urlencode({'next': reverse('artifacts:start')})}")
 
 
+@never_cache
 def home(request):
     if not request.user.is_authenticated:
         return render(request, "artifacts/welcome.html")
@@ -118,6 +124,7 @@ def _unique_slug(model, base, field="slug", size=46):
     return slug
 
 
+@never_cache
 def start(request):
     """Name your org. That is the whole sign-up; everything else has a default."""
     if not request.user.is_authenticated:
@@ -205,7 +212,6 @@ def _store_uploads(request, org, files, words, when=None):
 
 
 @org_required
-@never_cache
 def send(request):
     org = request.org
     if request.method == "POST":
