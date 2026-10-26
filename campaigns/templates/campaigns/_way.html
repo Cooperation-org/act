@@ -1,0 +1,6 @@
+<div class="way">
+  <h3>{{ cta.title }}</h3>
+  {% if cta.note %}<span class="meta">{{ cta.note }}</span>{% endif %}
+  {% if cta.description %}<p>{{ cta.description }}</p>{% endif %}
+  <a class="btn ghost" href="{% url 'respond' c.slug cta.id %}">{{ cta.button_label }}</a>
+</div>

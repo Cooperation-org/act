@@ -98,9 +98,15 @@ def campaign(request, slug):
     share_url = f"{settings.PUBLIC_URL}/c/{c.slug}/"
     via = request.GET.get("via", "")
     testimonials = list(c.testimonials.filter(status="published"))
+    # first two (admin sort order) and the email signup sit above the give widget;
+    # the rest stay in the story column
+    ways = list(c.ctas.filter(enabled=True).exclude(kind__in=[CTA.Kind.GIVE, CTA.Kind.SUBSCRIBE]))
+    subscribe = c.ctas.filter(enabled=True, kind=CTA.Kind.SUBSCRIBE).first()
     return render(request, "campaigns/campaign.html", {
         "c": c,
-        "ctas": c.ctas.filter(enabled=True),
+        "rail_ways": ways[:2],
+        "more_ways": ways[2:],
+        "subscribe": subscribe,
         "testimonials": testimonials,
         "graph": trust_graph(c, testimonials),
         "lt_embed": settings.LT_EMBED,

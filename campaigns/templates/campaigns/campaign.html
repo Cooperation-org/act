@@ -46,17 +46,10 @@
   <p><a class="btn ghost" href="{% url 'vouch' c.slug %}">Be the first to vouch</a></p>
   {% endif %}
 
-  {% if ctas %}
-  <h2 id="help">More than one way to help</h2>
+  {% if more_ways %}
+  <h2>More ways to help</h2>
   <div class="ways">
-    {% for cta in ctas %}{% if cta.kind != "give" %}
-    <div class="way">
-      <h3>{{ cta.title }}</h3>
-      {% if cta.note %}<span class="meta">{{ cta.note }}</span>{% endif %}
-      {% if cta.description %}<p>{{ cta.description }}</p>{% endif %}
-      <a class="btn ghost" href="{% url 'respond' c.slug cta.id %}">{{ cta.button_label }}</a>
-    </div>
-    {% endif %}{% endfor %}
+    {% for cta in more_ways %}{% include "campaigns/_way.html" %}{% endfor %}
   </div>
   {% endif %}
 
@@ -65,7 +58,24 @@
   <p class="meta"><a href="{% url 'updates_feed' %}">RSS</a></p>
 </div>
 
-<aside class="rail">
+<aside class="rail{% if rail_ways or subscribe %} flow{% endif %}">
+  {% if rail_ways or subscribe %}
+  <h2 id="help">More than one way to help</h2>
+  <div class="ways">
+    {% for cta in rail_ways %}{% include "campaigns/_way.html" %}{% endfor %}
+    {% if subscribe %}
+    <div class="way">
+      <h3>{{ subscribe.title }}</h3>
+      {% if subscribe.description %}<p>{{ subscribe.description }}</p>{% endif %}
+      <form method="post" action="{% url 'respond' c.slug subscribe.id %}">{% csrf_token %}
+        <p><label for="subscribe-email">Email</label>
+        <input type="email" name="email" id="subscribe-email" required autocomplete="email"></p>
+        <button class="btn ghost" type="submit">{{ subscribe.button_label }}</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
   <div class="card" id="give">
     {% if c.givebutter_goal_id %}
       <givebutter-widget id="{{ c.givebutter_goal_id }}"></givebutter-widget>

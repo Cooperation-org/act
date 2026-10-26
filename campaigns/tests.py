@@ -33,6 +33,15 @@ class ActTests(TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(cta.responses.count(), 1)
 
+    def test_rail_email_signup_posts_just_email(self):
+        Campaign.objects.filter(pk=self.campaign.pk).update(status="published")
+        cta = self.campaign.ctas.get(kind="subscribe")
+        r = self.client.get("/c/jreas-coop/")
+        self.assertContains(r, f'action="/c/jreas-coop/act/{cta.id}/"')
+        r = self.client.post(f"/c/jreas-coop/act/{cta.id}/", {"email": "b@example.org"})
+        self.assertContains(r, "Thank you")
+        self.assertEqual(cta.responses.get().email, "b@example.org")
+
     def test_testimony_requires_login_and_lands_pending(self):
         Campaign.objects.filter(pk=self.campaign.pk).update(status="published")
         r = self.client.get("/c/jreas-coop/testimony/")
@@ -313,3 +322,4 @@ class VouchTests(TestCase):
         self.assertEqual({t.claim_id for t in new}, {101})     # only the ENDORSES
         self.assertEqual(self.c.testimonials.get().status, "pending")  # reconcile = always pending
         self.assertEqual(self.c.testimonials.get().source_uri, "https://live.linkedtrust.us/users/7")
+
