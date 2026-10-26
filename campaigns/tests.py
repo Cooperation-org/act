@@ -323,3 +323,40 @@ class VouchTests(TestCase):
         self.assertEqual(self.c.testimonials.get().status, "pending")  # reconcile = always pending
         self.assertEqual(self.c.testimonials.get().source_uri, "https://live.linkedtrust.us/users/7")
 
+
+MEMORY_STORAGES = {**settings.STORAGES, "default": {"BACKEND": "django.core.files.storage.InMemoryStorage"}}
+
+
+class CampaignVideoTests(TestCase):
+    def setUp(self):
+        self.org = Org.objects.create(slug="v", name="Org V")
+        self.c = Campaign.objects.create(org=self.org, slug="vc", title="Video Campaign", status="published")
+        User.objects.create_superuser("admin", "a@example.org", "pw")
+        self.client.login(username="admin", password="pw")
+
+    def _post(self, upload):
+        data = {"org": self.org.pk, "slug": "vc", "title": "Video Campaign", "status": "published",
+                "video": upload, "ctas-TOTAL_FORMS": 0, "ctas-INITIAL_FORMS": 0}
+        return self.client.post(f"/admin/campaigns/campaign/{self.c.pk}/change/", data)
+
+    @override_settings(VIDEO_MAX_MB=1, STORAGES=MEMORY_STORAGES)
+    def test_upload_plays_on_page_with_photo_as_cover(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        r = self.client.get(f"/admin/campaigns/campaign/{self.c.pk}/change/")
+        self.assertContains(r, 'name="video"')
+        self.assertContains(r, "Up to 1 MB.")
+        r = self._post(SimpleUploadedFile("clip.mp4", b"x" * 1000, content_type="video/mp4"))
+        self.assertEqual(r.status_code, 302)
+        self.c.refresh_from_db()
+        self.assertTrue(self.c.video.name.startswith("campaigns/video/clip"))
+        self.assertContains(self.client.get("/c/vc/"), f'<video controls playsinline preload="metadata" src="{self.c.video.url}"')
+
+    @override_settings(VIDEO_MAX_MB=1, STORAGES=MEMORY_STORAGES)
+    def test_oversize_and_wrong_type_rejected(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        r = self._post(SimpleUploadedFile("big.mp4", b"x" * (1024 * 1024 + 1), content_type="video/mp4"))
+        self.assertContains(r, "The limit is 1 MB.")
+        r = self._post(SimpleUploadedFile("clip.avi", b"x", content_type="video/x-msvideo"))
+        self.assertContains(r, "File extension “avi” is not allowed.")
+        self.c.refresh_from_db()
+        self.assertFalse(self.c.video)

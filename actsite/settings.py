@@ -151,6 +151,8 @@ ACT_AI_MODEL = os.environ.get("ACT_AI_MODEL", "claude-sonnet-5-5")
 # Fallback when Anthropic is unset or fails: MiniMax through its Anthropic-compatible API (no images).
 MINIMAX_API_KEY = os.environ.get("MINIMAX_API_KEY", "")
 ACT_MINIMAX_MODEL = os.environ.get("ACT_MINIMAX_MODEL", "MiniMax-M3")
+# Campaign video clips use the default storage above (B2 when configured), like photos.
+VIDEO_MAX_MB = int(os.environ.get("ACT_VIDEO_MAX_MB", "100"))
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 LOGIN_URL = "admin:login"  # a URL name, so it resolves under ACT_BASE_PATH too

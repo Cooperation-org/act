@@ -13,7 +13,8 @@
 
 <div class="cols">
 <div>
-  {% if c.photo %}<img src="{{ c.photo.url }}" alt="" style="width:100%;border:1px solid var(--rule)">
+  {% if c.video %}<video controls playsinline preload="metadata" src="{{ c.video.url }}"{% if c.photo %} poster="{{ c.photo.url }}"{% endif %} style="width:100%;border:1px solid var(--rule)"></video>
+  {% elif c.photo %}<img src="{{ c.photo.url }}" alt="" style="width:100%;border:1px solid var(--rule)">
   {% elif user.is_staff %}<div class="thumb" style="aspect-ratio:16/9;display:grid;place-items:center">photo / video to come. Add it in <a href="{% url 'admin:campaigns_campaign_change' c.pk %}">Edit</a></div>{% endif %}
 
   {% if c.story %}

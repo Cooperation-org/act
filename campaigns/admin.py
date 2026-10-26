@@ -155,6 +155,12 @@ class CampaignAdmin(OrgScopedAdmin):
         org = _first_org(request)
         return {"org": org.pk} if org else {}
 
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        if "video" in form.base_fields:
+            form.base_fields["video"].help_text += f" Up to {settings.VIDEO_MAX_MB} MB."
+        return form
+
 
 @admin.action(description="Sign as LinkedClaim and publish (approvers only)")
 def sign_and_publish(modeladmin, request, queryset):

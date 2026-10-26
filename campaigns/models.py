@@ -6,7 +6,14 @@ testimonials reference LinkedClaims by URI; subscribers sync to the CRM (not yet
 import secrets
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.core.validators import FileExtensionValidator
 from django.db import models
+
+
+def validate_video_size(f):
+    if f.size > settings.VIDEO_MAX_MB * 1024 * 1024:
+        raise ValidationError(f"Video is {f.size / 1024 / 1024:.0f} MB. The limit is {settings.VIDEO_MAX_MB} MB.")
 
 
 def preview_token():
@@ -67,6 +74,10 @@ class Campaign(models.Model):
     summary = models.TextField(blank=True, help_text="Short text for listings and share cards")
     story = models.TextField(blank=True, help_text="The campaign's own words. Facts only; cite sources.")
     photo = models.ImageField(upload_to="campaigns/", blank=True)
+    video = models.FileField(upload_to="campaigns/video/", blank=True,
+                             validators=[FileExtensionValidator(["mp4", "mov", "webm"]), validate_video_size],
+                             help_text="A clip shown at the top of the page, with the photo as its cover. "
+                                       "MP4, MOV or WebM.")
     source_url = models.URLField(blank=True, help_text="Where the story facts come from")
     status = models.CharField(max_length=12, choices=PublishStatus.choices, default=PublishStatus.DRAFT)
     # money embeds, the page only WRAPS these; act never touches funds
