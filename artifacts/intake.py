@@ -73,6 +73,38 @@ def photo_taken_at(data: bytes):
         return None
 
 
+def without_metadata(data: bytes) -> bytes:
+    """The photo without what it says about itself: the place it was taken, the device
+    that took it, the time. The capture date is read first and kept in the record, and
+    the turn the camera asked for is written into the pixels, so nothing is lost that
+    the story needs. A photo we cannot read back is left as it is."""
+    try:
+        from PIL import Image, ImageOps
+        with Image.open(io.BytesIO(data)) as im:
+            fmt = im.format
+            if getattr(im, "n_frames", 1) > 1:
+                return data  # an animation: writing it back would drop the frames
+            out = ImageOps.exif_transpose(im)
+            buf = io.BytesIO()
+            if fmt == "JPEG":
+                out.format = "JPEG"
+                tables = getattr(im, "quantization", None)
+                out.quantization = tables
+                out.save(buf, format="JPEG", quality="keep" if tables else 90,
+                         icc_profile=im.info.get("icc_profile"))
+            elif fmt == "PNG":
+                out.save(buf, format="PNG", icc_profile=im.info.get("icc_profile"))
+            elif fmt == "WEBP":
+                out.save(buf, format="WEBP", quality=90)
+            elif fmt == "GIF":
+                out.save(buf, format="GIF")
+            else:
+                return data  # a format we cannot write back
+            return buf.getvalue()
+    except Exception:
+        return data
+
+
 def _existing(org, sha):
     return Artifact.objects.filter(org=org, sha256=sha).first()
 
@@ -81,6 +113,12 @@ def add_file(org, *, data: bytes, filename: str, content_type: str = "", source=
              sent_by="", added_by=None, happened_at=None, source_ref="", source_url="", title=""):
     """Store one file as an Artifact. Returns (artifact, created). A file already
     in this org (same bytes) returns the existing record, words appended if new."""
+    content_type = content_type or mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    kind = kind_for(content_type, filename)
+    if kind == ArtifactKind.PHOTO:
+        if happened_at is None:
+            happened_at = photo_taken_at(data)
+        data = without_metadata(data)   # the photo keeps no place, device or time of its own
     sha = hashlib.sha256(data).hexdigest()
     found = _existing(org, sha)
     if found:
@@ -88,10 +126,6 @@ def add_file(org, *, data: bytes, filename: str, content_type: str = "", source=
             found.words = f"{found.words}\n\n{words}".strip()
             found.save(update_fields=["words"])
         return found, False
-    content_type = content_type or mimetypes.guess_type(filename)[0] or "application/octet-stream"
-    kind = kind_for(content_type, filename)
-    if happened_at is None and kind == ArtifactKind.PHOTO:
-        happened_at = photo_taken_at(data)
     a = Artifact(org=org, source=source, kind=kind, sha256=sha, filename=filename[:300],
                  content_type=content_type[:120], size=len(data), words=words, sent_by=sent_by[:300],
                  added_by=added_by, happened_at=happened_at, source_ref=source_ref[:300],

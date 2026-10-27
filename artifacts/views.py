@@ -4,16 +4,22 @@ Who: a program or comms lead at a small org, not technical, on a phone or a lapt
 Every page answers one question for them; anything else is a link away.
 """
 import json
+import mimetypes
+import re
 import uuid
 from datetime import timedelta
 from functools import wraps
+from pathlib import Path
 from urllib.parse import urlencode
 
 from django.conf import settings
 from django.contrib import messages
+from django.core.exceptions import SuspiciousOperation
+from django.core.files.storage import default_storage
 from django.db import transaction
 from django.db.models import Count, Exists, OuterRef, Q
-from django.http import Http404, HttpResponse, HttpResponseBadRequest, JsonResponse
+from django.http import (Http404, HttpResponse, HttpResponseBadRequest, JsonResponse,
+                         StreamingHttpResponse)
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -881,6 +887,104 @@ def story(request, slug):
         "s": s, "blocks": blocks, "first_image": first_image, "is_member": is_member, "lt_embed": settings.LT_EMBED,
         "pieces": [b.artifact for b in blocks if b.artifact],
         "signed_n": sum(1 for b in blocks if b.artifact and b.artifact.claim_id)})
+
+
+# ---- files ---------------------------------------------------------------------
+# A photo is not public because it sits in a folder. It is served to the org that owns
+# it, and to anyone reading a published story that shows it. To nobody else.
+
+INLINE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp",
+                "audio/wav", "audio/mpeg", "video/mp4", "video/x-m4v", "video/webm",
+                "video/quicktime", "text/plain", "application/pdf"}
+
+
+def _may_see(request, path):
+    """(may see it, is it public) for one stored file."""
+    if request.user.is_authenticated and (
+            request.user.is_superuser
+            or user_orgs(request.user).filter(artifacts__file=path).exists()):
+        return True, False
+    published = Story.objects.filter(status=StoryStatus.PUBLISHED,
+                                     blocks__artifact__file=path,
+                                     blocks__artifact__status__in=(ArtifactStatus.NEW,
+                                                                  ArtifactStatus.KEPT)).exists()
+    return published, published
+
+
+def _byte_range(request, size):
+    """(start, end) of what the browser asked for, or None when it asked for the whole
+    file. Raises ValueError for a range that cannot be served."""
+    m = re.match(r"bytes=(\d*)-(\d*)$", request.headers.get("Range", "").strip())
+    if not m:
+        return None
+    first, last = m.groups()
+    if not first and not last:
+        return None
+    if not first:  # bytes=-500: the last 500 bytes
+        start, end = max(0, size - int(last)), size - 1
+    else:
+        start = int(first)
+        end = int(last) if last else size - 1
+    if size <= 0 or start >= size or start > end:
+        raise ValueError("range not satisfiable")
+    return start, min(end, size - 1)
+
+
+def _chunks(handle, length):
+    """The bytes asked for, in pieces, and the file closed when done."""
+    try:
+        left = length
+        while left > 0:
+            data = handle.read(min(65536, left))
+            if not data:
+                break
+            left -= len(data)
+            yield data
+    finally:
+        handle.close()
+
+
+def media_file(request, path):
+    """One stored file: the org that owns it, or anyone reading a published story that
+    shows it. Anyone else is answered with nothing."""
+    allowed, public = _may_see(request, path)
+    if not allowed:
+        raise Http404
+    try:
+        handle = default_storage.open(path, "rb")
+    except (FileNotFoundError, SuspiciousOperation, OSError):
+        raise Http404
+    size = getattr(handle, "size", 0)
+    try:
+        wanted = _byte_range(request, size)
+    except ValueError:
+        resp = HttpResponse(status=416)
+        resp["Content-Range"] = f"bytes */{size}"
+        return resp
+    artifact = Artifact.objects.filter(file=path).first()
+    ctype = ((artifact.content_type if artifact else "") or mimetypes.guess_type(path)[0]
+             or "application/octet-stream").split(";")[0].strip().lower()
+    inline = ctype in INLINE_TYPES
+    start, end = wanted if wanted else (0, max(0, size - 1))
+    length = end - start + 1
+    if wanted:
+        handle.seek(start)
+    resp = StreamingHttpResponse(_chunks(handle, length),
+                                 content_type=ctype if inline else "application/octet-stream")
+    resp["Content-Length"] = str(length)
+    resp["Accept-Ranges"] = "bytes"
+    resp["X-Content-Type-Options"] = "nosniff"
+    resp["Vary"] = "Cookie"
+    if wanted:
+        resp.status_code = 206
+        resp["Content-Range"] = f"bytes {start}-{end}/{size}"
+    if inline:
+        resp["Cache-Control"] = "public, max-age=300" if public else "private, no-store"
+    else:
+        name = "".join(ch for ch in Path(path).name if ch.isprintable() and ch not in '"\\')
+        resp["Content-Disposition"] = f'attachment; filename="{name}"'
+        resp["Cache-Control"] = "private, no-store"
+    return resp
 
 
 # ---- install as an app (phone share sheet) -----------------------------------

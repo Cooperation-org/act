@@ -9,11 +9,13 @@ from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from PIL import Image
 
 from campaigns.models import Org, VolunteerProfile
 
 from .intake import add_file, add_reference, kind_for
-from .models import Artifact, ArtifactKind, Collection, Source, SourceKind, Story, StoryBlock, Tag, TagGroup
+from .models import (Artifact, ArtifactKind, Collection, Source, SourceKind, Story, StoryBlock,
+                     StoryStatus, Tag, TagGroup)
 from .spouts import drive_folder_id, file_email, import_claims, parse_email
 
 MEDIA = tempfile.mkdtemp()
@@ -103,6 +105,119 @@ class IntakeTests(Base):
         words = "  She opened the shop on Main St.\n\nFirst day: 40 customers!  "
         a, _ = add_file(self.org, data=b"x", filename="n.txt", words=words)
         self.assertEqual(a.words, words)
+
+
+def jpeg_with_exif(width=60, height=40):
+    """A photo that says where it was taken, what took it, when, and which way is up."""
+    from PIL import Image
+    im = Image.new("RGB", (width, height), (200, 30, 30))
+    ex = im.getexif()
+    ex[0x0112] = 6                        # which way is up
+    ex[0x010F] = "Phone Co"                # what took it
+    ex[0x0132] = "2026:10:01 12:30:45"    # when it was taken
+    gps = ex.get_ifd(0x8825)
+    gps[1] = "N"
+    gps[2] = (33.4,)
+    gps[3] = "E"
+    gps[4] = (110.5,)
+    buf = io.BytesIO()
+    im.save(buf, "JPEG", exif=ex)
+    return buf.getvalue()
+
+
+class PhotoMetadataTests(Base):
+    def test_a_photo_keeps_no_place_of_its_own(self):
+        a, _ = add_file(self.org, data=jpeg_with_exif(), filename="IMG_1.jpg", content_type="image/jpeg")
+        with a.file.open("rb") as fh:
+            with Image.open(fh) as im:
+                self.assertEqual(dict(im.getexif()), {})
+                self.assertEqual(dict(im.getexif().get_ifd(0x8825)), {})
+
+    def test_the_bytes_we_keep_hold_no_exif_at_all(self):
+        a, _ = add_file(self.org, data=jpeg_with_exif(), filename="IMG_1.jpg", content_type="image/jpeg")
+        with a.file.open("rb") as fh:
+            self.assertNotIn(b"Exif\x00\x00", fh.read())
+
+    def test_the_date_the_photo_was_taken_is_kept_in_the_record(self):
+        a, _ = add_file(self.org, data=jpeg_with_exif(), filename="IMG_1.jpg", content_type="image/jpeg")
+        self.assertEqual(a.happened_at.date().isoformat(), "2026-10-01")
+
+    def test_the_way_up_the_camera_asked_for_is_in_the_pixels(self):
+        a, _ = add_file(self.org, data=jpeg_with_exif(), filename="IMG_1.jpg", content_type="image/jpeg")
+        with a.file.open("rb") as fh:
+            with Image.open(fh) as im:
+                self.assertEqual(im.size, (40, 60))
+
+    def test_the_same_photo_twice_is_one_artifact(self):
+        data = jpeg_with_exif()
+        a, created = add_file(self.org, data=data, filename="a.jpg", content_type="image/jpeg")
+        b, created2 = add_file(self.org, data=data, filename="b.jpg", content_type="image/jpeg")
+        self.assertTrue(created)
+        self.assertFalse(created2)
+        self.assertEqual(a.pk, b.pk)
+
+    def test_a_photo_uploaded_through_the_send_page_is_stored_without_its_place(self):
+        self.client.force_login(self.user)
+        f = SimpleUploadedFile("IMG_2.jpg", jpeg_with_exif(), content_type="image/jpeg")
+        self.client.post(reverse("artifacts:send"), {"files": [f]})
+        a = Artifact.objects.get(org=self.org, filename="IMG_2.jpg")
+        with a.file.open("rb") as fh:
+            with Image.open(fh) as im:
+                self.assertEqual(dict(im.getexif().get_ifd(0x8825)), {})
+
+
+class FileAccessTests(Base):
+    def setUp(self):
+        super().setUp()
+        self.a, _ = add_file(self.org, data=png_bytes(), filename="private.png", content_type="image/png")
+        self.url = self.a.file.url
+
+    def test_the_address_alone_does_not_open_a_private_photo(self):
+        self.assertEqual(self.client.get(self.url).status_code, 404)
+
+    def test_the_org_sees_its_own_photo(self):
+        self.client.force_login(self.user)
+        r = self.client.get(self.url)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r["Content-Type"], "image/png")
+        self.assertEqual(b"".join(r.streaming_content), png_bytes())
+
+    def test_another_org_gets_nothing(self):
+        other = get_user_model().objects.create_user("other", "other@example.org", "pw-123456789")
+        VolunteerProfile.objects.create(user=other, org=self.other)
+        self.client.force_login(other)
+        self.assertEqual(self.client.get(self.url).status_code, 404)
+
+    def test_a_published_story_shows_its_photo_to_anyone(self):
+        s = Story.objects.create(org=self.org, title="Our year", slug="our-year", status=StoryStatus.PUBLISHED)
+        StoryBlock.objects.create(story=s, artifact=self.a)
+        r = self.client.get(self.url)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r["Cache-Control"], "public, max-age=300")
+
+    def test_a_draft_story_keeps_its_photo_to_itself(self):
+        s = Story.objects.create(org=self.org, title="Draft", slug="draft")
+        StoryBlock.objects.create(story=s, artifact=self.a)
+        self.assertEqual(self.client.get(self.url).status_code, 404)
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get(self.url).status_code, 200)
+
+    def test_a_video_can_be_played_from_the_middle(self):
+        v, _ = add_file(self.org, data=b"0123456789" * 10, filename="clip.mp4", content_type="video/mp4")
+        self.client.force_login(self.user)
+        r = self.client.get(v.file.url, HTTP_RANGE="bytes=10-19")
+        self.assertEqual(r.status_code, 206)
+        self.assertEqual(r["Content-Range"], "bytes 10-19/100")
+        self.assertEqual(b"".join(r.streaming_content), b"0123456789")
+
+    def test_a_file_that_is_not_a_photo_is_not_shown_in_the_browser(self):
+        h, _ = add_file(self.org, data=b"<script>alert(1)</script>", filename="note.html",
+                        content_type="text/html")
+        self.client.force_login(self.user)
+        r = self.client.get(h.file.url)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r["Content-Type"], "application/octet-stream")
+        self.assertIn("attachment", r["Content-Disposition"])
 
 
 class EmailTests(Base):

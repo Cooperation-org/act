@@ -37,6 +37,7 @@ urlpatterns = home + [
     path("stories/", views.stories, name="stories"),
     path("stories/<slug:slug>/", views.story, name="story"),
     path("stories/<slug:slug>/edit/", views.story_edit, name="story_edit"),
+    path("files/<path:path>", views.media_file, name="media_file"),
     path("manifest.webmanifest", views.manifest, name="manifest"),
     path("sw.js", views.service_worker, name="sw"),
 ]

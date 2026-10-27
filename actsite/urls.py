@@ -1,5 +1,4 @@
 from django.conf import settings
-from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 from django.views.generic import RedirectView
@@ -34,5 +33,3 @@ if settings.LINKEDTRUST_SSO_ENABLED:
     # Landing page for the callback's failure redirect ({frontend}/login?error=…), which
     # would otherwise 404. Adds a route only; the success path is untouched.
     urlpatterns.insert(3, path("login", login_help, name="login_help"))
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
