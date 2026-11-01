@@ -119,6 +119,8 @@
 <body{% if embed %} class="embed"{% endif %}>
 {% include "artifacts/_icons.html" %}
 {% if embed %}{% elif s.status != "published" %}<div class="draftbar">Preview. Only your team can see this until it is published. <a href="{% url 'artifacts:story_edit' s.slug %}">Back to editing</a></div>
+{% elif draft and is_member %}<div class="draftbar">Preview of your edits. Readers still see the published version. <a href="{% url 'artifacts:story' s.slug %}">See what readers see</a> &middot; <a href="{% url 'artifacts:story_edit' s.slug %}">Back to editing</a></div>
+{% elif s.has_edits %}<div class="draftbar member">This is what readers see. Your edits are not published yet. <a href="{% url 'artifacts:story' s.slug %}?preview=1">Preview edits</a> &middot; <a href="{% url 'artifacts:story_edit' s.slug %}">Edit this story</a></div>
 {% elif is_member %}<div class="draftbar member"><a href="{% url 'artifacts:story_edit' s.slug %}">Edit this story</a></div>{% endif %}
 {% if not embed %}<div class="sitebar">{% if s.org.website %}<a href="{{ s.org.website }}">{{ s.org.name }}</a>{% else %}<b>{{ s.org.name }}</b>{% endif %}<span>A story told with Story Kit</span></div>{% endif %}
 <main id="main"><article class="story{% if s.template %} {{ s.template }}{% endif %}">
@@ -168,7 +170,7 @@
   <footer class="story-foot">
     {% if pieces %}<div class="foot-row">
       <p>{% if signed_n == pieces|length %}Every piece in this story links to a signed record.{% else %}{{ signed_n }} of {{ pieces|length }} {{ pieces|length|pluralize:"piece is,pieces are" }} signed.{% endif %} <a href="#how" data-open-how>See all {{ pieces|length }} {{ pieces|length|pluralize:"piece,pieces" }}</a></p>
-      <p class="acts">{% if not embed %}<button type="button" class="linkish" id="share">Share</button>{% endif %}<a class="linkish" href="{% url 'artifacts:story_pdf' s.slug %}" download>Download as PDF</a></p>
+      <p class="acts">{% if not embed %}<button type="button" class="linkish" id="share">Share</button>{% endif %}<a class="linkish" href="{% url 'artifacts:story_pdf' s.slug %}{% if draft and s.status == 'published' %}?preview=1{% endif %}" download>Download as PDF</a></p>
     </div>
     <details class="how" id="how"><summary>How this story was made &middot; {{ pieces|length }} {{ pieces|length|pluralize:"piece,pieces" }}</summary>
       <p>Each piece was sent in to {{ s.org.name }} as it happened and kept exactly as it arrived. Pieces with a signature say so.</p>

@@ -963,6 +963,7 @@ def story_edit(request, slug):
             if action == "publish" and request.POST.get("confirmed") == "1":
                 s.status = StoryStatus.PUBLISHED
                 s.published_at = s.published_at or timezone.now()
+                s.published = s.snapshot()
             elif action == "unpublish":
                 s.status = StoryStatus.DRAFT
             s.save()
@@ -987,10 +988,10 @@ def story_edit(request, slug):
                     s.statement = statement
                     s.save(update_fields=["statement"])
             messages.success(request, "Draft written. Every AI line is marked; read and edit each one.")
-        elif action == "publish" and s.status != StoryStatus.PUBLISHED:
+        elif action == "publish" and (s.status != StoryStatus.PUBLISHED or request.POST.get("confirmed") != "1"):
             messages.error(request, "Not published. Publish asks you to confirm first.")
         elif action == "publish":
-            messages.success(request, "Published. Anyone with the link can read it.")
+            messages.success(request, "Published. Anyone with the link can read it as it is now.")
         else:
             messages.success(request, "Saved.")
         if request.headers.get("Accept") == "application/json":
@@ -1006,24 +1007,46 @@ def story_edit(request, slug):
         "embed_code": embed_code(s, public_url)})
 
 
+class _Shown:
+    """One piece of a published story, read from the story's `published` record."""
+    def __init__(self, artifact, text):
+        self.artifact, self.text, self.by_ai = artifact, text, False
+
+
 def _story_for(request, slug):
-    """(story, is_member, blocks) for a story this visitor may read: published, or their own."""
+    """(story, is_member, blocks, draft) for a story this visitor may read. Readers get the
+    story as it was last published. Its own team gets the same, or the edits not yet
+    published with ?preview=1 (and always, for a story never published)."""
     s = get_object_or_404(Story.objects.select_related("org"), slug=slug)
     is_member = request.user.is_authenticated and user_orgs(request.user).filter(pk=s.org_id).exists()
     if s.status != StoryStatus.PUBLISHED and not is_member:
         raise Http404
-    blocks = list(s.blocks.select_related("artifact", "artifact__source").filter(
-        Q(artifact__isnull=True) | ~Q(artifact__status=ArtifactStatus.HIDDEN)))
-    return s, is_member, blocks
+    draft = s.status != StoryStatus.PUBLISHED or (is_member and request.GET.get("preview") == "1")
+    if draft or s.published is None:  # (a story published before published versions were kept: as it is)
+        blocks = list(s.blocks.select_related("artifact", "artifact__source").filter(
+            Q(artifact__isnull=True) | ~Q(artifact__status=ArtifactStatus.HIDDEN)))
+        return s, is_member, blocks, draft
+    shown = s.published
+    s.has_edits = is_member and s.has_changes
+    s.title, s.statement, s.template = shown.get("title", s.title), shown.get("statement", ""), shown.get("template", "")
+    ids = [b.get("artifact") for b in shown.get("blocks", []) if b.get("artifact")]
+    found = Artifact.objects.filter(org=s.org, pk__in=ids).exclude(status=ArtifactStatus.HIDDEN).select_related("source").in_bulk()
+    blocks = []
+    for b in shown.get("blocks", []):
+        a = found.get(b.get("artifact")) if b.get("artifact") else None
+        if a is None and (b.get("artifact") or not b.get("text")):
+            continue  # a piece since archived or deleted
+        blocks.append(_Shown(a, b.get("text") or ""))
+    return s, is_member, blocks, False
 
 
 @xframe_options_exempt
 def story(request, slug):
     """The published story: the one page people outside the org see. ?embed=1 is the
     same story without the site's frame, for an iframe on the org's own website."""
-    s, is_member, blocks = _story_for(request, slug)
+    s, is_member, blocks, draft = _story_for(request, slug)
     embed = request.GET.get("embed") == "1"
-    if embed and s.status != StoryStatus.PUBLISHED:
+    if embed and draft:
         raise Http404  # only a published story goes on another site
     first_image = next((b.artifact for b in blocks if b.artifact and b.artifact.is_image), None)
     # Timeline: a month heading wherever the month changes; text blocks belong to the piece before them.
@@ -1037,7 +1060,7 @@ def story(request, slug):
     page_url = request.build_absolute_uri(reverse("artifacts:story", args=[s.slug]))
     resp = render(request, "artifacts/story.html", {
         "s": s, "blocks": blocks, "first_image": first_image, "is_member": is_member, "lt_embed": settings.LT_EMBED,
-        "pieces": [b.artifact for b in blocks if b.artifact], "embed": embed, "page_url": page_url,
+        "pieces": [b.artifact for b in blocks if b.artifact], "embed": embed, "page_url": page_url, "draft": draft,
         "og_image": request.build_absolute_uri(f"{first_image.file.url}?w=1200") if first_image else "",
         "signed_n": sum(1 for b in blocks if b.artifact and b.artifact.claim_id)})
     if not embed:
@@ -1049,7 +1072,7 @@ def story_pdf(request, slug):
     """The story as a PDF file, laid out for paper: photos, words, numbers, and where
     each piece came from. Videos and voice notes are listed with their words."""
     from .pdf import story_pdf as make
-    s, is_member, blocks = _story_for(request, slug)
+    s, is_member, blocks, draft = _story_for(request, slug)
     data = make(s, blocks, request.build_absolute_uri(reverse("artifacts:story", args=[s.slug])))
     resp = HttpResponse(data, content_type="application/pdf")
     resp["Content-Disposition"] = f'attachment; filename="{s.slug}.pdf"'
@@ -1072,11 +1095,15 @@ def _may_see(request, path):
             request.user.is_superuser
             or user_orgs(request.user).filter(artifacts__file=path).exists()):
         return True, False
-    published = Story.objects.filter(status=StoryStatus.PUBLISHED,
-                                     blocks__artifact__file=path,
-                                     blocks__artifact__status__in=(ArtifactStatus.NEW,
-                                                                  ArtifactStatus.KEPT)).exists()
-    return published, published
+    # Public only while a published story shows it as published: a piece added to a
+    # draft of the story stays private until Publish changes.
+    live = Story.objects.filter(status=StoryStatus.PUBLISHED)
+    for pk, org_id in Artifact.objects.filter(file=path, status__in=(ArtifactStatus.NEW, ArtifactStatus.KEPT)) \
+            .values_list("pk", "org_id"):
+        if live.filter(org_id=org_id, published__blocks__contains=[{"artifact": pk}]).exists() \
+                or live.filter(org_id=org_id, published__isnull=True, blocks__artifact_id=pk).exists():
+            return True, True
+    return False, False
 
 
 def _byte_range(request, size):

@@ -179,12 +179,25 @@ class Story(models.Model):
     template = models.CharField(max_length=10, choices=StoryTemplate.choices, default=StoryTemplate.STORY, blank=True,
                                 help_text="How the published page lays the pieces out")
     published_at = models.DateTimeField(null=True, blank=True)
+    # What readers see: the story as it was when last published. Edits after that are a
+    # draft until Publish changes. {"title", "statement", "template", "blocks": [{"artifact", "text"}]}
+    published = models.JSONField(null=True, blank=True)
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["-updated"]
         verbose_name_plural = "stories"
+
+    def snapshot(self):
+        """The story as it stands now, in the form kept in `published`."""
+        return {"title": self.title, "statement": self.statement, "template": self.template,
+                "blocks": [{"artifact": b.artifact_id, "text": b.text} for b in self.blocks.all()]}
+
+    @property
+    def has_changes(self):
+        """Published, and edited since: readers do not see the edits yet."""
+        return self.status == StoryStatus.PUBLISHED and self.published is not None and self.published != self.snapshot()
 
     def __str__(self):
         return self.title

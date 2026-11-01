@@ -64,6 +64,10 @@ def make_copy(sample):
         blocks = list(st.blocks.all())
         st.pk, st.org, st.collection = None, org, cols.get(st.collection_id)
         st.slug = f"{st.slug[:40]}-{key}"
+        if st.published:  # the published version points at the copy's own pieces
+            st.published = dict(st.published, blocks=[
+                dict(b, artifact=arts[b["artifact"]].pk if b.get("artifact") in arts else None)
+                for b in st.published.get("blocks", [])])
         st.save()
         StoryBlock.objects.bulk_create([StoryBlock(story=st, order=b.order, text=b.text, by_ai=b.by_ai,
                                                    artifact=arts.get(b.artifact_id)) for b in blocks])

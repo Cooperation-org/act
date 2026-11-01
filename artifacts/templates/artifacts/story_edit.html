@@ -11,7 +11,9 @@
   <a class="back" href="{% url 'artifacts:stories' %}">{% ic "chevron-left" %}Stories</a>
   <span class="saved" id="saved" aria-live="polite"></span>
   {% if s.status == "published" %}
+    <a class="btn quiet" href="{% url 'artifacts:story' s.slug %}?preview=1">Preview edits</a>
     <a class="btn quiet" href="{% url 'artifacts:story' s.slug %}">View story</a>
+    <button type="button" id="publish-open">Publish changes</button>
     <button type="submit" name="action" value="unpublish" class="quiet" onclick="return confirm('Unpublish this story? Its public link will stop working until you publish it again.')">Unpublish</button>
   {% else %}
     <a class="btn quiet" href="{% url 'artifacts:story' s.slug %}">Preview</a>
@@ -20,7 +22,7 @@
 </div>
 
 <dialog class="sheet" id="publish-check" aria-labelledby="publish-title">
-  <div class="sheet-top"><div class="grabber"></div><div class="sheet-head"><h2 id="publish-title">Publish this story?</h2><button type="button" data-close>Cancel</button></div></div>
+  <div class="sheet-top"><div class="grabber"></div><div class="sheet-head"><h2 id="publish-title">{% if s.status == "published" %}Publish your changes?{% else %}Publish this story?{% endif %}</h2><button type="button" data-close>Cancel</button></div></div>
   <div class="sheet-body">
     <p>Anyone with the link can read it and see every photo, video and voice note in it.</p>
     <div id="consent-missing" hidden>
@@ -58,7 +60,7 @@
   </aside>
 
   <div class="canvas">
-    <p class="state">{% if s.status == "published" %}<span class="status live">{% ic "check" "ic-sm" %}Published</span>{% else %}<span class="status">Draft</span>{% endif %}<span class="muted">Changes save as you go.</span></p>
+    <p class="state">{% if s.status == "published" %}<span class="status live">{% ic "check" "ic-sm" %}Published</span>{% else %}<span class="status">Draft</span>{% endif %}<span class="muted">{% if s.status == "published" %}Edits save as you go. Readers see them after Publish changes.{% else %}Changes save as you go.{% endif %}</span></p>
     <label class="sr" for="title">Title</label>
     <input type="text" id="title" name="title" class="title-input" value="{{ s.title }}" placeholder="Give it a title" required>
     <div class="layouts" role="radiogroup" aria-label="Layout">{% for v, n in templates %}<label class="chip{% if s.template == v %} on{% endif %}"><input type="radio" name="template" value="{{ v }}"{% if s.template == v %} checked{% endif %}> {{ n }}</label>{% endfor %}</div>

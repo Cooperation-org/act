@@ -1330,3 +1330,56 @@ class KeepDemoTests(Base):
         note = Artifact.objects.get(org=org, words="my own note")
         self.assertEqual((note.added_by, note.sent_by), (newcomer, "new@example.org"))
         self.assertTrue(Artifact.objects.filter(org=org, words="sample").exists())
+
+
+class PublishedVersionTests(Base):
+    """Edits to a published story are a draft until Publish changes."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_login(self.user)
+        self.a, _ = add_file(self.org, data=png_bytes("red"), filename="a.png", words="first piece")
+        self.b, _ = add_file(self.org, data=png_bytes("blue"), filename="b.png", words="added later")
+        self.s = Story.objects.create(org=self.org, title="Before", slug="st")
+        StoryBlock.objects.create(story=self.s, artifact=self.a)
+        self.edit = reverse("artifacts:story_edit", args=[self.s.slug])
+        self.page = reverse("artifacts:story", args=[self.s.slug])
+
+    def _post(self, title, ids, **extra):
+        return self.client.post(self.edit, {"title": title, "blocks": json.dumps([{"artifact": i} for i in ids]), **extra})
+
+    def test_edits_wait_for_publish_changes(self):
+        self._post("Before", [self.a.pk], action="publish", confirmed="1")
+        self._post("After", [self.a.pk, self.b.pk], action="save")
+        self.s.refresh_from_db()
+        self.assertTrue(self.s.has_changes)
+        self.client.logout()
+        reader = self.client.get(self.page)
+        self.assertContains(reader, "Before")
+        self.assertNotContains(reader, "added later")
+        self.assertEqual(self.client.get(self.b.file.url).status_code, 404)   # not public until published
+        self.assertEqual(self.client.get(self.a.file.url).status_code, 200)
+        self.client.force_login(self.user)
+        self.assertContains(self.client.get(self.page), "Your edits are not published yet")
+        self.assertContains(self.client.get(self.page + "?preview=1"), "added later")
+        self._post("After", [self.a.pk, self.b.pk], action="publish", confirmed="1")
+        self.client.logout()
+        self.assertContains(self.client.get(self.page), "added later")
+        self.assertEqual(self.client.get(self.b.file.url).status_code, 200)
+
+    def test_a_piece_taken_out_of_the_draft_stays_until_published(self):
+        self._post("Before", [self.a.pk], action="publish", confirmed="1")
+        self._post("Before", [], action="save")
+        self.client.logout()
+        self.assertContains(self.client.get(self.page), "first piece")
+        self.assertEqual(self.client.get(self.a.file.url).status_code, 200)
+
+    @override_settings(ACT_DEMO_ORG="o1")
+    def test_demo_copy_points_its_published_version_at_its_own_pieces(self):
+        from .models import DemoCopy
+        self._post("Before", [self.a.pk], action="publish", confirmed="1")
+        self.client.logout()
+        self.client.get(reverse("artifacts:demo"))
+        copy = Story.objects.get(org=DemoCopy.objects.get().org)
+        mine = Artifact.objects.get(org=copy.org, words="first piece")
+        self.assertEqual(copy.published["blocks"], [{"artifact": mine.pk, "text": ""}])
