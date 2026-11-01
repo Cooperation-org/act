@@ -12,7 +12,8 @@
 <link rel="apple-touch-icon" href="{% static 'artifacts/icon-192.png' %}">
 {% block head %}{% endblock %}
 </head>
-<body>
+<body{% block body_class %}{% endblock %}>
+<a class="skip" href="#main">Skip to content</a>
 <div class="wrap">
 <header class="kit">
   <a class="mark" href="{% url 'artifacts:home' %}">Story Kit{% if org %} <span>· {{ org.name }}</span>{% endif %}</a>
@@ -29,7 +30,9 @@
 </header>
 {% if org.demo_copy %}<p class="demo-bar">Your own copy of a made-up organization. Change anything. <a class="btn" href="{% url 'artifacts:demo_leave' %}">Start your own</a></p>{% endif %}
 {% if messages %}<ul class="flash" role="status">{% for m in messages %}<li class="{{ m.tags }}">{{ m }}</li>{% endfor %}</ul>{% endif %}
+<main id="main">
 {% block content %}{% endblock %}
+</main>
 </div>
 <script>
 if ('serviceWorker' in navigator) { navigator.serviceWorker.register('{% url "artifacts:sw" %}').catch(function(){}); }
