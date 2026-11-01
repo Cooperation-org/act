@@ -3,7 +3,7 @@
 {% block title %}Collections · Story Kit{% endblock %}
 {% block content %}
 <h1>Collections</h1>
-<p class="lede">Sets of items that go together: a cohort, an event, a person's journey. Make one in your <a href="{% url 'artifacts:library' %}">Library</a>: choose Select, pick items, then More and Collect.</p>
+<p class="lede">Sets of items that go together: a cohort, an event, a person's journey. Make one in your <a href="{% url 'artifacts:library' %}">Library</a>: choose Select, pick items, type a name and choose Add to collection.</p>
 {% if collections %}
 <ul class="list">{% for c in collections %}<li><span><a href="{% url 'artifacts:collection' c.pk %}"><strong>{{ c.name }}</strong></a>{% if c.description %} · {{ c.description|truncatechars:80 }}{% endif %}</span><small>{{ c.artifacts.count }} {{ c.artifacts.count|pluralize:"item,items" }}</small></li>{% endfor %}</ul>
 {% else %}<div class="empty"><span class="empty-icon">{% ic "folder" "ic-xl" %}</span><h2>No collections yet</h2><p>A collection keeps items together: an event, a cohort, one person's journey.</p><p><a class="btn" href="{% url 'artifacts:library' %}">Open your Library</a></p></div>{% endif %}

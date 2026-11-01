@@ -6,6 +6,12 @@
 {% if any %}
 <div class="starts">
   <form method="post" class="start-card">{% csrf_token %}
+    <input type="hidden" name="template" value="blank">
+    <h2>New story</h2>
+    <p class="muted">Starts empty. Pick the pieces yourself.</p>
+    <button type="submit">New story</button>
+  </form>
+  <form method="post" class="start-card">{% csrf_token %}
     <input type="hidden" name="template" value="timeline">
     <h2>Timeline</h2>
     <div class="filters">

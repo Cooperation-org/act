@@ -60,8 +60,11 @@ class SessionCallbackView(CallbackView):
         return self._sso_user, {}
 
     def _success(self, request, tokens):
+        # Read where to go before login(): signing in over another account (a demo guest)
+        # starts a fresh session, and the stashed address would go with the old one.
+        nxt = self._safe_next(request)
         login(request, self._sso_user)
-        return HttpResponseRedirect(self._safe_next(request))
+        return HttpResponseRedirect(nxt)
 
     def _safe_next(self, request):
         # A page that started sign-in (e.g. the vouch form) stashes where to return in the
@@ -70,4 +73,6 @@ class SessionCallbackView(CallbackView):
         # Only allow same-site relative paths, never an open redirect.
         if nxt.startswith("/") and not nxt.startswith("//") and not urlparse(nxt).netloc:
             return nxt
+        if "artifacts" in settings.ENABLED_APPS and "campaigns" not in settings.ENABLED_APPS:
+            return reverse("artifacts:home")  # Story Kit people never land in the admin
         return reverse("admin:index") if settings.LINKEDTRUST_SSO_ENABLED else "/"

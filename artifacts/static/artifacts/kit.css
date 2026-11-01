@@ -705,3 +705,12 @@ table.labels td a { display: inline-flex; align-items: center; min-height: var(-
 .next-steps h2 { margin-top: 0; font-size: var(--t-title3); }
 .next-steps ol { margin: 0; padding-left: 24px; display: grid; gap: var(--s3); color: var(--ink-2); }
 .next-steps li::marker { font-family: var(--mono); color: var(--ink-3); }
+
+/* Delete for good: apart from Save, in the danger colour */
+button.danger, .btn.danger { color: var(--danger); }
+.danger-zone { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s4); margin-top: var(--s6); padding-top: var(--s4); border-top: 1px solid var(--rule); }
+.previews .own-caption { width: 100%; min-height: 52px; font-size: var(--t-sub); }
+details.edit-coll summary { cursor: pointer; color: var(--accent); font-weight: 600; }
+.share-out { margin-top: var(--s5); }
+.embed-code { width: 100%; font: var(--t-foot)/1.4 var(--mono); }
+.consent-list { margin: var(--s2) 0 var(--s4); padding-left: var(--s5); }

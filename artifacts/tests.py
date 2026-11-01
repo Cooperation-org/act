@@ -28,6 +28,23 @@ def png_bytes(color="red"):
     return buf.getvalue()
 
 
+_MEDIA_CACHE = {}
+
+
+def media_bytes(ext):
+    """A real, tiny recording (.mov, .mp4, .m4a, .wav) made by ffmpeg, so intake can open it.
+    A .mov carries a made-up place, as an iPhone's does."""
+    if ext not in _MEDIA_CACHE:
+        import subprocess
+        video = ext in (".mov", ".mp4")
+        src = ["-f", "lavfi", "-i", "color=c=red:s=32x32:d=0.3"] if video else ["-f", "lavfi", "-i", "sine=d=0.3"]
+        with tempfile.NamedTemporaryFile(suffix=ext) as out:
+            subprocess.run(["ffmpeg", "-y", "-loglevel", "error", *src, "-metadata", "location=+37.7749-122.4194/",
+                            "-metadata", "creation_time=2026-05-04T10:00:00Z", out.name], check=True)
+            _MEDIA_CACHE[ext] = open(out.name, "rb").read()
+    return _MEDIA_CACHE[ext]
+
+
 @override_settings(MEDIA_ROOT=MEDIA)
 class Base(TestCase):
     @classmethod
@@ -91,13 +108,15 @@ class IntakeTests(Base):
 
     def test_add_file_files_an_iphone_upload_by_what_it_is(self):
         for name, kind in (("IMG_1.HEIC", ArtifactKind.PHOTO), ("IMG_2.MOV", ArtifactKind.VIDEO), ("Memo.m4a", ArtifactKind.VOICE)):
-            a, _ = add_file(self.org, data=name.encode(), filename=name, content_type="application/octet-stream")
+            data = name.encode() if name.endswith("HEIC") else media_bytes(name[-4:].lower())
+            a, _ = add_file(self.org, data=data, filename=name, content_type="application/octet-stream")
             self.assertEqual(a.kind, kind, name)
 
     def test_an_iphone_upload_through_the_send_page_is_filed_by_what_it_is(self):
         self.client.force_login(self.user)
         for name, kind in (("IMG_3.HEIC", ArtifactKind.PHOTO), ("IMG_4.MOV", ArtifactKind.VIDEO), ("Memo 2.m4a", ArtifactKind.VOICE)):
-            f = SimpleUploadedFile(name, name.encode(), content_type="application/octet-stream")
+            data = name.encode() if name.endswith("HEIC") else media_bytes(name[-4:].lower())
+            f = SimpleUploadedFile(name, data, content_type="application/octet-stream")
             self.client.post(reverse("artifacts:send"), {"files": [f]})
             self.assertEqual(Artifact.objects.get(org=self.org, filename=name).kind, kind, name)
 
@@ -203,12 +222,13 @@ class FileAccessTests(Base):
         self.assertEqual(self.client.get(self.url).status_code, 200)
 
     def test_a_video_can_be_played_from_the_middle(self):
-        v, _ = add_file(self.org, data=b"0123456789" * 10, filename="clip.mp4", content_type="video/mp4")
+        v, _ = add_file(self.org, data=media_bytes(".mp4"), filename="clip.mp4", content_type="video/mp4")
+        stored = v.file.open("rb").read()
         self.client.force_login(self.user)
         r = self.client.get(v.file.url, HTTP_RANGE="bytes=10-19")
         self.assertEqual(r.status_code, 206)
-        self.assertEqual(r["Content-Range"], "bytes 10-19/100")
-        self.assertEqual(b"".join(r.streaming_content), b"0123456789")
+        self.assertEqual(r["Content-Range"], f"bytes 10-19/{len(stored)}")
+        self.assertEqual(b"".join(r.streaming_content), stored[10:20])
 
     def test_a_file_that_is_not_a_photo_is_not_shown_in_the_browser(self):
         h, _ = add_file(self.org, data=b"<script>alert(1)</script>", filename="note.html",
@@ -262,7 +282,7 @@ class EmailTests(Base):
         m["Message-ID"] = "<iphone@example.org>"
         m.set_content("Sent from my iPhone")
         m.add_attachment(b"not really a heic", maintype="application", subtype="octet-stream", filename="IMG_7788.HEIC")
-        m.add_attachment(b"not really a mov", maintype="application", subtype="octet-stream", filename="IMG_7789.MOV")
+        m.add_attachment(media_bytes(".mov"), maintype="application", subtype="octet-stream", filename="IMG_7789.MOV")
         src = Source.objects.create(org=self.org, kind=SourceKind.EMAIL, config={"address": "stories-o1@intake.example"})
         made = file_email(src, parse_email(m.as_bytes()))
         self.assertEqual([a.kind for a, _ in made], [ArtifactKind.PHOTO, ArtifactKind.VIDEO])
@@ -346,7 +366,7 @@ class PageTests(Base):
         self.assertTrue(VolunteerProfile.objects.filter(user=u, org=org, is_approver=True).exists())
         self.assertTrue(Source.objects.filter(org=org, kind=SourceKind.EMAIL).exists())
         page = self.client.get(reverse("artifacts:ways")).content.decode()
-        self.assertIn("Your email address is being set up", page)
+        self.assertIn("Not switched on yet", page)
         self.assertRedirects(self.client.get(reverse("artifacts:home")), reverse("artifacts:send"))   # still empty
 
     def test_the_start_page_says_what_happens_next(self):
@@ -387,7 +407,8 @@ class PageTests(Base):
         blocks = json.dumps([{"artifact": b.pk, "text": "Then this."}, {"artifact": a.pk, "text": ""},
                              {"artifact": None, "text": "The end."}])
         self.client.post(reverse("artifacts:story_edit", args=[s.slug]),
-                         {"title": "Our year", "statement": "It worked.", "blocks": blocks, "action": "publish"})
+                         {"title": "Our year", "statement": "It worked.", "blocks": blocks, "action": "publish",
+                          "confirmed": "1"})
         s.refresh_from_db()
         self.assertEqual(s.status, "published")
         self.assertEqual([x.artifact_id for x in s.blocks.all()], [b.pk, a.pk, None])
@@ -1012,7 +1033,7 @@ class PublicStoryTests(Base):
         self.assertRegex(page, r'class="eyebrow">Spring cohort &middot; [A-Z][a-z]+ 20\d\d<')
 
     def test_a_voice_note_has_a_player_that_works_without_script(self):
-        v, _ = add_file(self.org, data=b"RIFFxxxxWAVE", filename="v.wav", content_type="audio/wav", source=self.upload, words="I almost gave up")
+        v, _ = add_file(self.org, data=media_bytes(".wav"), filename="v.wav", content_type="audio/wav", source=self.upload, words="I almost gave up")
         StoryBlock.objects.create(story=self.story, order=8, artifact=v)
         page = self.client.get(reverse("artifacts:story", args=["first-weeks"])).content.decode()
         self.assertIn("data-hear", page)
@@ -1117,3 +1138,195 @@ class LargeTextTests(TestCase):
         css = self.css()
         for query in ("prefers-reduced-motion", "prefers-reduced-transparency", "prefers-contrast"):
             self.assertIn(query, css)
+
+
+class DemoTestFixes(Base):
+    """What the 22 October demo test found broken."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_login(self.user)
+
+    def _story(self, *artifacts, status="draft"):
+        s = Story.objects.create(org=self.org, title="S", slug=f"s-{Story.objects.count()}", status=status)
+        for i, a in enumerate(artifacts):
+            StoryBlock.objects.create(story=s, order=i, artifact=a)
+        return s
+
+    def test_a_broken_photo_is_not_kept(self):
+        f = SimpleUploadedFile("broken.jpg", b"not a jpeg at all", content_type="image/jpeg")
+        r = self.client.post(reverse("artifacts:send"), {"files": [f]}, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("could not be opened", r.json()["error"])
+        self.assertFalse(Artifact.objects.filter(filename="broken.jpg").exists())
+
+    def test_a_broken_file_among_good_ones_is_named(self):
+        bad = SimpleUploadedFile("broken.jpg", b"nope", content_type="image/jpeg")
+        good = SimpleUploadedFile("good.png", png_bytes(), content_type="image/png")
+        r = self.client.post(reverse("artifacts:send"), {"files": [bad, good]}, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        self.assertEqual(r.json()["saved"], 1)
+        self.assertIn("broken.jpg", r.json()["message"])
+
+    def test_a_video_keeps_no_place(self):
+        import subprocess
+        a, _ = add_file(self.org, data=media_bytes(".mov"), filename="IMG_1.MOV", content_type="video/quicktime")
+        self.assertEqual(a.happened_at.date().isoformat(), "2026-05-04")
+        out = subprocess.run(["ffprobe", "-v", "error", "-show_format", a.file.path], capture_output=True, text=True).stdout
+        self.assertNotIn("37.7749", out)
+
+    def test_each_file_has_its_own_caption(self):
+        one = SimpleUploadedFile("one.png", png_bytes("red"), content_type="image/png")
+        two = SimpleUploadedFile("two.png", png_bytes("blue"), content_type="image/png")
+        self.client.post(reverse("artifacts:send"), {"files": [one, two], "words": "Market day",
+                                                     "captions": json.dumps(["Maria at the till", ""])})
+        self.assertEqual(Artifact.objects.get(filename="one.png").words, "Market day\n\nMaria at the till")
+        self.assertEqual(Artifact.objects.get(filename="two.png").words, "Market day")
+
+    def test_caption_can_be_edited(self):
+        a, _ = add_file(self.org, data=png_bytes(), filename="a.png", words="old")
+        self.client.post(reverse("artifacts:artifact", args=[a.pk]), {"words": "new words", "title": "", "about": ""})
+        a.refresh_from_db()
+        self.assertEqual(a.words, "new words")
+
+    def test_delete_for_good_removes_file_and_story_piece(self):
+        import os
+        a, _ = add_file(self.org, data=png_bytes("green"), filename="a.png")
+        path = a.file.path
+        s = self._story(a)
+        r = self.client.post(reverse("artifacts:artifact", args=[a.pk]), {"action": "delete"})
+        self.assertRedirects(r, reverse("artifacts:library"), fetch_redirect_response=False)
+        self.assertFalse(Artifact.objects.filter(pk=a.pk).exists())
+        self.assertFalse(os.path.exists(path))
+        self.assertFalse(s.blocks.exists())
+
+    def test_delete_keeps_a_file_another_record_shares(self):
+        import os
+        a, _ = add_file(self.org, data=png_bytes("green"), filename="a.png")
+        Artifact.objects.create(org=self.other, kind="photo", sha256=a.sha256, file=a.file.name)
+        self.client.post(reverse("artifacts:library"), {"action": "delete", "ids": [a.pk]})
+        self.assertFalse(Artifact.objects.filter(pk=a.pk).exists())
+        self.assertTrue(os.path.exists(a.file.path))
+
+    def test_thumbnail_is_small(self):
+        buf = io.BytesIO()
+        Image.new("RGB", (2000, 1500), "red").save(buf, "JPEG")
+        a, _ = add_file(self.org, data=buf.getvalue(), filename="big.jpg", content_type="image/jpeg")
+        r = self.client.get(a.file.url + "?w=480")
+        self.assertEqual(r["Content-Type"], "image/jpeg")
+        self.assertEqual(Image.open(io.BytesIO(b"".join(r.streaming_content))).size[0], 480)
+        self.assertIn("?w=480", self.client.get(reverse("artifacts:library")).content.decode())
+
+    def test_publish_asks_first(self):
+        s = self._story()
+        url = reverse("artifacts:story_edit", args=[s.slug])
+        self.client.post(url, {"title": "S", "blocks": "[]", "action": "publish"})
+        s.refresh_from_db()
+        self.assertEqual(s.status, "draft")
+        self.client.post(url, {"title": "S", "blocks": "[]", "action": "publish", "confirmed": "1"})
+        s.refresh_from_db()
+        self.assertEqual(s.status, "published")
+
+    def test_a_piece_is_in_a_story_once(self):
+        a, _ = add_file(self.org, data=png_bytes(), filename="a.png")
+        s = self._story()
+        blocks = json.dumps([{"artifact": a.pk, "text": ""}, {"artifact": a.pk, "text": "again"}, {"artifact": a.pk}])
+        self.client.post(reverse("artifacts:story_edit", args=[s.slug]), {"title": "S", "blocks": blocks},
+                         HTTP_ACCEPT="application/json")
+        self.assertEqual([(b.artifact_id, b.text) for b in s.blocks.all()], [(a.pk, ""), (None, "again")])
+
+    def test_new_story_starts_empty(self):
+        add_file(self.org, data=png_bytes(), filename="a.png")
+        self.client.post(reverse("artifacts:stories"), {"template": "blank"})
+        self.assertFalse(Story.objects.get(org=self.org).blocks.exists())
+
+    def test_published_story_preview_embed_and_pdf(self):
+        a, _ = add_file(self.org, data=png_bytes(), filename="a.png", words="Opening day")
+        s = self._story(a, status="published")
+        self.client.logout()
+        page = self.client.get(reverse("artifacts:story", args=[s.slug]))
+        self.assertEqual(page["X-Frame-Options"], "DENY")
+        self.assertContains(page, f'content="http://testserver{a.file.url}?w=1200"')
+        self.assertContains(page, "Check this photo")
+        self.assertContains(page, "Added ")   # no date taken: the day it came in, said as such
+        embed = self.client.get(reverse("artifacts:story", args=[s.slug]) + "?embed=1")
+        self.assertFalse(embed.has_header("X-Frame-Options"))
+        self.assertNotContains(embed, 'class="sitebar"')
+        pdf = self.client.get(reverse("artifacts:story_pdf", args=[s.slug]))
+        self.assertEqual(pdf["Content-Type"], "application/pdf")
+        self.assertTrue(pdf.content.startswith(b"%PDF"))
+
+    def test_a_draft_is_not_embedded(self):
+        s = self._story()
+        self.assertEqual(self.client.get(reverse("artifacts:story", args=[s.slug]) + "?embed=1").status_code, 404)
+
+    def test_timeline_photos_can_be_checked(self):
+        a, _ = add_file(self.org, data=png_bytes(), filename="a.png")
+        s = self._story(a, status="published")
+        s.template = "timeline"
+        s.save()
+        self.assertContains(self.client.get(reverse("artifacts:story", args=[s.slug])), "Check this photo")
+
+    def test_label_merge_can_be_undone(self):
+        a, _ = add_file(self.org, data=png_bytes("red"), filename="a.png")
+        b, _ = add_file(self.org, data=png_bytes("blue"), filename="b.png")
+        old = Tag.objects.create(org=self.org, name="hillcrest", group="part")
+        into = Tag.objects.create(org=self.org, name="hillcrest site", group="part")
+        a.tags.add(old)
+        b.tags.add(old, into)
+        self.client.post(reverse("artifacts:labels"), {"pk": old.pk, "action": "save", "name": "hillcrest site", "group": "part"})
+        self.assertFalse(Tag.objects.filter(name="hillcrest").exists())
+        self.client.post(reverse("artifacts:labels"), {"action": "undo"})
+        back = Tag.objects.get(org=self.org, name="hillcrest")
+        self.assertEqual(set(back.artifacts.values_list("pk", flat=True)), {a.pk, b.pk})
+        self.assertEqual(list(into.artifacts.values_list("pk", flat=True)), [b.pk])
+
+    def test_collection_can_be_deleted(self):
+        a, _ = add_file(self.org, data=png_bytes(), filename="a.png")
+        c = Collection.objects.create(org=self.org, name="C")
+        c.artifacts.add(a)
+        self.client.post(reverse("artifacts:collection", args=[c.pk]), {"action": "delete"})
+        self.assertFalse(Collection.objects.filter(pk=c.pk).exists())
+        self.assertTrue(Artifact.objects.filter(pk=a.pk).exists())
+
+    def test_a_drive_link_that_is_not_a_folder_is_refused(self):
+        with mock.patch("artifacts.spouts.requests.get") as get:
+            get.return_value = mock.Mock(status_code=404, text="")
+            r = self.client.post(reverse("artifacts:add_drive"), {"folder": "https://drive.google.com/drive/folders/1AbCdEfGhIjKlMnOpQr"})
+        self.assertFalse(Source.objects.filter(kind=SourceKind.DRIVE).exists())
+        self.assertIn("does not show a folder", [str(m) for m in r.wsgi_request._messages][0])
+
+    def test_senders_are_shown_as_names(self):
+        from .templatetags.kit import short_who
+        self.assertEqual(short_who("demo-1a2b3c4d"), "You (demo)")
+        self.assertEqual(short_who("https://www.org-one.example/about"), "org-one.example")
+        self.assertEqual(short_who("jordan.lee@org.example"), "Jordan Lee")
+
+
+class KeepDemoTests(Base):
+    def setUp(self):
+        super().setUp()
+        self.sample_item, _ = add_file(self.org, data=png_bytes(), filename="a.png", words="sample")
+
+    @override_settings(ACT_DEMO_ORG="o1")
+    def test_start_your_own_keeps_the_demo_work(self):
+        from urllib.parse import parse_qs, urlsplit
+        from .models import DemoCopy
+        self.client.get(reverse("artifacts:demo"))
+        copy = DemoCopy.objects.get()
+        guest = copy.guest
+        self.client.post(reverse("artifacts:send"), {"words": "my own note"})
+        r = self.client.get(reverse("artifacts:demo_leave"))
+        nxt = parse_qs(urlsplit(r["Location"]).query)["next"][0]
+        self.assertIn("keep=", nxt)
+        newcomer = get_user_model().objects.create_user("newcomer", "new@example.org")
+        self.client.force_login(newcomer)
+        self.assertContains(self.client.get(nxt), "Your demo work comes with you")
+        keep = parse_qs(urlsplit(nxt).query)["keep"][0]
+        self.client.post(reverse("artifacts:start"), {"name": "Riverside Makers", "keep": keep})
+        org = Org.objects.get(name="Riverside Makers")
+        self.assertEqual(org.pk, copy.org_id)
+        self.assertFalse(DemoCopy.objects.exists())
+        self.assertFalse(get_user_model().objects.filter(pk=guest.pk).exists())
+        note = Artifact.objects.get(org=org, words="my own note")
+        self.assertEqual((note.added_by, note.sent_by), (newcomer, "new@example.org"))
+        self.assertTrue(Artifact.objects.filter(org=org, words="sample").exists())

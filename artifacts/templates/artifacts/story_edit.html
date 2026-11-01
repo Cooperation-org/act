@@ -15,9 +15,23 @@
     <button type="submit" name="action" value="unpublish" class="quiet" onclick="return confirm('Unpublish this story? Its public link will stop working until you publish it again.')">Unpublish</button>
   {% else %}
     <a class="btn quiet" href="{% url 'artifacts:story' s.slug %}">Preview</a>
-    <button type="submit" name="action" value="publish">Publish</button>
+    <button type="button" id="publish-open">Publish</button>
   {% endif %}
 </div>
+
+<dialog class="sheet" id="publish-check" aria-labelledby="publish-title">
+  <div class="sheet-top"><div class="grabber"></div><div class="sheet-head"><h2 id="publish-title">Publish this story?</h2><button type="button" data-close>Cancel</button></div></div>
+  <div class="sheet-body">
+    <p>Anyone with the link can read it and see every photo, video and voice note in it.</p>
+    <div id="consent-missing" hidden>
+      <p class="notice err"><span><b id="consent-n"></b> No consent is recorded from the people shown or heard in:</span></p>
+      <ul id="consent-list" class="consent-list"></ul>
+      <label class="check"><input type="checkbox" id="consent-ok"> Everyone shown or heard in these agreed to be in a published story</label>
+    </div>
+    <input type="hidden" name="confirmed" id="publish-confirmed" value="">
+    <p class="sheet-actions"><button type="submit" name="action" value="publish" class="big" id="publish-go">Publish</button></p>
+  </div>
+</dialog>
 
 <div class="builder">
   <aside class="builder-side" aria-label="Pieces">
@@ -34,7 +48,7 @@
       <p class="muted">Tap a piece to add it at the end, or drag it into place.</p>
       <div class="pool" id="pool">
         {% for a in pool %}
-        <button type="button" data-artifact="{{ a.pk }}" data-signed="{% if a.claim_id %}1{% endif %}" data-kind="{{ a.kind }}" data-from="{{ a.get_kind_display }} · {{ a.when|date:'j M Y' }}{% if a.words %} · “{{ a.words|truncatechars:90 }}”{% endif %}">
+        <button type="button" data-artifact="{{ a.pk }}" data-signed="{% if a.claim_id %}1{% endif %}" data-kind="{{ a.kind }}" data-noconsent="{% if not a.consent and a.kind in 'photo video voice' %}1{% endif %}" data-name="{{ a.title|default:a.words|default:a.filename|default:a.get_kind_display|truncatechars:70 }}" data-from="{{ a.get_kind_display }} · {{ a.when|date:'j M Y' }}{% if a.words %} · “{{ a.words|truncatechars:90 }}”{% endif %}">
           <span class="thumb">{% include "artifacts/_media.html" %}</span>
           <span class="what">{{ a.title|default:a.words|default:a.filename|default:a.source_url|truncatechars:70 }}<small>{{ a.get_kind_display }} &middot; {{ a.when|date:"j M Y" }} &middot; {% if a.claim_id %}Signed{% else %}Not signed{% endif %}</small></span>
         </button>
@@ -56,7 +70,7 @@
 
     <ol class="blocks" id="blocks">
       {% for b in blocks %}
-      <li class="block{% if not b.artifact %} text-only{% endif %}{% if b.artifact %} k-{{ b.artifact.kind }}{% endif %}" data-artifact="{{ b.artifact_id|default:'' }}" data-ai="{% if b.by_ai %}1{% endif %}">
+      <li class="block{% if not b.artifact %} text-only{% endif %}{% if b.artifact %} k-{{ b.artifact.kind }}{% endif %}" data-artifact="{{ b.artifact_id|default:'' }}" data-ai="{% if b.by_ai %}1{% endif %}"{% if b.artifact %} data-noconsent="{% if not b.artifact.consent and b.artifact.kind in 'photo video voice' %}1{% endif %}" data-name="{{ b.artifact.title|default:b.artifact.words|default:b.artifact.filename|default:b.artifact.get_kind_display|truncatechars:70 }}"{% endif %}>
         <div class="blk-tools">
           <span class="grip" title="Drag to reorder" aria-hidden="true">{% ic "grip" %}</span>
           <button type="button" class="move up" aria-label="Move up" title="Move up">{% ic "up" %}</button>
@@ -72,7 +86,12 @@
       {% endfor %}
     </ol>
     <button type="button" class="dropzone" id="add-text"><b>Drop a piece here, or start typing</b><span>Photos, quotes, clips and numbers keep their source link</span></button>
-    {% if s.status == "published" %}<p class="muted public-url">Public link: <a href="{{ public_url }}">{{ public_url }}</a></p>{% endif %}
+    {% if s.status == "published" %}<section class="share-out">
+      <p class="muted public-url">Public link: <a href="{{ public_url }}">{{ public_url }}</a></p>
+      <label for="embed-code" class="mono-label">Put it on your website</label>
+      <textarea id="embed-code" class="embed-code" readonly rows="3">{{ embed_code }}</textarea>
+      <p class="row"><button type="button" class="quiet" id="copy-embed">Copy code</button><a class="btn quiet" href="{% url 'artifacts:story_pdf' s.slug %}" download>Download as PDF</a></p>
+    </section>{% else %}<p class="row"><a class="btn quiet" href="{% url 'artifacts:story_pdf' s.slug %}" download>Download as PDF</a></p>{% endif %}
   </div>
 </div>
 </form>
@@ -97,7 +116,24 @@
     list.appendChild(li);
     return li;
   }
-  function addFromPool(b) { return block(b.dataset.artifact, b.querySelector('.thumb').innerHTML, b.dataset.from, b.dataset.signed === '1', b.dataset.kind); }
+  function addFromPool(b) {
+    var li = block(b.dataset.artifact, b.querySelector('.thumb').innerHTML, b.dataset.from, b.dataset.signed === '1', b.dataset.kind);
+    li.dataset.noconsent = b.dataset.noconsent || ''; li.dataset.name = b.dataset.name || '';
+    return li;
+  }
+  // Publish asks first, and names every photo, video or voice note with no consent recorded.
+  var pubOpen = document.getElementById('publish-open'), pubDlg = document.getElementById('publish-check');
+  if (pubOpen) pubOpen.addEventListener('click', function () {
+    var missing = Array.prototype.filter.call(list.querySelectorAll('.block'), function (li) { return li.dataset.noconsent === '1'; });
+    var box = document.getElementById('consent-missing'), ul = document.getElementById('consent-list'), ok = document.getElementById('consent-ok');
+    ul.innerHTML = '';
+    missing.forEach(function (li) { var item = document.createElement('li'); item.textContent = li.dataset.name; ul.appendChild(item); });
+    document.getElementById('consent-n').textContent = missing.length === 1 ? '1 piece.' : missing.length + ' pieces.';
+    box.hidden = !missing.length; ok.checked = false; ok.required = !!missing.length;
+    document.getElementById('publish-confirmed').value = '1';
+    pubDlg.showModal();
+  });
+  if (pubDlg) pubDlg.addEventListener('close', function () { document.getElementById('publish-confirmed').value = ''; document.getElementById('consent-ok').required = false; });
   document.getElementById('pool').addEventListener('click', function (e) {
     var b = e.target.closest('button[data-artifact]'); if (!b || this.dataset.justDragged) return;
     addFromPool(b); b.remove();
@@ -180,6 +216,13 @@
     pool.dataset.justDragged = '1'; setTimeout(function () { delete pool.dataset.justDragged; }, 50);
   });
   form.addEventListener('submit', function () { document.getElementById('blocks-json').value = blocksJson(); });
+  var copy = document.getElementById('copy-embed');
+  if (copy) copy.addEventListener('click', function () {
+    var code = document.getElementById('embed-code');
+    (navigator.clipboard ? navigator.clipboard.writeText(code.value) : Promise.reject()).then(function () {
+      copy.textContent = 'Copied'; setTimeout(function () { copy.textContent = 'Copy code'; }, 1500);
+    }).catch(function () { code.select(); });
+  });
 })();
 </script>
 {% endblock %}

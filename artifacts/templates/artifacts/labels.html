@@ -4,6 +4,7 @@
 {% block content %}
 <h1>Labels</h1>
 <p class="muted">Rename to an existing name to merge.</p>
+{% if undo %}<form method="post" class="row">{% csrf_token %}<span>{% if undo.into %}Merged{% else %}Deleted{% endif %} “{{ undo.name }}” ({{ undo.ids|length }} {{ undo.ids|length|pluralize:"item,items" }}).</span><button type="submit" name="action" value="undo" class="quiet">Undo</button></form>{% endif %}
 {% if tags %}
 <table class="labels">
   <thead><tr><th>Label</th><th>Kind</th><th>Items</th><th></th></tr></thead>

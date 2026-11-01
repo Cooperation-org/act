@@ -3,6 +3,7 @@
 Who: a program or comms lead at a small org, not technical, on a phone or a laptop.
 Every page answers one question for them; anything else is a link away.
 """
+import io
 import json
 import mimetypes
 import re
@@ -15,6 +16,7 @@ from urllib.parse import urlencode
 from django.conf import settings
 from django.contrib import messages
 from django.core.exceptions import SuspiciousOperation
+from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.db import transaction
 from django.db.models import Count, Exists, OuterRef, Q
@@ -24,9 +26,11 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_date
+from django.utils.html import escape
 from django.utils.safestring import mark_safe
 from django.utils.text import slugify
 from django.views.decorators.cache import never_cache
+from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
@@ -34,7 +38,7 @@ from campaigns.admin import user_orgs
 from campaigns.models import Org, VolunteerProfile
 
 from . import ai, demo, spouts
-from .intake import add_file, add_reference
+from .intake import BrokenFile, add_file, add_reference
 from .models import (Artifact, ArtifactKind, ArtifactStatus, Collection, Source, SourceKind, Story,
                      StoryBlock, StoryStatus, StoryTemplate, Tag, TagGroup)
 
@@ -103,9 +107,14 @@ def demo_open(request):
 def demo_leave(request):
     """From a demo copy to starting your own: a guest signs out and signs in for real."""
     from django.contrib.auth import logout
-    if request.user.is_authenticated and request.user.demo_copies.exists():
-        logout(request)
-    return redirect(f"{reverse('artifacts:signin')}?{urlencode({'next': reverse('artifacts:start')})}")
+    start = reverse("artifacts:start")
+    if request.user.is_authenticated:
+        copy = current_org(request)
+        if copy is not None and hasattr(copy, "demo_copy"):  # your practice work comes with you
+            start = f"{start}?{urlencode({'keep': demo.keep_token(copy)})}"
+        if request.user.demo_copies.exists():
+            logout(request)
+    return redirect(f"{reverse('artifacts:signin')}?{urlencode({'next': start})}")
 
 
 def _landing(request, org):
@@ -145,8 +154,10 @@ def _unique_slug(model, base, field="slug", size=46):
 def start(request):
     """Name your org. That is the whole sign-up; everything else has a default."""
     if not request.user.is_authenticated:
-        return redirect(f"{reverse('artifacts:signin')}?{urlencode({'next': request.path})}")
+        return redirect(f"{reverse('artifacts:signin')}?{urlencode({'next': request.get_full_path()})}")
     error = ""
+    keep = request.POST.get("keep") or request.GET.get("keep") or ""
+    copy = demo.copy_from_token(keep) if keep and not request.user.demo_copies.exists() else None
     if request.method == "POST":
         name = (request.POST.get("name") or "").strip()
         website = (request.POST.get("website") or "").strip()
@@ -154,6 +165,14 @@ def start(request):
             website = f"https://{website}"
         if not name:
             error = "Please give your organization's name."
+        elif copy is not None:
+            org = demo.adopt(copy, request.user, name, website, slug=_unique_slug(Org, name))
+            if not request.user.is_staff:
+                request.user.is_staff = True
+                request.user.save(update_fields=["is_staff"])
+            request.session[SESSION_ORG] = org.pk
+            messages.success(request, f"{org.name} is yours. Everything from the demo is here.")
+            return redirect("artifacts:library")
         else:
             with transaction.atomic():
                 org = Org.objects.create(slug=_unique_slug(Org, name), name=name[:200], website=website[:200])
@@ -168,7 +187,8 @@ def start(request):
                                           config={"subject": website})
             request.session[SESSION_ORG] = org.pk
             return redirect("artifacts:send")
-    return render(request, "artifacts/start.html", {"error": error, "orgs": user_orgs(request.user)})
+    return render(request, "artifacts/start.html", {"error": error, "keep": keep if copy else "", "copy": copy,
+                                                    "orgs": user_orgs(request.user).filter(demo_copy__isnull=True)})
 
 
 @org_required
@@ -215,14 +235,31 @@ def _files_from(request, field="files"):
     return [f for f in request.FILES.getlist(field) if f.size]
 
 
-def _store_uploads(request, org, files, words, when=None):
-    """Store each file. Returns [(artifact, created)] in the order sent."""
+def _store_uploads(request, org, files, words, when=None, captions=()):
+    """Store each file. Returns ([(artifact, created)] in the order sent, [why each file
+    that could not be opened was left out]). captions[i] is what was said about file i
+    alone; it follows the words said about all of them."""
     source = _source(org, SourceKind.UPLOAD) or Source.objects.create(org=org, kind=SourceKind.UPLOAD,
                                                                       label="Phone and computer")
     who = request.user.email or request.user.get_username()
-    return [add_file(org, data=f.read(), filename=f.name, content_type=f.content_type or "",
-                     source=source, words=words, sent_by=who, added_by=request.user, happened_at=when)
-            for f in files]
+    saved, broken = [], []
+    for i, f in enumerate(files):
+        own = (captions[i] if i < len(captions) else "").strip()
+        said = "\n\n".join(x for x in (words, own) if x)
+        try:
+            saved.append(add_file(org, data=f.read(), filename=f.name, content_type=f.content_type or "",
+                                  source=source, words=said, sent_by=who, added_by=request.user, happened_at=when))
+        except BrokenFile as e:
+            broken.append(str(e))
+    return saved, broken
+
+
+def _captions(request):
+    try:
+        out = json.loads(request.POST.get("captions") or "[]")
+    except ValueError:
+        return []
+    return [str(c)[:5000] for c in out] if isinstance(out, list) else []
 
 
 def _with_extras(request, org, saved):
@@ -268,11 +305,17 @@ def send(request):
             messages.error(request, "Choose a photo, video or file, or write something.")
             return redirect("artifacts:send")
         if files:
-            saved = _store_uploads(request, org, files, words, when)
+            saved, broken = _store_uploads(request, org, files, words, when, _captions(request))
             new = sum(1 for _, created in saved if created)
-            same = len(files) - new
-            text = (f"Saved {new} {'item' if new == 1 else 'items'}."
-                    + (f" {same} {'was' if same == 1 else 'were'} already here." if same else ""))
+            same = len(saved) - new
+            text = " ".join([f"Saved {new} {'item' if new == 1 else 'items'}."]
+                            + ([f"{same} {'was' if same == 1 else 'were'} already here."] if same else [])
+                            + broken)
+            if not saved:
+                if ajax:
+                    return JsonResponse({"ok": False, "error": " ".join(broken)}, status=400)
+                messages.error(request, " ".join(broken))
+                return redirect("artifacts:send")
         else:
             source = _source(org, SourceKind.UPLOAD)
             saved = [add_file(org, data=words.encode(), filename="note.txt", content_type="text/plain", source=source,
@@ -306,8 +349,9 @@ def share_target(request):
     files = _files_from(request)
     link = (request.POST.get("url") or "").strip()
     if files:
-        new = sum(1 for _, created in _store_uploads(request, org, files, words) if created)
-        messages.success(request, f"Saved {new} shared {'item' if new == 1 else 'items'}.")
+        saved, broken = _store_uploads(request, org, files, words)
+        new = sum(1 for _, created in saved if created)
+        messages.success(request, " ".join([f"Saved {new} shared {'item' if new == 1 else 'items'}."] + broken))
     elif link.startswith(("http://", "https://")):
         add_reference(org, kind=ArtifactKind.LINK, url=link, words=words, source=_source(org, SourceKind.LINK),
                       sent_by=request.user.email, added_by=request.user, happened_at=timezone.now())
@@ -367,11 +411,15 @@ def add_drive(request):
     if not folder:
         messages.error(request, "Paste the folder's share link from Google Drive (it contains /folders/).")
         return redirect("artifacts:ways")
+    problem = spouts.drive_folder_problem(folder)
+    if problem:
+        messages.error(request, problem)
+        return redirect("artifacts:ways")
     source, _ = Source.objects.get_or_create(org=org, kind=SourceKind.DRIVE, config__folder_id=folder,
                                              defaults={"label": "Google Drive folder",
                                                        "config": {"folder_id": folder, "folder_url": url}})
     spouts.check_in_background(source)
-    messages.info(request, "Copying the folder now. New items show up in What we have as they arrive.")
+    messages.info(request, "Copying the folder now. New items show up in your Library as they arrive.")
     return redirect("artifacts:ways")
 
 
@@ -582,10 +630,13 @@ def library(request):
             messages.success(request, f"Labeled {picked.count()}.")
         elif action == "hide":
             picked.update(status=ArtifactStatus.HIDDEN)
-            messages.success(request, f"Archived {len(ids)}. More filters → Archived shows them.")
+            messages.success(request, f"Archived {len(ids)}. Filters → Show archived items brings them back.")
         elif action == "unhide":
             picked.update(status=ArtifactStatus.KEPT)
             messages.success(request, f"Brought back {len(ids)}.")
+        elif action == "delete":
+            n = delete_artifacts(org, picked)
+            messages.success(request, f"Deleted {n} for good.")
         elif action in ("collect", "collect_filter"):
             name = (request.POST.get("name") or "").strip()
             f = json.loads(request.POST.get("filter") or "{}") if action == "collect_filter" else {}
@@ -647,8 +698,14 @@ def artifact(request, pk):
     org = request.org
     a = get_object_or_404(Artifact, pk=pk, org=org)
     if request.method == "POST":
+        if request.POST.get("action") == "delete":
+            delete_artifacts(org, Artifact.objects.filter(pk=a.pk))
+            messages.success(request, "Deleted for good.")
+            return redirect("artifacts:library")
         a.title = (request.POST.get("title") or "").strip()[:300]
         a.about = (request.POST.get("about") or "").strip()[:300]
+        if "words" in request.POST:
+            a.words = request.POST["words"].strip()
         a.consent = request.POST.get("consent") == "on"
         if a.status == ArtifactStatus.NEW:
             a.status = ArtifactStatus.KEPT
@@ -667,15 +724,31 @@ def artifact(request, pk):
         "lt_embed": settings.LT_EMBED})
 
 
+LABEL_UNDO = "storykit_label_undo"  # the last label deleted or merged, so it can be brought back
+
+
 @org_required
 def labels(request):
     """Every label, with how many items carry it: rename, merge, move between
     'part of our org' and plain label, or delete."""
     org = request.org
+    if request.method == "POST" and request.POST.get("action") == "undo":
+        undo = request.session.pop(LABEL_UNDO, None)
+        if undo and undo.get("org") == org.pk:
+            back, _ = Tag.objects.get_or_create(org=org, name=undo["name"], defaults={"group": undo["group"]})
+            items = Artifact.objects.filter(org=org, pk__in=undo["ids"])
+            back.artifacts.add(*items)
+            into = Tag.objects.filter(org=org, pk=undo.get("into")).first()
+            if into:  # a merge: the label it went into comes off the items that did not have it before
+                into.artifacts.remove(*items.exclude(pk__in=undo["had"]))
+            messages.success(request, f"Brought back “{back.name}”.")
+        return redirect("artifacts:labels")
     if request.method == "POST":
         t = get_object_or_404(Tag, pk=request.POST.get("pk"), org=org)
         action = request.POST.get("action")
+        ids = list(t.artifacts.values_list("pk", flat=True))
         if action == "delete":
+            request.session[LABEL_UNDO] = {"org": org.pk, "name": t.name, "group": t.group, "ids": ids}
             t.delete()
             messages.success(request, f"Took the label “{t.name}” off everything.")
         elif action == "save":
@@ -683,18 +756,24 @@ def labels(request):
             name = (request.POST.get("name") or "").strip().lower()[:60] or t.name
             same = Tag.objects.filter(org=org, name=name).exclude(pk=t.pk).first()
             if same:  # renamed onto an existing label: merge into it
+                request.session[LABEL_UNDO] = {"org": org.pk, "name": t.name, "group": t.group, "ids": ids,
+                                               "into": same.pk,
+                                               "had": list(same.artifacts.filter(pk__in=ids).values_list("pk", flat=True))}
                 for a in t.artifacts.all():
                     a.tags.add(same)
                 t.delete()
-                messages.success(request, f"Merged into “{same.name}”.")
+                messages.success(request, f"Merged “{t.name}” into “{same.name}”.")
             else:
                 t.name = name
                 t.save()
+                request.session.pop(LABEL_UNDO, None)
                 messages.success(request, "Saved.")
         return redirect("artifacts:labels")
     tags = Tag.objects.filter(org=org).annotate(n=Count("artifacts", distinct=True)).order_by("group", "name")
+    undo = request.session.get(LABEL_UNDO)
     return render(request, "artifacts/labels.html", {
-        "org": org, "nav": "labels", "tags": tags, "PART": TagGroup.PART})
+        "org": org, "nav": "labels", "tags": tags, "PART": TagGroup.PART,
+        "undo": undo if undo and undo.get("org") == org.pk else None})
 
 
 @org_required
@@ -716,6 +795,25 @@ def artifact_quick(request, pk):
     if fields:
         a.save(update_fields=fields)
     return JsonResponse({"ok": True, "status": a.status, "title": a.title})
+
+
+def delete_artifacts(org, qs):
+    """Delete for good: the record, its file and its thumbnails, and every place a story
+    showed it. A file another record still points at (a demo copy shares the sample's
+    files) stays on disk. Returns how many were deleted."""
+    n = 0
+    for a in list(qs.filter(org=org)):
+        StoryBlock.objects.filter(artifact=a, text="").delete()
+        name = a.file.name if a.file else ""
+        a.delete()
+        if name and not Artifact.objects.filter(file=name).exists():
+            for path in [name] + [thumb_path(name, w) for w in THUMB_WIDTHS]:
+                try:
+                    default_storage.delete(path)
+                except (OSError, SuspiciousOperation):
+                    pass
+        n += 1
+    return n
 
 
 # ---- collections -------------------------------------------------------------
@@ -740,6 +838,11 @@ def collection(request, pk):
             c.name = (request.POST.get("name") or c.name).strip()[:200]
             c.description = (request.POST.get("description") or "").strip()
             c.save()
+            messages.success(request, "Saved.")
+        elif action == "delete":
+            c.delete()
+            messages.success(request, f"Deleted the collection “{c.name}”. Its items are still in your Library.")
+            return redirect("artifacts:collections")
         elif action == "story":
             s = _new_story(org, c.name, list(c.artifacts.order_by("happened_at", "received_at")), collection=c)
             return redirect("artifacts:story_edit", slug=s.slug)
@@ -761,6 +864,20 @@ def _new_story(org, title, artifacts, collection=None, template=StoryTemplate.ST
 ONEPAGE_PIECES = 9
 
 
+def _once(blocks):
+    """(artifact id, text, by_ai) blocks with each piece shown once: a piece that comes
+    back later keeps only its text, as a paragraph. Empty blocks are dropped."""
+    seen = set()
+    for aid, text, by_ai in blocks:
+        if aid in seen:
+            aid = None
+        if aid is None and not text:
+            continue
+        if aid is not None:
+            seen.add(aid)
+        yield aid, text, by_ai
+
+
 def _by_date(qs):
     return sorted(qs, key=lambda a: a.when)
 
@@ -772,6 +889,9 @@ def stories(request):
     org = request.org
     if request.method == "POST":
         template = request.POST.get("template")
+        if template == "blank":  # an empty story: pick its pieces in the editor
+            s = _new_story(org, "Untitled story", [])
+            return redirect("artifacts:story_edit", slug=s.slug)
         label = request.POST.get("label") or ""
         key, _, name = label.partition(":")
         f = {key: [name]} if key in MULTI_KEYS and name else {}
@@ -809,6 +929,15 @@ def stories(request):
         "any": bool(whens)})
 
 
+def embed_code(s, public_url):
+    """What an org pastes into its own website: the story in a frame that grows to fit it."""
+    src = f"{public_url}?embed=1"
+    return (f'<iframe src="{src}" title="{escape(s.title)}" style="width:100%;border:0" height="900" loading="lazy"></iframe>\n'
+            "<script>addEventListener('message',function(e){var h=e.data&&e.data.storykitHeight;"
+            "if(h)document.querySelectorAll('iframe').forEach(function(f){if(f.contentWindow===e.source)"
+            "f.style.height=h+'px'})})</script>")
+
+
 @org_required
 def story_edit(request, slug):
     org = request.org
@@ -827,10 +956,11 @@ def story_edit(request, slug):
         with transaction.atomic():
             s.blocks.all().delete()
             StoryBlock.objects.bulk_create([
-                StoryBlock(story=s, order=i, artifact_id=b.get("artifact") if b.get("artifact") in valid else None,
-                           text=(b.get("text") or "").strip(), by_ai=bool(b.get("by_ai")))
-                for i, b in enumerate(blocks) if b.get("artifact") in valid or (b.get("text") or "").strip()])
-            if action == "publish":
+                StoryBlock(story=s, order=i, artifact_id=aid, text=text, by_ai=by_ai)
+                for i, (aid, text, by_ai) in enumerate(_once(
+                    (b.get("artifact") if b.get("artifact") in valid else None,
+                     (b.get("text") or "").strip(), bool(b.get("by_ai"))) for b in blocks))])
+            if action == "publish" and request.POST.get("confirmed") == "1":
                 s.status = StoryStatus.PUBLISHED
                 s.published_at = s.published_at or timezone.now()
             elif action == "unpublish":
@@ -851,34 +981,50 @@ def story_edit(request, slug):
             with transaction.atomic():
                 s.blocks.all().delete()
                 StoryBlock.objects.bulk_create([StoryBlock(story=s, order=i, artifact_id=aid, text=text, by_ai=True)
-                                                for i, (aid, text) in enumerate(drafted)])
+                                                for i, (aid, text, _) in enumerate(_once((aid, text, True)
+                                                                                         for aid, text in drafted))])
                 if statement and not s.statement:
                     s.statement = statement
                     s.save(update_fields=["statement"])
             messages.success(request, "Draft written. Every AI line is marked; read and edit each one.")
+        elif action == "publish" and s.status != StoryStatus.PUBLISHED:
+            messages.error(request, "Not published. Publish asks you to confirm first.")
         elif action == "publish":
-            messages.success(request, "Published.")
+            messages.success(request, "Published. Anyone with the link can read it.")
         else:
             messages.success(request, "Saved.")
         if request.headers.get("Accept") == "application/json":
             return JsonResponse({"ok": True})
         return redirect("artifacts:story_edit", slug=s.slug)
+    public_url = request.build_absolute_uri(reverse("artifacts:story", args=[s.slug]))
     in_story = {b.artifact_id for b in s.blocks.all() if b.artifact_id}
     pool = (s.collection.artifacts.all() if s.collection else Artifact.objects.filter(org=org)) \
         .exclude(status=ArtifactStatus.HIDDEN).exclude(pk__in=in_story).order_by("-received_at")[:200]
     return render(request, "artifacts/story_edit.html", {
         "org": org, "nav": "stories", "s": s, "blocks": s.blocks.select_related("artifact"), "pool": pool,
-        "ai_on": ai.enabled(), "templates": StoryTemplate.choices, "public_url": request.build_absolute_uri(reverse("artifacts:story", args=[s.slug]))})
+        "ai_on": ai.enabled(), "templates": StoryTemplate.choices, "public_url": public_url,
+        "embed_code": embed_code(s, public_url)})
 
 
-def story(request, slug):
-    """The published story: the one page people outside the org see."""
+def _story_for(request, slug):
+    """(story, is_member, blocks) for a story this visitor may read: published, or their own."""
     s = get_object_or_404(Story.objects.select_related("org"), slug=slug)
     is_member = request.user.is_authenticated and user_orgs(request.user).filter(pk=s.org_id).exists()
     if s.status != StoryStatus.PUBLISHED and not is_member:
         raise Http404
-    blocks = list(s.blocks.select_related("artifact").filter(Q(artifact__isnull=True)
-                                                             | ~Q(artifact__status=ArtifactStatus.HIDDEN)))
+    blocks = list(s.blocks.select_related("artifact", "artifact__source").filter(
+        Q(artifact__isnull=True) | ~Q(artifact__status=ArtifactStatus.HIDDEN)))
+    return s, is_member, blocks
+
+
+@xframe_options_exempt
+def story(request, slug):
+    """The published story: the one page people outside the org see. ?embed=1 is the
+    same story without the site's frame, for an iframe on the org's own website."""
+    s, is_member, blocks = _story_for(request, slug)
+    embed = request.GET.get("embed") == "1"
+    if embed and s.status != StoryStatus.PUBLISHED:
+        raise Http404  # only a published story goes on another site
     first_image = next((b.artifact for b in blocks if b.artifact and b.artifact.is_image), None)
     # Timeline: a month heading wherever the month changes; text blocks belong to the piece before them.
     month = None
@@ -888,10 +1034,27 @@ def story(request, slug):
             m = b.artifact.when.strftime("%B %Y")
             if m != month:
                 b.month = month = m
-    return render(request, "artifacts/story.html", {
+    page_url = request.build_absolute_uri(reverse("artifacts:story", args=[s.slug]))
+    resp = render(request, "artifacts/story.html", {
         "s": s, "blocks": blocks, "first_image": first_image, "is_member": is_member, "lt_embed": settings.LT_EMBED,
-        "pieces": [b.artifact for b in blocks if b.artifact],
+        "pieces": [b.artifact for b in blocks if b.artifact], "embed": embed, "page_url": page_url,
+        "og_image": request.build_absolute_uri(f"{first_image.file.url}?w=1200") if first_image else "",
         "signed_n": sum(1 for b in blocks if b.artifact and b.artifact.claim_id)})
+    if not embed:
+        resp["X-Frame-Options"] = "DENY"
+    return resp
+
+
+def story_pdf(request, slug):
+    """The story as a PDF file, laid out for paper: photos, words, numbers, and where
+    each piece came from. Videos and voice notes are listed with their words."""
+    from .pdf import story_pdf as make
+    s, is_member, blocks = _story_for(request, slug)
+    data = make(s, blocks, request.build_absolute_uri(reverse("artifacts:story", args=[s.slug])))
+    resp = HttpResponse(data, content_type="application/pdf")
+    resp["Content-Disposition"] = f'attachment; filename="{s.slug}.pdf"'
+    resp["Cache-Control"] = "private, no-store"
+    return resp
 
 
 # ---- files ---------------------------------------------------------------------
@@ -949,14 +1112,47 @@ def _chunks(handle, length):
         handle.close()
 
 
+THUMB_WIDTHS = (480, 1200)  # grids and lists; link previews and the PDF
+
+
+def thumb_path(name, width):
+    return f"thumbs/{width}/{name}.jpg"
+
+
+def _thumb(path, width):
+    """A small JPEG of a stored photo, made the first time it is asked for and kept.
+    None when the photo cannot be read (it is then served whole)."""
+    small = thumb_path(path, width)
+    if default_storage.exists(small):
+        return small
+    try:
+        from PIL import Image, ImageOps
+        with default_storage.open(path, "rb") as f, Image.open(f) as im:
+            im = ImageOps.exif_transpose(im)
+            im.thumbnail((width, width * 3))
+            if im.mode not in ("RGB", "L"):
+                im = im.convert("RGB")
+            buf = io.BytesIO()
+            im.save(buf, "JPEG", quality=80, optimize=True)
+        default_storage.save(small, ContentFile(buf.getvalue()))
+        return small
+    except Exception:
+        return None
+
+
 def media_file(request, path):
     """One stored file: the org that owns it, or anyone reading a published story that
-    shows it. Anyone else is answered with nothing."""
+    shows it. Anyone else is answered with nothing. ?w=480 asks for a photo's thumbnail."""
     allowed, public = _may_see(request, path)
     if not allowed:
         raise Http404
+    artifact = Artifact.objects.filter(file=path).first()
+    serve = path
+    width = request.GET.get("w", "")
+    if width.isdigit() and int(width) in THUMB_WIDTHS and artifact and artifact.kind == ArtifactKind.PHOTO:
+        serve = _thumb(path, int(width)) or path
     try:
-        handle = default_storage.open(path, "rb")
+        handle = default_storage.open(serve, "rb")
     except (FileNotFoundError, SuspiciousOperation, OSError):
         raise Http404
     size = getattr(handle, "size", 0)
@@ -966,9 +1162,11 @@ def media_file(request, path):
         resp = HttpResponse(status=416)
         resp["Content-Range"] = f"bytes */{size}"
         return resp
-    artifact = Artifact.objects.filter(file=path).first()
-    ctype = ((artifact.content_type if artifact else "") or mimetypes.guess_type(path)[0]
-             or "application/octet-stream").split(";")[0].strip().lower()
+    if serve != path:
+        ctype = "image/jpeg"
+    else:
+        ctype = ((artifact.content_type if artifact else "") or mimetypes.guess_type(path)[0]
+                 or "application/octet-stream").split(";")[0].strip().lower()
     inline = ctype in INLINE_TYPES
     start, end = wanted if wanted else (0, max(0, size - 1))
     length = end - start + 1

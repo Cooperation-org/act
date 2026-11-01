@@ -1,0 +1,52 @@
+{% load kit %}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{ s.title }} · {{ s.org.name }}</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm 20mm; @bottom-center { content: counter(page) " of " counter(pages); font: 8pt sans-serif; color: #6b6f68; } }
+  body { font: 10.5pt/1.5 Georgia, "DejaVu Serif", serif; color: #1a1a1a; }
+  .eyebrow { font: 8pt sans-serif; letter-spacing: .08em; text-transform: uppercase; color: #0e6b57; margin: 0 0 6pt; }
+  h1 { font: 700 24pt/1.1 sans-serif; margin: 0 0 8pt; }
+  .statement { font-size: 13pt; color: #3c3f3a; margin: 0 0 14pt; }
+  .piece { margin: 0 0 14pt; page-break-inside: avoid; }
+  .piece img { display: block; max-width: 100%; max-height: 120mm; margin: 0 auto 4pt; }
+  .meta { font: 8.5pt sans-serif; color: #6b6f68; margin: 0; }
+  .text { margin: 4pt 0 0; white-space: pre-line; }
+  blockquote { margin: 4pt 0 0; padding-left: 10pt; border-left: 2pt solid #cfd8d2; font-style: italic; white-space: pre-line; }
+  .stat { border: 1pt solid #dfe3dc; border-radius: 6pt; padding: 8pt 10pt; }
+  .stat .n { font: 700 22pt sans-serif; margin: 0; }
+  .media-note { font: 9pt sans-serif; color: #3c3f3a; border: 1pt solid #dfe3dc; border-radius: 6pt; padding: 6pt 8pt; }
+  .how { margin-top: 18pt; border-top: 1pt solid #dfe3dc; padding-top: 8pt; font: 8.5pt/1.45 sans-serif; color: #3c3f3a; page-break-inside: avoid; }
+  .how h2 { font-size: 10pt; margin: 0 0 4pt; }
+  .how ol { margin: 0; padding-left: 14pt; }
+  a { color: #0e6b57; }
+</style>
+</head>
+<body>
+<p class="eyebrow">{% if s.collection %}{{ s.collection.name }}{% else %}{{ s.org.name }}{% endif %} &middot; {{ s.published_at|default:s.updated|date:"F Y" }}</p>
+<h1>{{ s.title }}</h1>
+{% if s.statement %}<p class="statement">{{ s.statement }}</p>{% endif %}
+{% for b in blocks %}{% with a=b.artifact %}
+<section class="piece">
+  {% if not a %}<p class="text">{{ b.text }}</p>
+  {% elif a.is_image %}<img src="{{ a.file.url }}?w={{ photo_width }}" alt="">
+    <p class="meta">{% if a.title %}{{ a.title }} &middot; {% endif %}{{ a|when_text }}{% if a.consent %} &middot; Everyone shown agreed{% endif %}</p>
+    {% if b.text %}<p class="text">{{ b.text }}</p>{% elif a.words %}<blockquote>{{ a.words }}</blockquote>{% endif %}
+  {% elif a.kind == "data" %}<div class="stat"><p class="n">{{ a.title }}</p><p class="text">{{ a.about }}</p><p class="meta">Source: {{ a.source_ref|default:"not given" }}</p></div>
+    {% if b.text %}<p class="text">{{ b.text }}</p>{% endif %}
+  {% else %}
+    {% if a.is_video or a.is_audio %}<p class="media-note">{% if a.is_video %}Video{% else %}Voice note{% endif %} &middot; {{ a|when_text }}. Watch or listen in the story online.</p>{% endif %}
+    {% if a.kind == "link" %}<p class="meta"><a href="{{ a.source_url }}">{{ a.title|default:a.source_url }}</a></p>{% elif a.kind == "text" %}<p class="meta">{{ a|when_text }}{% if a.title %} &middot; {{ a.title }}{% endif %}</p>{% elif a.kind == "file" %}<p class="meta">{{ a.title|default:a.filename }}</p>{% endif %}
+    {% if b.text %}<p class="text">{{ b.text }}</p>{% endif %}
+    {% if a.words and not a.claim_id and not b.text|repeats:a.words %}<blockquote>{{ a.words }}</blockquote>{% endif %}
+  {% endif %}
+</section>
+{% endwith %}{% endfor %}
+{% if pieces %}<div class="how">
+  <h2>How this story was made</h2>
+  <p>Each piece was sent in to {{ s.org.name }} as it happened and kept exactly as it arrived. The story online: <a href="{{ page_url }}">{{ page_url }}</a></p>
+  <ol>{% for a in pieces %}<li>{{ a.title|default:a.get_kind_display }} &middot; {{ a|when_text }} &middot; {{ a|how_sent }}{% if a.claim_id %} &middot; Signed: <a href="{{ a.claim_url }}">{{ a.claim_url }}</a>{% endif %}</li>{% endfor %}</ol>
+</div>{% endif %}
+</body>
+</html>

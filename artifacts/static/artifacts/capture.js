@@ -17,7 +17,7 @@
   var VIDEO_LIMIT = 180; // seconds: the Video tile promises "up to 3 minutes"
 
   var state = { mode: null, stream: null, recorder: null, chunks: [], blob: null, mime: null,
-                acc: 0, t0: 0, timerId: null, seconds: 0, raf: 0, ac: null, bars: [], lastBar: 0 };
+                acc: 0, t0: 0, timerId: null, seconds: 0, raf: 0, ac: null, bars: [], lastBar: 0, opened: 0 };
 
   function fmt(s) { s = Math.max(0, Math.floor(s)); var m = Math.floor(s / 60), r = s % 60; return m + ':' + (r < 10 ? '0' : '') + r; }
   function toast(text) { if (window.storyKitToast) window.storyKitToast(text); }
@@ -78,6 +78,7 @@
     var name = (err && err.name) || '', dev = state.mode === 'voice' ? 'microphone' : 'camera';
     var what = ({ photo: 'photo', video: 'video', voice: 'voice note' })[state.mode] || 'file';
     if (kind === 'unsupported') return "This browser can't record here. Choose a " + what + ' you already have, or open Story Kit in Safari or Chrome.';
+    if (kind === 'waiting') return 'Waiting for the ' + dev + '. If your browser asks, choose Allow. Or choose a ' + what + ' you already have.';
     if (kind === 'notready') return 'The ' + dev + ' is still starting. Give it a moment, then tap Try again.';
     if (kind === 'start' || kind === 'recording') return "Recording didn't start. Tap Try again, or choose a " + what + ' you already have.';
     if (/NotAllowed|Security|PermissionDenied/.test(name)) return 'Story Kit needs your ' + dev + '. Turn it on for this site in your browser settings, then tap Try again.';
@@ -140,7 +141,7 @@
     camVoice.hidden = true; camVtimer.hidden = true; clearFallback();
     paint(); setUI();
   }
-  function closeCam() { resetCam(); if (cam.open) cam.close(); }
+  function closeCam() { state.opened++; resetCam(); if (cam.open) cam.close(); }
 
   async function openMode(mode) {
     resetCam();
@@ -152,24 +153,40 @@
     paint(); setUI();
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { showFallback(friendly('unsupported'), true); return; }
     var wantsVideo = mode !== 'voice', wantsAudio = mode === 'voice' || mode === 'video';
+    var my = ++state.opened;                               // a later open or a close makes this one stale
+    var stale = function () { return my !== state.opened || !cam.open; };
+    // Blocked for this site: say so now instead of waiting on an answer that never comes.
+    try {
+      var perm = navigator.permissions && await navigator.permissions.query({ name: wantsVideo ? 'camera' : 'microphone' });
+      if (stale()) return;
+      if (perm && perm.state === 'denied') { showFallback(friendly('device', { name: 'NotAllowedError' })); return; }
+    } catch (_) { /* this browser cannot say; ask anyway */ }
+    // The browser's question can sit unanswered. After a while, offer a way on that does not need it.
+    var waiting = setTimeout(function () { if (!stale() && !ready()) showFallback(friendly('waiting')); }, 8000);
     var tries = wantsVideo ? [{ video: { facingMode: 'environment' }, audio: wantsAudio }, { video: true, audio: wantsAudio }] : [{ audio: true }];
     var lastErr = null;
     for (var i = 0; i < tries.length; i++) {
       try {
-        state.stream = await navigator.mediaDevices.getUserMedia(tries[i]);
+        var stream = await navigator.mediaDevices.getUserMedia(tries[i]);
+        if (stale()) { stream.getTracks().forEach(function (t) { t.stop(); }); clearTimeout(waiting); return; }
+        state.stream = stream; clearFallback();
         if (wantsVideo) {
           camVideo.srcObject = state.stream;
           try { await camVideo.play(); } catch (_) {}
           pollVideoReady();
+          clearTimeout(waiting);
+          setTimeout(function () { if (!stale() && state.stream && !ready()) showFallback(friendly('device')); }, 8000);
         } else {
           startMeter(state.stream);
           setUI();
           startRecording();            // a voice note starts as soon as you let it listen
         }
+        clearTimeout(waiting);
         setUI();
         return;
-      } catch (e) { lastErr = e; }
+      } catch (e) { lastErr = e; if (stale()) { clearTimeout(waiting); return; } }
     }
+    clearTimeout(waiting);
     showFallback(friendly(lastErr || 'device'));
   }
 
@@ -294,7 +311,12 @@
   var audio = $('say-audio'), player = $('say-player'), playBtn = $('say-play'), wave = $('say-wave'), dur = $('say-dur');
   var thumbs = $('captures-thumbs'), urls = [], peaks = null;
   function heldFiles() { return ['photo', 'video', 'voice'].map(function (m) { return held[m]; }).filter(Boolean); }
-  function allFiles() { var out = heldFiles(); form.querySelectorAll('input[type=file]').forEach(function (i) { for (var f of i.files) out.push(f); }); return out; }
+  function inputFiles() { var out = []; form.querySelectorAll('input[type=file]').forEach(function (i) { for (var f of i.files) out.push(f); }); return out; }
+  function allFiles() { return heldFiles().concat(inputFiles()); }
+  // With more than one file, each can have its own caption, kept here by file while the previews redraw.
+  var captions = new WeakMap();
+  // In the order the server receives the files: the form's own inputs first, then the held captures.
+  function captionsJson() { return JSON.stringify(inputFiles().concat(heldFiles()).map(function (f) { return captions.get(f) || ''; })); }
   function revoke() { urls.forEach(function (u) { try { URL.revokeObjectURL(u); } catch (_) {} }); urls = []; }
   function url(f) { var u = URL.createObjectURL(f); urls.push(u); return u; }
 
@@ -341,8 +363,16 @@
       else if (f.type.indexOf('video') === 0) { var v = document.createElement('video'); v.src = url(f); v.muted = true; v.playsInline = true; v.controls = true; li.appendChild(v); }
       else { var ic = document.createElement('span'); ic.className = 'file-ic'; ic.innerHTML = icon(f.type.indexOf('audio') === 0 ? 'mic' : 'file', 'ic-xl'); li.appendChild(ic); }
       var nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = f.name; li.appendChild(nm);
+      if (files.length > 1) {
+        var cap = document.createElement('textarea'); cap.className = 'own-caption'; cap.rows = 2;
+        cap.placeholder = 'About this one (optional)'; cap.setAttribute('aria-label', 'Caption for ' + f.name);
+        cap.value = captions.get(f) || '';
+        cap.addEventListener('input', function () { captions.set(f, cap.value); });
+        li.appendChild(cap);
+      }
       thumbs.appendChild(li);
     });
+    $('words-label').textContent = files.length > 1 ? 'About all of them' : 'What is this?';
   }
 
   function showSay() {
@@ -455,9 +485,16 @@
     xhr.onabort = function () { end(); showError('Stopped. Nothing was sent, and everything you added is still here.'); };
     var data = new FormData(form);
     heldFiles().forEach(function (f) { data.append('files', f); });
+    data.set('captions', captionsJson());
     xhr.send(data);
   });
   $('send-cancel').addEventListener('click', function () { if (xhr) xhr.abort(); });
 
   updateSend();
+
+  // Links from elsewhere open one way in directly: ?add=link, ?add=number, ?add=file.
+  var add = new URLSearchParams(location.search).get('add');
+  var sheet = { link: 'link-sheet', number: 'number-sheet' }[add];
+  if (sheet && $(sheet).showModal) $(sheet).showModal();
+  else if (add === 'file') $('drop').scrollIntoView({ block: 'center' });
 })();

@@ -15,11 +15,11 @@
 <section class="addstrip" aria-labelledby="add-title">
   <h2 id="add-title" class="mono-label">Add to the inbox</h2>
   <ul>
-    <li><a class="drop-card" href="{% url 'artifacts:send' %}">{% ic "upload" %}<span><b>Upload files</b><small>or drop photos, video, PDFs</small></span></a></li>
+    <li><a class="drop-card" href="{% url 'artifacts:send' %}?add=file">{% ic "upload" %}<span><b>Upload files</b><small>or drop photos, video, PDFs</small></span></a></li>
     <li><a href="{% url 'artifacts:send' %}?add=link">{% ic "link" %}<span><b>Add a link</b><small>article, post, video page</small></span></a></li>
     <li><a href="{% url 'artifacts:send' %}?add=number">{% ic "number" %}<span><b>Add a number</b><small>with where it came from</small></span></a></li>
     <li><a href="{% url 'artifacts:ways' %}#drive">{% ic "drive" %}<span><b>Drive folder</b><small>copy a shared folder</small></span></a></li>
-    <li><a href="{% url 'artifacts:ways' %}#email">{% ic "mail" %}<span><b>Email it in</b><small class="mono">{{ email_address|default:"set up your address" }}</small></span></a></li>
+    <li><a href="{% url 'artifacts:ways' %}#email">{% ic "mail" %}<span><b>Email it in</b><small class="mono">{{ email_address|default:"not switched on yet" }}</small></span></a></li>
   </ul>
 </section>
 <div class="inbox-body">
@@ -74,6 +74,7 @@
       <select name="group" aria-label="Kind of label"><option value="">Label is a topic</option><option value="part">Label is part of {{ org.name }}</option></select>
       {% if ai_on %}<button type="submit" name="action" value="sort" class="quiet">Sort with AI</button>{% endif %}
       {% if f.show == "hidden" %}<button type="submit" name="action" value="unhide" class="quiet">Bring back</button>{% else %}<button type="submit" name="action" value="hide" class="quiet">Archive</button>{% endif %}
+      <button type="submit" name="action" value="delete" class="quiet danger" data-confirm="Delete the selected items for good? They come out of every story and collection, and their files are removed. This cannot be undone.">Delete for good</button>
     </div></details>
   </div>
 </form>
@@ -97,7 +98,7 @@
       <h3>Show</h3>
       {% if kinds|length > 1 %}<label for="f-kind">Type</label><select id="f-kind" name="kind"><option value="">Any type</option>{% for k, label in kinds %}<option value="{{ k }}"{% if f.kind == k %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>{% endif %}
       {% if source_kinds|length > 1 %}<label for="f-source">Came in by</label><select id="f-source" name="source"><option value="">Any way in</option>{% for k, label in source_kinds %}<option value="{{ k }}"{% if f.source == k %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>{% endif %}
-      {% if people|length > 1 %}<label for="f-person">Sent by</label><select id="f-person" name="person"><option value="">Anyone</option>{% for p in people %}<option{% if f.person == p %} selected{% endif %}>{{ p }}</option>{% endfor %}</select>{% endif %}
+      {% if people|length > 1 %}<label for="f-person">Sent by</label><select id="f-person" name="person"><option value="">Anyone</option>{% for p in people %}<option value="{{ p }}"{% if f.person == p %} selected{% endif %}>{{ p|short_who|default:p }}</option>{% endfor %}</select>{% endif %}
       <div class="two"><div><label for="f-since">From</label><input type="date" id="f-since" name="since" value="{{ f.since }}"></div><div><label for="f-until">To</label><input type="date" id="f-until" name="until" value="{{ f.until }}"></div></div>
       <label for="f-sort">Order</label><select id="f-sort" name="sort"><option value="">Newest added</option><option value="happened"{% if f.sort == "happened" %} selected{% endif %}>Newest taken</option><option value="oldest"{% if f.sort == "oldest" %} selected{% endif %}>Oldest taken</option><option value="title"{% if f.sort == "title" %} selected{% endif %}>Title A to Z</option></select>
       <label class="check"><input type="checkbox" name="show" value="hidden"{% if f.show == "hidden" %} checked{% endif %}> Show archived items</label>

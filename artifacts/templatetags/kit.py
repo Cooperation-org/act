@@ -1,6 +1,10 @@
 import re
+from urllib.parse import urlsplit
 
 from django import template
+from django.conf import settings
+from django.utils import timezone
+from django.utils.formats import date_format
 from django.utils.html import format_html
 
 register = template.Library()
@@ -88,6 +92,48 @@ def shell(context):
 
 @register.filter
 def short_who(sent_by):
-    """Who sent it, kept short for a card: jordan.lee@org.example becomes Jordan Lee."""
-    who = (sent_by or "").split("@")[0]
+    """Who sent it, kept short for a card: jordan.lee@org.example becomes Jordan Lee, a
+    LinkedClaims source address becomes its site, and the demo's guest login is you."""
+    who = (sent_by or "").strip()
+    if re.match(r"demo-[0-9a-f]{8}$", who):
+        return "You (demo)"
+    if who.startswith(("http://", "https://")):
+        return urlsplit(who).netloc.removeprefix("www.") or who
+    who = who.split("@")[0]
     return " ".join(w.capitalize() for w in re.split(r"[._+\-]+", who) if w) or ""
+
+
+@register.filter
+def thumb(a, width=480):
+    """The address of a photo's thumbnail, for grids and lists. Files served by the app
+    (MEDIA_URL under /files/) have thumbnails; anything else is the file itself."""
+    url = a.file.url
+    if a.kind == "photo" and url.startswith(settings.MEDIA_URL) and settings.MEDIA_URL.endswith("/files/"):
+        return f"{url}?w={width}"
+    return url
+
+
+@register.filter
+def when_text(a):
+    """The day a piece happened, or, when nobody knows, the day it came in, said as such,
+    so an upload day is never shown as the day a photo was taken."""
+    if a.happened_at:
+        return date_format(timezone.localtime(a.happened_at), "j F Y")
+    return f"Added {date_format(timezone.localtime(a.received_at), 'j F Y')}"
+
+
+def _plain(text):
+    return re.sub(r"\W+", " ", (text or "").lower()).strip()
+
+
+@register.filter
+def repeats(text, words):
+    """True when a story line already says the sender's words, so they are not shown twice."""
+    w = _plain(words)
+    return bool(w) and w in _plain(text)
+
+
+@register.filter
+def has_quotes(words):
+    """True when the words carry their own quotation marks."""
+    return any(q in (words or "") for q in '"“”')

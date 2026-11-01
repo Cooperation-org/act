@@ -1,6 +1,6 @@
 {% extends "artifacts/base.html" %}
 {% load kit %}
-{% block title %}Ways to send · Story Kit{% endblock %}
+{% block title %}Ways to add · Story Kit{% endblock %}
 {% block content %}
 <h1>Ways to add things</h1>
 <p class="lede">Use whichever is easiest. Everything ends up in your <a href="{% url 'artifacts:library' %}">Library</a>{% if count %} ({{ count }} so far){% endif %}, with who sent it and when.</p>
@@ -11,8 +11,8 @@
     <div>
       <h3>From your phone</h3>
       <div class="qr">{{ send_qr }}<p>Scan with your phone's camera. Then add it to your home screen.</p></div>
-      <p class="touch-only">You are already on your phone. Open Add and, in your browser's menu, choose Add to Home Screen so Story Kit opens like an app.</p>
-      <div class="copy"><code id="send-url">{{ send_url }}</code><button type="button" class="quiet" data-copy="send-url">Copy link</button><a class="btn" href="{% url 'artifacts:send' %}">Open Add</a></div>
+      <p class="touch-only">You are already on your phone. Open Capture and, in your browser's menu, choose Add to Home Screen so Story Kit opens like an app.</p>
+      <div class="copy"><code id="send-url">{{ send_url }}</code><button type="button" class="quiet" data-copy="send-url">Copy link</button><a class="btn" href="{% url 'artifacts:send' %}">Open Capture</a></div>
     </div>
   </li>
   <li id="email">
@@ -23,8 +23,7 @@
       <p>Email photos, videos and files to this address. Write a line about them in the email. Anyone on your team can use it.</p>
       <div class="copy"><code id="email-addr">{{ email_address }}</code><button type="button" class="quiet" data-copy="email-addr">Copy address</button></div>
       {% else %}
-      <p>Email photos, videos and files to your own address and they land here.</p>
-      <p class="pending">Your email address is being set up. It will appear here.</p>
+      <p class="pending">Not switched on yet. Your organization's own address will show here when it is.</p>
       {% endif %}
     </div>
   </li>

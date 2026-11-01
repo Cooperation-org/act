@@ -9,6 +9,7 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core import signing
 from django.db import transaction
 from django.utils import timezone
 
@@ -98,3 +99,43 @@ def remove_old(now=None):
         guest.delete()
         gone += 1
     return gone
+
+
+# ---- keeping a demo copy -------------------------------------------------------
+# "Start your own" signs the guest out so they can sign in for real. The copy goes
+# with them: a signed note of which copy it was rides along in the sign-in address,
+# and the start page turns the copy into their own organization.
+
+KEEP_SALT = "storykit.demo.keep"
+
+
+def keep_token(org):
+    return signing.dumps(org.pk, salt=KEEP_SALT)
+
+
+def copy_from_token(token):
+    """The demo copy a keep token names, while it still exists, or None."""
+    try:
+        pk = signing.loads(token or "", salt=KEEP_SALT, max_age=KEEP)
+    except signing.BadSignature:
+        return None
+    return Org.objects.filter(pk=pk, demo_copy__isnull=False).select_related("demo_copy__guest").first()
+
+
+@transaction.atomic
+def adopt(org, user, name, website="", slug=""):
+    """Make a demo copy someone's own organization: theirs from now on, never removed
+    with the other copies. What the guest sent is filed under the person who kept it."""
+    d = org.demo_copy
+    guest = d.guest
+    Artifact.objects.filter(org=org, added_by=guest).update(added_by=user)
+    Artifact.objects.filter(org=org, sent_by=guest.get_username()).update(sent_by=user.email or user.get_username())
+    VolunteerProfile.objects.get_or_create(user=user, org=org, defaults={"is_approver": True})
+    org.name, org.website = name[:200], website[:200]
+    if slug:
+        org.slug = slug
+    org.save()
+    d.delete()
+    if not guest.demo_copies.exists():
+        guest.delete()
+    return org

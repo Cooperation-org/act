@@ -1,7 +1,10 @@
 // Story Kit shell.
 // Sheets: any [data-open="id"] opens that dialog as a sheet; Done, the backdrop, Esc, or a swipe down on the grabber closes it.
+// Any button with data-confirm asks before it does what it says.
 (function () {
   document.addEventListener('click', function (e) {
+    var c = e.target.closest('[data-confirm]');
+    if (c && !window.confirm(c.dataset.confirm)) { e.preventDefault(); e.stopPropagation(); return; }
     var o = e.target.closest('[data-open]');
     if (o) { var d = document.getElementById(o.dataset.open); if (d && d.showModal) d.showModal(); return; }
     if (e.target.closest('[data-close]')) { var dlg = e.target.closest('dialog'); if (dlg) dlg.close(); return; }

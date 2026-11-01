@@ -7,9 +7,15 @@
 {% if s.statement %}<meta name="description" content="{{ s.statement|truncatechars:200 }}">{% endif %}
 <meta property="og:title" content="{{ s.title }}">
 {% if s.statement %}<meta property="og:description" content="{{ s.statement|truncatechars:200 }}">{% endif %}
-{% if first_image %}<meta property="og:image" content="{{ first_image.file.url }}">{% endif %}
+<meta property="og:type" content="article">
+<meta property="og:url" content="{{ page_url }}">
+<meta property="og:site_name" content="{{ s.org.name }}">
+{% if og_image %}<meta property="og:image" content="{{ og_image }}">
+{% if first_image.words or first_image.title %}<meta property="og:image:alt" content="{{ first_image.title|default:first_image.words|truncatechars:200 }}">{% endif %}
+<meta name="twitter:card" content="summary_large_image">{% else %}<meta name="twitter:card" content="summary">{% endif %}
 {% if s.status != "published" %}<meta name="robots" content="noindex">{% endif %}
 <meta name="theme-color" content="#ffffff">
+{% if embed %}<base target="_blank">{% endif %}
 <link rel="stylesheet" href="{% static 'artifacts/kit.css' %}">
 <script src="{{ lt_embed }}/badge.js" defer></script>
 <script>document.documentElement.classList.add('js');</script>
@@ -52,6 +58,7 @@
   .piece.voice blockquote, .piece.quote blockquote { font-size: clamp(1.625rem, 5vw, 2.125rem); line-height: 1.25; font-style: italic; letter-spacing: -.01em; white-space: normal; }
   .piece.voice blockquote::before, .piece.quote blockquote::before { content: "\201C"; }
   .piece.voice blockquote::after, .piece.quote blockquote::after { content: "\201D"; }
+  .piece blockquote.as-said::before, .piece blockquote.as-said::after { content: none; }
   .hear-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s4); margin: var(--s4) 0 0; font: 400 var(--t-sub)/1.4 var(--font); color: var(--ink-3); }
   .hear { display: none; align-items: center; gap: var(--s2); min-height: 3rem; padding: 0 var(--s5) 0 var(--s4); border-radius: 999px; background: var(--dark); color: var(--on-dark); font: 600 var(--t-sub) var(--font); }
   .hear:hover { background: var(--dark-2); color: var(--on-dark); }
@@ -98,6 +105,8 @@
   .onepage .piece.note { grid-column: 1 / -1; }
   .onepage .story-foot { margin-top: var(--s5); }
   @media (max-width: 760px) { .onepage .pieces { grid-template-columns: repeat(2, 1fr); } .piece .wide { margin: 0; } .piece { margin: var(--s6) 0; } }
+  .embed .story { padding-bottom: var(--s5); }
+  .embed .masthead { padding-top: var(--s5); }
   @media print {
     .draftbar, .foot-row .acts, .hear, .check summary { display: none !important; }
     .onepage .pieces { grid-template-columns: repeat(3, 1fr); }
@@ -107,11 +116,11 @@
   }
 </style>
 </head>
-<body>
+<body{% if embed %} class="embed"{% endif %}>
 {% include "artifacts/_icons.html" %}
-{% if s.status != "published" %}<div class="draftbar">Preview. Only your team can see this until it is published. <a href="{% url 'artifacts:story_edit' s.slug %}">Back to editing</a></div>
+{% if embed %}{% elif s.status != "published" %}<div class="draftbar">Preview. Only your team can see this until it is published. <a href="{% url 'artifacts:story_edit' s.slug %}">Back to editing</a></div>
 {% elif is_member %}<div class="draftbar member"><a href="{% url 'artifacts:story_edit' s.slug %}">Edit this story</a></div>{% endif %}
-<div class="sitebar">{% if s.org.website %}<a href="{{ s.org.website }}">{{ s.org.name }}</a>{% else %}<b>{{ s.org.name }}</b>{% endif %}<span>A story told with Story Kit</span></div>
+{% if not embed %}<div class="sitebar">{% if s.org.website %}<a href="{{ s.org.website }}">{{ s.org.name }}</a>{% else %}<b>{{ s.org.name }}</b>{% endif %}<span>A story told with Story Kit</span></div>{% endif %}
 <main id="main"><article class="story{% if s.template %} {{ s.template }}{% endif %}">
   <header class="masthead">
     <p class="eyebrow">{% if s.collection %}{{ s.collection.name }}{% else %}{{ s.org.name }}{% endif %} &middot; {{ s.published_at|default:s.updated|date:"F Y" }}</p>
@@ -124,19 +133,19 @@
   {% if s.template == "timeline" and b.month %}<h2 class="month">{{ b.month }}</h2>{% endif %}
   {% with a=b.artifact %}
   <section class="piece{% if not a %} note{% elif a.is_audio %} voice{% elif a.kind == 'data' %} stat{% endif %}">
-    {% if s.template == "timeline" and a %}<p class="when">{{ a.when|date:"j F Y" }}</p>{% endif %}
+    {% if s.template == "timeline" and a %}<p class="when">{{ a|when_text }}</p>{% endif %}
     {% if a %}
       {% if a.is_image or a.is_video %}
         <figure><div class="wide">{% if a.is_image %}<img src="{{ a.file.url }}" alt="{{ b.text|default:a.words|default:a.title|truncatechars:160 }}" loading="{% if forloop.first %}eager{% else %}lazy{% endif %}">{% else %}<video src="{{ a.file.url }}" controls playsinline preload="metadata"></video>{% endif %}</div>
-        {% if s.template != "timeline" %}<figcaption><span class="cap">{% if a.title or a.about %}{{ a.title|default:a.about }} &middot; {% endif %}{{ a.when|date:"j F Y" }}{% if a.consent %} &middot; Everyone shown agreed{% endif %}</span>
-          <details class="check"><summary>{% ic "signed" "ic-sm" %}Check this {% if a.is_image %}photo{% else %}video{% endif %}</summary>{% include "artifacts/_proof.html" %}</details></figcaption>{% endif %}</figure>
-        {% if b.text %}<p class="text">{{ b.text }}</p>{% elif a.words and not a.claim_id %}<blockquote>{{ a.words }}</blockquote>{% endif %}
+        <figcaption>{% if s.template != "timeline" %}<span class="cap">{% if a.title or a.about %}{{ a.title|default:a.about }} &middot; {% endif %}{{ a|when_text }}{% if a.consent %} &middot; Everyone shown agreed{% endif %}</span>{% endif %}
+          <details class="check"><summary>{% ic "signed" "ic-sm" %}Check this {% if a.is_image %}photo{% else %}video{% endif %}</summary>{% include "artifacts/_proof.html" %}</details></figcaption></figure>
+        {% if b.text %}<p class="text">{{ b.text }}</p>{% elif a.words and not a.claim_id %}<blockquote{% if a.words|has_quotes %} class="as-said"{% endif %}>{{ a.words }}</blockquote>{% endif %}
       {% elif a.is_audio %}
         {% if b.text %}<p class="text">{{ b.text }}</p>{% endif %}
-        {% if a.words and not a.claim_id %}<blockquote>{{ a.words }}</blockquote>{% endif %}
+        {% if a.words and not a.claim_id and not b.text|repeats:a.words %}<blockquote{% if a.words|has_quotes %} class="as-said"{% endif %}>{{ a.words }}</blockquote>{% endif %}
         <div class="hear-row"><button type="button" class="hear" data-hear="hear-{{ a.pk }}">{% ic "play" "ic-sm" %}<span>Hear it</span></button>
           <audio id="hear-{{ a.pk }}" src="{{ a.file.url }}" controls preload="none"></audio>
-          {% if s.template != "timeline" %}<span>Voice note &middot; {{ a.when|date:"j F Y" }}{% if a.consent %} &middot; Everyone shown agreed{% endif %}</span>{% endif %}
+          {% if s.template != "timeline" %}<span>Voice note &middot; {{ a|when_text }}{% if a.consent %} &middot; Everyone shown agreed{% endif %}</span>{% endif %}
           <details class="check"><summary>{% ic "signed" "ic-sm" %}Check this voice note</summary>{% include "artifacts/_proof.html" %}</details></div>
       {% elif a.kind == "data" %}
         <div class="stat-card"><p class="n">{{ a.title }}</p><p class="what">{{ a.about }}</p>
@@ -145,9 +154,9 @@
       {% else %}
         {% if a.claim_id %}<linked-badge claim-id="{{ a.claim_id }}" layout="row" theme="light"></linked-badge>
         {% elif a.kind == "link" %}<a class="link" href="{{ a.source_url }}" rel="noopener">{{ a.title|default:"Read more" }}<span>{{ a.source_url }}</span></a>
-        {% elif a.kind == "text" and s.template != "timeline" %}<p class="note-head">{{ a.when|date:"j F Y" }}{% if a.title %} &middot; {{ a.title }}{% endif %}</p>
+        {% elif a.kind == "text" and s.template != "timeline" %}<p class="note-head">{{ a|when_text }}{% if a.title %} &middot; {{ a.title }}{% endif %}</p>
         {% elif a.file and a.kind == "file" %}<a class="link" href="{{ a.file.url }}">{{ a.title|default:a.filename }}<span>{{ a.filename }}</span></a>{% endif %}
-        {% if b.text %}<p class="text">{{ b.text }}</p>{% elif a.words and not a.claim_id %}<blockquote>{{ a.words }}</blockquote>{% endif %}
+        {% if b.text %}<p class="text">{{ b.text }}</p>{% elif a.words and not a.claim_id %}<blockquote{% if a.words|has_quotes %} class="as-said"{% endif %}>{{ a.words }}</blockquote>{% endif %}
       {% endif %}
     {% else %}
       <p class="text">{{ b.text }}</p>
@@ -159,15 +168,23 @@
   <footer class="story-foot">
     {% if pieces %}<div class="foot-row">
       <p>{% if signed_n == pieces|length %}Every piece in this story links to a signed record.{% else %}{{ signed_n }} of {{ pieces|length }} {{ pieces|length|pluralize:"piece is,pieces are" }} signed.{% endif %} <a href="#how" data-open-how>See all {{ pieces|length }} {{ pieces|length|pluralize:"piece,pieces" }}</a></p>
-      <p class="acts"><button type="button" class="linkish" id="share">Share</button><button type="button" class="linkish" id="print">Download as PDF</button></p>
+      <p class="acts">{% if not embed %}<button type="button" class="linkish" id="share">Share</button>{% endif %}<a class="linkish" href="{% url 'artifacts:story_pdf' s.slug %}" download>Download as PDF</a></p>
     </div>
     <details class="how" id="how"><summary>How this story was made &middot; {{ pieces|length }} {{ pieces|length|pluralize:"piece,pieces" }}</summary>
       <p>Each piece was sent in to {{ s.org.name }} as it happened and kept exactly as it arrived. Pieces with a signature say so.</p>
-      <ul>{% for a in pieces %}<li>{% ic a.kind|kind_icon %}<span><b>{{ a.title|default:a.get_kind_display }}</b><small>{{ a.when|date:"j F Y" }} &middot; {{ a|how_sent }} &middot; {% if a.claim_id %}<span class="proof">{% ic "signed" "ic-sm" %}Signed</span>{% else %}Not signed yet{% endif %}</small></span></li>{% endfor %}</ul>
+      <ul>{% for a in pieces %}<li>{% ic a.kind|kind_icon %}<span><b>{{ a.title|default:a.get_kind_display }}</b><small>{{ a|when_text }} &middot; {{ a|how_sent }} &middot; {% if a.claim_id %}<span class="proof">{% ic "signed" "ic-sm" %}Signed</span>{% else %}Not signed yet{% endif %}</small></span></li>{% endfor %}</ul>
     </details>{% endif %}
     <p class="credit">{{ s.org.name }}{% if s.published_at %} &middot; {{ s.published_at|date:"j F Y" }}{% endif %}</p>
   </footer>
 </article></main>
+{% if embed %}<script>
+// On another site, tell the page holding this story how tall it is, so its frame fits.
+(function () {
+  function tell() { window.parent.postMessage({ storykitHeight: document.documentElement.scrollHeight }, '*'); }
+  window.addEventListener('load', tell); window.addEventListener('resize', tell);
+  if (window.ResizeObserver) new ResizeObserver(tell).observe(document.body);
+})();
+</script>{% endif %}
 <script>
 (function () {
   document.querySelectorAll('[data-hear]').forEach(function (b) {
@@ -182,13 +199,12 @@
   });
   var how = document.getElementById('how');
   document.querySelectorAll('[data-open-how]').forEach(function (a) { a.addEventListener('click', function () { if (how) how.open = true; }); });
-  var share = document.getElementById('share'), print = document.getElementById('print');
+  var share = document.getElementById('share');
   if (share) share.addEventListener('click', function () {
     var data = { title: document.title, url: location.href };
     if (navigator.share) { navigator.share(data).catch(function () {}); return; }
     if (navigator.clipboard) navigator.clipboard.writeText(location.href).then(function () { share.textContent = 'Link copied'; setTimeout(function () { share.textContent = 'Share'; }, 2200); }).catch(function () {});
   });
-  if (print) print.addEventListener('click', function () { if (how) how.open = true; window.print(); });
 })();
 </script>
 </body>

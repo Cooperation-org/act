@@ -5,6 +5,13 @@
 <p class="crumb"><a class="back" href="{% url 'artifacts:collections' %}">{% ic "chevron-left" %}Collections</a></p>
 <h1>{{ c.name }}</h1>
 {% if c.description %}<p class="lede">{{ c.description }}</p>{% endif %}
+<details class="edit-coll"><summary>Edit or delete this collection</summary>
+<form method="post" class="narrow">{% csrf_token %}
+  <label for="cname">Name</label><input type="text" id="cname" name="name" value="{{ c.name }}">
+  <label for="cdesc">Description</label><textarea id="cdesc" name="description">{{ c.description }}</textarea>
+  <p class="row"><button type="submit" name="action" value="rename">Save</button>
+    <button type="submit" name="action" value="delete" class="quiet danger" data-confirm="Delete this collection? Its items stay in your Library and its stories are kept.">Delete collection</button></p>
+</form></details>
 <form method="post" class="row" style="margin:1rem 0">{% csrf_token %}
   <button type="submit" name="action" value="story" class="big">Make a story from this</button>
   {% if c.filter %}<button type="submit" name="action" value="refresh" class="quiet">Add new items that match</button>{% endif %}
@@ -14,10 +21,5 @@
 <div class="grid">{% for a in items %}{% include "artifacts/_tile.html" with pickable=1 form_id="coll" %}{% endfor %}</div>
 <form method="post" id="coll" class="toolbar">{% csrf_token %}<button type="submit" name="action" value="remove" class="quiet">Take ticked out of this collection</button></form>
 {% else %}<div class="empty"><p>This collection is empty.</p></div>{% endif %}
-<details style="margin-top:2rem"><summary>Rename or describe</summary>
-<form method="post" class="narrow">{% csrf_token %}
-  <label for="cname">Name</label><input type="text" id="cname" name="name" value="{{ c.name }}">
-  <label for="cdesc">Description</label><textarea id="cdesc" name="description">{{ c.description }}</textarea>
-  <p><button type="submit" name="action" value="rename">Save</button></p>
-</form></details>
+
 {% endblock %}

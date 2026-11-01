@@ -2,9 +2,12 @@
 LinkedClaims, link) ends here, so dedupe and kind detection live in one place."""
 import hashlib
 import io
+import json
 import logging
 import mimetypes
 import os
+import subprocess
+import tempfile
 from datetime import datetime
 
 from django.core.files.base import ContentFile
@@ -105,6 +108,88 @@ def without_metadata(data: bytes) -> bytes:
         return data
 
 
+class BrokenFile(ValueError):
+    """A photo, video or voice note that cannot be opened. It is not kept: a card for it
+    would be blank."""
+
+
+# Photos Pillow cannot open but phones and cameras send; they are kept without a check.
+UNREADABLE_PHOTOS = {".heic", ".heif", ".dng", ".avif", ".tif", ".tiff"}
+
+
+def check_photo(data: bytes, filename: str):
+    if os.path.splitext(filename or "")[1].lower() in UNREADABLE_PHOTOS:
+        return
+    try:
+        from PIL import Image
+        with Image.open(io.BytesIO(data)) as im:
+            im.load()
+    except Exception:
+        raise BrokenFile(f"{filename or 'The photo'} could not be opened as a photo, so it was not saved.")
+
+
+def _ffmpeg_tool(name):
+    from shutil import which
+    return which(name)
+
+
+def media_facts(data: bytes, filename: str):
+    """(readable, creation time or None) for a video or a sound, from ffprobe. Without
+    ffprobe on the server every file counts as readable."""
+    probe = _ffmpeg_tool("ffprobe")
+    if not probe:
+        return True, None
+    suffix = os.path.splitext(filename or "")[1] or ".bin"
+    with tempfile.NamedTemporaryFile(suffix=suffix) as f:
+        f.write(data)
+        f.flush()
+        try:
+            r = subprocess.run([probe, "-v", "error", "-print_format", "json", "-show_format", "-show_streams", f.name],
+                               capture_output=True, timeout=60)
+        except subprocess.TimeoutExpired:
+            return True, None
+    if r.returncode != 0:
+        return False, None
+    try:
+        info = json.loads(r.stdout or b"{}")
+    except ValueError:
+        return False, None
+    if not info.get("streams"):
+        return False, None
+    created = ((info.get("format") or {}).get("tags") or {}).get("creation_time")
+    when = None
+    if created:
+        try:
+            when = datetime.fromisoformat(created.replace("Z", "+00:00"))
+            if when.year < 1990:  # a camera with no clock set
+                when = None
+        except ValueError:
+            when = None
+    return True, when
+
+
+def media_without_metadata(data: bytes, filename: str) -> bytes:
+    """A video or sound without its metadata (a phone writes where it was recorded into
+    the file). Streams are copied, not re-encoded. Left as it is when ffmpeg cannot."""
+    tool = _ffmpeg_tool("ffmpeg")
+    suffix = os.path.splitext(filename or "")[1].lower()
+    if not tool or not suffix:
+        return data
+    with tempfile.TemporaryDirectory() as d:
+        src, out = os.path.join(d, "in" + suffix), os.path.join(d, "out" + suffix)
+        with open(src, "wb") as f:
+            f.write(data)
+        try:
+            r = subprocess.run([tool, "-y", "-loglevel", "error", "-i", src, "-map", "0", "-map_metadata", "-1",
+                                "-map_chapters", "-1", "-fflags", "+bitexact", "-c", "copy", out], capture_output=True, timeout=300)
+        except subprocess.TimeoutExpired:
+            return data
+        if r.returncode != 0 or not os.path.exists(out) or not os.path.getsize(out):
+            return data
+        with open(out, "rb") as f:
+            return f.read()
+
+
 def _existing(org, sha):
     return Artifact.objects.filter(org=org, sha256=sha).first()
 
@@ -112,13 +197,24 @@ def _existing(org, sha):
 def add_file(org, *, data: bytes, filename: str, content_type: str = "", source=None, words="",
              sent_by="", added_by=None, happened_at=None, source_ref="", source_url="", title=""):
     """Store one file as an Artifact. Returns (artifact, created). A file already
-    in this org (same bytes) returns the existing record, words appended if new."""
+    in this org (same bytes) returns the existing record, words appended if new.
+    Raises BrokenFile for a photo, video or voice note that cannot be opened."""
     content_type = content_type or mimetypes.guess_type(filename)[0] or "application/octet-stream"
     kind = kind_for(content_type, filename)
+    if not data and kind != ArtifactKind.TEXT:
+        raise BrokenFile(f"{filename or 'The file'} is empty, so it was not saved.")
     if kind == ArtifactKind.PHOTO:
+        check_photo(data, filename)
         if happened_at is None:
             happened_at = photo_taken_at(data)
         data = without_metadata(data)   # the photo keeps no place, device or time of its own
+    elif kind in (ArtifactKind.VIDEO, ArtifactKind.VOICE):
+        readable, created = media_facts(data, filename)
+        if not readable:
+            raise BrokenFile(f"{filename or 'The recording'} could not be played, so it was not saved.")
+        if happened_at is None:
+            happened_at = created
+        data = media_without_metadata(data, filename)   # nor does a video or a voice note
     sha = hashlib.sha256(data).hexdigest()
     found = _existing(org, sha)
     if found:

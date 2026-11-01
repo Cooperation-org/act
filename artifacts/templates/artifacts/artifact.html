@@ -18,10 +18,11 @@
       {% elif a.file %}<p><a class="btn" href="{{ a.file.url }}">Open {{ a.filename }}</a></p>
       {% elif a.source_url and a.kind == "link" %}<p><a class="btn" href="{{ a.source_url }}" rel="noopener">Open the link</a></p>{% endif %}
     </div>
-    {% if a.words %}<h2>In their words</h2><div class="words">{{ a.words }}</div>{% endif %}
   </div>
   <div>
     <form method="post">{% csrf_token %}
+      {% if a.kind != "data" %}<label for="words">Caption <span class="muted">(what was said about it)</span></label>
+      <textarea id="words" name="words">{{ a.words }}</textarea>{% endif %}
       <label for="title">Title <span class="muted">(optional)</span></label>
       <input type="text" id="title" name="title" value="{{ a.title }}">
       <label for="about">Who or what it is about</label>
@@ -34,13 +35,17 @@
       <label class="row" style="font-weight:400"><input type="checkbox" name="consent"{% if a.consent %} checked{% endif %}> Everyone shown agreed to be in it</label>
       <p><button type="submit">Save</button></p>
     </form>
+    <form method="post" class="danger-zone" onsubmit="return confirm('Delete this for good? It comes out of every story and collection, and its file is removed. This cannot be undone.')">{% csrf_token %}
+      <button type="submit" name="action" value="delete" class="quiet danger">Delete for good</button>
+      <span class="muted">Removes it and its file from every story and collection.</span>
+    </form>
     <section class="provenance"><h2>Where it came from</h2>
     <dl class="facts">
       <dt>Kind</dt><dd>{{ a.get_kind_display }}</dd>
       <dt>Happened</dt><dd>{{ a.happened_at|date:"j M Y, H:i"|default:"not known" }}</dd>
       <dt>Came in</dt><dd>{{ a.received_at|date:"j M Y, H:i" }}{% if a.source %} · {{ a.source.get_kind_display }}{% endif %}</dd>
       {% if a.kind == "data" and a.source_ref %}<dt>Came from</dt><dd>{{ a.source_ref }}</dd>{% endif %}
-      {% if a.sent_by %}<dt>Sent by</dt><dd>{{ a.sent_by }}</dd>{% endif %}
+      {% if a.sent_by %}<dt>Sent by</dt><dd>{{ a.sent_by|short_who|default:a.sent_by }}{% if "@" in a.sent_by %} <span class="muted">{{ a.sent_by }}</span>{% endif %}</dd>{% endif %}
       {% if a.source_url %}<dt>Original</dt><dd><a href="{{ a.source_url }}" rel="noopener">{{ a.source_url|truncatechars:60 }}</a></dd>{% endif %}
       {% if a.filename %}<dt>File</dt><dd>{{ a.filename }} · {{ a.size|filesizeformat }}</dd>{% endif %}
       {% if a.claim_id %}<dt>LinkedClaim</dt><dd><a href="{{ a.claim_url }}">{{ a.claim_url }}</a></dd>{% endif %}

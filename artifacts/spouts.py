@@ -20,7 +20,7 @@ from django.conf import settings
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
-from .intake import add_file, add_reference
+from .intake import BrokenFile, add_file, add_reference
 from .models import ArtifactKind, Source, SourceKind, Tag
 
 logger = logging.getLogger(__name__)
@@ -81,9 +81,13 @@ def file_email(source, parsed):
         words = f"{parsed['subject']}\n\n{words}".strip()
     made = []
     for name, ctype, data in parsed["files"]:
-        a, created = add_file(org, data=data, filename=name, content_type=ctype, source=source, words=words,
-                              sent_by=parsed["sender"], source_ref=parsed["message_id"],
-                              happened_at=None if ctype.startswith("image/") else parsed["date"])
+        try:
+            a, created = add_file(org, data=data, filename=name, content_type=ctype, source=source, words=words,
+                                  sent_by=parsed["sender"], source_ref=parsed["message_id"],
+                                  happened_at=None if ctype.startswith("image/") else parsed["date"])
+        except BrokenFile:
+            logger.info("email %s: %s could not be opened, not kept", parsed["message_id"], name)
+            continue
         if a.happened_at is None and parsed["date"]:
             a.happened_at = parsed["date"]
             a.save(update_fields=["happened_at"])
@@ -224,6 +228,25 @@ def _drive_public_files(folder, path=(), max_depth=3):
                "folders": path}
 
 
+def drive_folder_problem(folder):
+    """Why this folder cannot be copied (it does not exist, or is not shared 'Anyone with
+    the link'), or "" when Drive shows it."""
+    key = settings.ACT_GOOGLE_API_KEY
+    try:
+        if key:
+            r = requests.get(f"{DRIVE_API}/{folder}", params={"key": key, "fields": "mimeType"}, timeout=20)
+            if r.status_code == 200 and r.json().get("mimeType") == FOLDER_MIME:
+                return ""
+        else:
+            r = requests.get("https://drive.google.com/embeddedfolderview", params={"id": folder}, timeout=20)
+            if r.status_code == 200 and ("flip-entry" in r.text or "flip-list" in r.text):
+                return ""
+    except requests.RequestException:
+        return "Google Drive did not answer. Try again in a minute."
+    return ("Google Drive does not show a folder at that link. Check the link, and that the folder "
+            "is shared as 'Anyone with the link'.")
+
+
 def labels_for(org, names):
     """The org's labels with these names, made if missing. Names are kept as typed, lowercased."""
     out = []
@@ -263,9 +286,12 @@ def import_drive(source, limit=300, max_bytes=300 * 1024 * 1024):
         ctype = got.headers.get("Content-Type", "")
         if got.status_code != 200 or ctype.startswith("text/html") or len(got.content) > max_bytes:
             continue  # too large for Drive's direct download, or not shared
-        a, created = add_file(source.org, data=got.content, filename=f["name"], content_type=f["mime"],
-                              source=source, source_ref=f["id"], source_url=f["url"], sent_by=f["by"],
-                              happened_at=f["when"])
+        try:
+            a, created = add_file(source.org, data=got.content, filename=f["name"], content_type=f["mime"],
+                                  source=source, source_ref=f["id"], source_url=f["url"], sent_by=f["by"],
+                                  happened_at=f["when"])
+        except BrokenFile:
+            continue  # a photo or recording that cannot be opened is not kept
         if f.get("folders"):
             a.tags.add(*labels_for(source.org, f["folders"]))
         new += created
