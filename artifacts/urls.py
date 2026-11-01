@@ -22,6 +22,7 @@ urlpatterns = home + [
     path("org/<int:pk>/", views.switch_org, name="switch_org"),
     path("ways/", views.ways, name="ways"),
     path("ways/link/", views.add_link, name="add_link"),
+    path("ways/number/", views.add_number, name="add_number"),
     path("ways/drive/", views.add_drive, name="add_drive"),
     path("ways/claims/", views.add_claims, name="add_claims"),
     path("ways/check/<int:pk>/", views.check_source, name="check_source"),
@@ -36,6 +37,7 @@ urlpatterns = home + [
     path("stories/", views.stories, name="stories"),
     path("stories/<slug:slug>/", views.story, name="story"),
     path("stories/<slug:slug>/edit/", views.story_edit, name="story_edit"),
+    path("files/<path:path>", views.media_file, name="media_file"),
     path("manifest.webmanifest", views.manifest, name="manifest"),
     path("sw.js", views.service_worker, name="sw"),
 ]

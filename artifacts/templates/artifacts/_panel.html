@@ -1,0 +1,25 @@
+{% load kit %}<article class="detail-card" aria-label="Details">
+  <header class="detail-top"><span class="mono-label">{{ a.kind|kind_label }}{% if a.size and a.kind != 'text' and a.kind != 'data' %} &middot; {{ a.size|filesizeformat }}{% endif %}</span>
+    <button type="button" class="icon-btn" data-panel-close aria-label="Close details">{% ic "x" %}</button></header>
+  <h2>{{ a.title|default:a.about|default:a.get_kind_display }}</h2>
+  <div class="detail-media">
+    {% if a.is_image %}<img src="{{ a.file.url }}" alt="{{ a.title|default:a.words|truncatechars:120 }}">
+    {% elif a.is_video %}<video src="{{ a.file.url }}" controls playsinline preload="metadata"></video>
+    {% elif a.is_audio %}<audio src="{{ a.file.url }}" controls preload="metadata"></audio>
+    {% elif a.kind == "data" %}<p class="big-number dark">{{ a.title }}</p>
+    {% elif a.source_url and a.kind == "link" %}<p><a href="{{ a.source_url }}" rel="noopener">{{ a.source_url|truncatechars:48 }}</a></p>
+    {% elif a.file %}<p><a href="{{ a.file.url }}">{{ a.filename }}</a></p>{% endif %}
+  </div>
+  {% if a.words %}<p class="words">{{ a.words }}</p>{% endif %}
+  <dl class="facts-grid">
+    {% if a.sent_by %}<dt>Sent by</dt><dd>{{ a.sent_by|short_who }}</dd>{% endif %}
+    {% if a.happened_at %}<dt>Happened</dt><dd>{{ a.happened_at|date:"Y-m-d H:i" }}</dd>{% endif %}
+    <dt>Added</dt><dd>{{ a.received_at|date:"Y-m-d H:i" }}</dd>
+    {% if a.kind == "data" and a.source_ref %}<dt>Came from</dt><dd>{{ a.source_ref }}</dd>{% endif %}
+    {% if a.about %}<dt>About</dt><dd>{{ a.about }}</dd>{% endif %}
+    <dt>Consent</dt><dd>{% if a.consent %}<b class="ok">Everyone shown agreed</b>{% else %}Not recorded{% endif %}</dd>
+  </dl>
+  {% if a.claim_id %}<div class="state-card signed"><b>Signed</b><p>This is a LinkedClaim. Anyone can check who stands behind it.</p><p><a href="{{ a.claim_url }}" rel="noopener">See the claim</a></p></div>
+  {% else %}<div class="state-card"><b>Not signed yet</b><p>Readers can see where this came from, but no one has signed it as a claim.</p></div>{% endif %}
+  <p class="row"><a class="btn" href="{% url 'artifacts:artifact' a.pk %}">Edit details</a>{% if a.file %}<a class="btn quiet" href="{{ a.file.url }}" download>Download</a>{% endif %}</p>
+</article>

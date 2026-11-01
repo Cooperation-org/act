@@ -1,43 +1,64 @@
 {% extends "artifacts/base.html" %}
-{% block title %}What we have · Story Kit{% endblock %}
+{% load kit %}
+{% block title %}{{ title|default:"Library" }} · Story Kit{% endblock %}
 {% block content %}
-<h1>What we have</h1>
 {% if not any_at_all %}
+  <h1>Library</h1>
   <div class="empty">
-    <p><strong>Nothing here yet.</strong></p>
-    <p>Send your first photo from your phone, email it in, or add a Google Drive folder.</p>
-    <a class="btn" href="{% url 'artifacts:send' %}">Send a photo</a> <a class="btn quiet" href="{% url 'artifacts:ways' %}">All ways to send</a>
+    <span class="empty-icon">{% ic "library" "ic-xl" %}</span>
+    <h2>Nothing here yet</h2>
+    <p>Add your first photo, video or voice note. It lands here, with who sent it and when.</p>
+    <p class="row"><a class="btn big" href="{% url 'artifacts:send' %}">{% ic "plus" %}<span>Add something</span></a> <a class="btn quiet" href="{% url 'artifacts:ways' %}">Other ways to add</a></p>
   </div>
 {% else %}
-{% if parts.0 or labels.0 %}
-<div class="chips" aria-label="Filter by label">
-  {% if parts.0 %}<p><span class="muted">Part of {{ org.name }}:</span> {% for t, href, on in parts.0 %}{% include "artifacts/_chip.html" with part=1 %}{% endfor %}{% if parts.1 %}<details class="more-chips"><summary>+{{ parts.1|length }} more</summary>{% for t, href, on in parts.1 %}{% include "artifacts/_chip.html" with part=1 %}{% endfor %}</details>{% endif %}</p>{% endif %}
-  {% if labels.0 %}<p><span class="muted">Labels:</span> {% for t, href, on in labels.0 %}{% include "artifacts/_chip.html" %}{% endfor %}{% if labels.1 %}<details class="more-chips"><summary>+{{ labels.1|length }} more</summary>{% for t, href, on in labels.1 %}{% include "artifacts/_chip.html" %}{% endfor %} <a href="{% url 'artifacts:labels' %}" class="muted">Edit labels</a></details>{% else %} <a href="{% url 'artifacts:labels' %}" class="muted">Edit labels</a>{% endif %}</p>{% endif %}
+<div class="inbox">
+<section class="addstrip" aria-labelledby="add-title">
+  <h2 id="add-title" class="mono-label">Add to the inbox</h2>
+  <ul>
+    <li><a class="drop-card" href="{% url 'artifacts:send' %}">{% ic "upload" %}<span><b>Upload files</b><small>or drop photos, video, PDFs</small></span></a></li>
+    <li><a href="{% url 'artifacts:send' %}?add=link">{% ic "link" %}<span><b>Add a link</b><small>article, post, video page</small></span></a></li>
+    <li><a href="{% url 'artifacts:send' %}?add=number">{% ic "number" %}<span><b>Add a number</b><small>with where it came from</small></span></a></li>
+    <li><a href="{% url 'artifacts:ways' %}#drive">{% ic "drive" %}<span><b>Drive folder</b><small>copy a shared folder</small></span></a></li>
+    <li><a href="{% url 'artifacts:ways' %}#email">{% ic "mail" %}<span><b>Email it in</b><small class="mono">{{ email_address|default:"set up your address" }}</small></span></a></li>
+  </ul>
+</section>
+<div class="inbox-body">
+<aside class="filter-rail" aria-label="Filters">
+  <h3 class="mono-label">Type</h3>
+  <ul class="kpills">{% for label, href, on in all_kind_links %}<li><a href="{{ href }}"{% if on %} aria-current="true"{% endif %}>{{ label }}</a></li>{% endfor %}</ul>
+  <h3 class="mono-label">Checked?</h3>
+  <ul class="checks">{% for label, href, on in checked %}<li><a href="{{ href }}" role="checkbox" aria-checked="{{ on|yesno:'true,false' }}"><span class="box">{% if on %}{% ic "check" "ic-sm" %}{% endif %}</span>{{ label }}</a></li>{% endfor %}</ul>
+  {% if labels.0 or labels.1 %}<h3 class="mono-label">Tags</h3>
+  <ul class="kpills tagpills">{% for t, href, on in labels.0 %}<li><a href="{{ href }}"{% if on %} aria-current="true"{% endif %}>{{ t.name }}</a></li>{% endfor %}{% for t, href, on in labels.1 %}<li><a href="{{ href }}"{% if on %} aria-current="true"{% endif %}>{{ t.name }}</a></li>{% endfor %}</ul>{% endif %}
+  <form method="get" class="rail-form">
+    {% for k, x in rail_keep %}<input type="hidden" name="{{ k }}" value="{{ x }}">{% endfor %}
+    {% if people|length > 1 %}<h3 class="mono-label"><label for="r-person">Sent by</label></h3>
+    <select id="r-person" name="person" data-auto><option value="">Anyone</option>{% for p in people %}<option value="{{ p }}"{% if f.person == p %} selected{% endif %}>{{ p|short_who|default:p }}</option>{% endfor %}</select>{% endif %}
+    <h3 class="mono-label"><label for="r-since">Date</label></h3>
+    <select id="r-since" name="since" data-auto>{% for label, value, on in date_options %}<option value="{{ value }}"{% if on %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+    <noscript><button type="submit" class="quiet">Apply</button></noscript>
+  </form>
+</aside>
+<div class="results">
+<header class="results-head"><h1>{{ title }}{% if not f.sort %} <small>newest first</small>{% endif %}</h1></header>
+<p class="count muted">{{ total }} {{ total|pluralize:"item,items" }}{% if f %} match{% endif %}{% if ai_on and unlabeled %} · {{ unlabeled }} without labels{% endif %}</p>
+<div class="lib-bar">
+  <form method="get" class="search" role="search">
+    {% for k, x in keep_all %}<input type="hidden" name="{{ k }}" value="{{ x }}">{% endfor %}
+    <label class="sr" for="q">Search the library</label>
+    <span class="search-field">{% ic "search" %}<input type="search" id="q" name="q" value="{{ f.q }}" placeholder="Search" enterkeyhint="search"></span>
+    <button type="submit" class="sr">Search</button>
+  </form>
+  <button type="button" class="quiet filter-btn" data-open="filters">{% ic "filter" %}<span>Filters</span>{% if active %}<b class="badge">{{ active|length }}</b>{% endif %}</button>
+  {% if items %}<button type="button" class="quiet" id="select-toggle" aria-pressed="false">Select</button>{% endif %}
 </div>
-{% endif %}
-<form method="get" class="filters" role="search">
-  {% for k, v in keep %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
-  <input type="search" name="q" value="{{ f.q }}" placeholder="Search" aria-label="Search">
-  <button type="submit" class="quiet">Search</button>
-  {% if f %}<a href="{% url 'artifacts:library' %}">Clear</a>{% endif %}
-  <details class="more"{% if f.kind or f.source or f.person or f.since or f.until or f.sort or f.show %} open{% endif %}>
-    <summary>More filters</summary>
-    <div class="filters">
-    {% if kinds|length > 1 %}<select name="kind" aria-label="Kind"><option value="">Any kind</option>{% for k, label in kinds %}<option value="{{ k }}"{% if f.kind == k %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>{% endif %}
-    {% if source_kinds|length > 1 %}<select name="source" aria-label="Came in by"><option value="">Any way in</option>{% for k, label in source_kinds %}<option value="{{ k }}"{% if f.source == k %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>{% endif %}
-    {% if people|length > 1 %}<select name="person" aria-label="Sent by"><option value="">Anyone</option>{% for p in people %}<option{% if f.person == p %} selected{% endif %}>{{ p }}</option>{% endfor %}</select>{% endif %}
-    <label class="row">From <input type="date" name="since" value="{{ f.since }}"></label>
-    <label class="row">To <input type="date" name="until" value="{{ f.until }}"></label>
-    <select name="sort" aria-label="Order"><option value="">Newest added</option><option value="happened"{% if f.sort == "happened" %} selected{% endif %}>Newest taken</option><option value="oldest"{% if f.sort == "oldest" %} selected{% endif %}>Oldest taken</option><option value="title"{% if f.sort == "title" %} selected{% endif %}>Title A to Z</option></select>
-    <label class="row"><input type="checkbox" name="show" value="hidden"{% if f.show == "hidden" %} checked{% endif %}> Archived</label>
-    <button type="submit" class="quiet">Apply</button>
-    </div>
-  </details>
-</form>
-<p class="muted">{{ total }} {{ total|pluralize:"item,items" }}{% if f %} match{% endif %}.{% if ai_on and unlabeled %} {{ unlabeled }} without labels.{% endif %}</p>
+<nav class="seg" aria-label="Show">{% for label, href, on in kind_links %}<a href="{{ href }}"{% if on %} aria-current="true"{% endif %}>{{ label }}</a>{% endfor %}</nav>
+{% if active %}<ul class="pills" aria-label="Filters in use">{% for text, href in active %}<li><a href="{{ href }}">{{ text }}{% ic "x" "ic-sm" %}<span class="sr">Remove this filter</span></a></li>{% endfor %}<li><a class="clear" href="{% url 'artifacts:library' %}">Clear all</a></li></ul>{% endif %}
 {% if items %}
-<div class="grid">{% for a in items %}{% include "artifacts/_tile.html" with pickable=1 %}{% endfor %}</div>
-{% else %}<div class="empty"><p>Nothing matches. <a href="{% url 'artifacts:library' %}">Show everything</a>.</p></div>{% endif %}
+<div class="grid" id="grid">{% for a in items %}{% include "artifacts/_tile.html" with pickable=1 %}{% endfor %}</div>
+{% else %}
+<div class="empty"><span class="empty-icon">{% ic "search" "ic-xl" %}</span><h2>Nothing matches</h2><p>Try fewer filters.</p><p><a class="btn quiet" href="{% url 'artifacts:library' %}">Show everything</a></p></div>
+{% endif %}
 
 <form method="post" id="bulk" class="toolbar">{% csrf_token %}
   <input type="hidden" name="back" value="{{ back }}">
@@ -46,34 +67,98 @@
     <strong id="picked-n"></strong>
     <input type="text" name="tags" placeholder="Label" aria-label="Label">
     <button type="submit" name="action" value="tag" class="quiet">Add label</button>
+    <input type="text" name="name" placeholder="Collection name" aria-label="Collection name">
+    <button type="submit" name="action" value="collect" class="quiet">Add to collection</button>
     <button type="submit" name="action" value="story">Make a story</button>
     <details class="more"><summary>More</summary><div class="filters">
       <select name="group" aria-label="Kind of label"><option value="">Label is a topic</option><option value="part">Label is part of {{ org.name }}</option></select>
-      <input type="text" name="name" placeholder="Collection name" aria-label="Collection name">
-      <button type="submit" name="action" value="collect" class="quiet">Collect</button>
       {% if ai_on %}<button type="submit" name="action" value="sort" class="quiet">Sort with AI</button>{% endif %}
       {% if f.show == "hidden" %}<button type="submit" name="action" value="unhide" class="quiet">Bring back</button>{% else %}<button type="submit" name="action" value="hide" class="quiet">Archive</button>{% endif %}
     </div></details>
   </div>
-  <div class="none-picked">
-    {% if ai_on and unlabeled %}<button type="submit" name="action" value="sort">Sort {{ unlabeled }} with AI</button>{% endif %}
-    {% if f %}<input type="hidden" name="name" value="" id="collect-name"><button type="submit" name="action" value="collect_filter" class="quiet" id="collect-all">Save these {{ total }} as a collection</button>{% endif %}
-    <span class="muted">Tick items to label them or make a story.</span>
-  </div>
 </form>
 
+</div>
+<aside id="detail" class="detail-panel" aria-live="polite" hidden></aside>
+</div>
+</div>
+
+<dialog id="filters" class="sheet" aria-labelledby="filters-title">
+  <div class="sheet-top"><div class="grabber" aria-hidden="true"></div>
+    <div class="sheet-head"><h2 id="filters-title">Filters</h2><button type="button" data-close>Done</button></div></div>
+  <div class="sheet-body">
+    {% if parts.0 %}<h3>Part of {{ org.name }}</h3>
+    <p class="chips">{% for t, href, on in parts.0 %}{% include "artifacts/_chip.html" with part=1 %}{% endfor %}{% for t, href, on in parts.1 %}{% include "artifacts/_chip.html" with part=1 %}{% endfor %}</p>{% endif %}
+    {% if labels.0 %}<h3>Labels</h3>
+    <p class="chips">{% for t, href, on in labels.0 %}{% include "artifacts/_chip.html" %}{% endfor %}{% for t, href, on in labels.1 %}{% include "artifacts/_chip.html" %}{% endfor %} <a href="{% url 'artifacts:labels' %}" class="muted">Edit labels</a></p>{% endif %}
+    <form method="get" class="sheet-form">
+      {% for k, x in keep %}<input type="hidden" name="{{ k }}" value="{{ x }}">{% endfor %}
+      {% if f.q %}<input type="hidden" name="q" value="{{ f.q }}">{% endif %}
+      <h3>Show</h3>
+      {% if kinds|length > 1 %}<label for="f-kind">Type</label><select id="f-kind" name="kind"><option value="">Any type</option>{% for k, label in kinds %}<option value="{{ k }}"{% if f.kind == k %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>{% endif %}
+      {% if source_kinds|length > 1 %}<label for="f-source">Came in by</label><select id="f-source" name="source"><option value="">Any way in</option>{% for k, label in source_kinds %}<option value="{{ k }}"{% if f.source == k %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>{% endif %}
+      {% if people|length > 1 %}<label for="f-person">Sent by</label><select id="f-person" name="person"><option value="">Anyone</option>{% for p in people %}<option{% if f.person == p %} selected{% endif %}>{{ p }}</option>{% endfor %}</select>{% endif %}
+      <div class="two"><div><label for="f-since">From</label><input type="date" id="f-since" name="since" value="{{ f.since }}"></div><div><label for="f-until">To</label><input type="date" id="f-until" name="until" value="{{ f.until }}"></div></div>
+      <label for="f-sort">Order</label><select id="f-sort" name="sort"><option value="">Newest added</option><option value="happened"{% if f.sort == "happened" %} selected{% endif %}>Newest taken</option><option value="oldest"{% if f.sort == "oldest" %} selected{% endif %}>Oldest taken</option><option value="title"{% if f.sort == "title" %} selected{% endif %}>Title A to Z</option></select>
+      <label class="check"><input type="checkbox" name="show" value="hidden"{% if f.show == "hidden" %} checked{% endif %}> Show archived items</label>
+      <p class="sheet-actions"><button type="submit" class="big">Show results</button></p>
+    </form>
+    <form method="post" class="sheet-form more-actions">{% csrf_token %}
+      <input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="filter" value="{{ filter_json }}"><input type="hidden" name="name" value="" id="collect-name">
+      {% if f %}<button type="submit" name="action" value="collect_filter" class="quiet" id="collect-all">Save these {{ total }} as a collection</button>{% endif %}
+      {% if ai_on and unlabeled %}<button type="submit" name="action" value="sort" class="quiet">Sort {{ unlabeled }} with AI</button>{% endif %}
+    </form>
+  </div>
+</dialog>
 {% endif %}
 {% endblock %}
+{% block wrapclass %} wide{% endblock %}
 {% block scripts %}
+<script>
+// A wide screen shows the piece beside the grid; a phone opens its own page.
+(function () {
+  var detail = document.getElementById('detail'), body = document.querySelector('.inbox-body');
+  if (!detail || !body) return;
+  var wide = window.matchMedia('(min-width: 56rem)');
+  function close() { detail.hidden = true; detail.innerHTML = ''; body.classList.remove('has-detail'); document.querySelectorAll('.tile.is-open').forEach(function (t) { t.classList.remove('is-open'); }); }
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('[data-panel-close]')) { close(); return; }
+    if (!wide.matches || document.body.classList.contains('selecting')) return;
+    var a = e.target.closest('.tile a.open'); if (!a) return;
+    var tile = a.closest('.tile'); e.preventDefault();
+    fetch(tile.dataset.panel, { credentials: 'same-origin' }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); }).then(function (html) {
+      detail.innerHTML = html; detail.hidden = false; body.classList.add('has-detail');
+      document.querySelectorAll('.tile.is-open').forEach(function (t) { t.classList.remove('is-open'); }); tile.classList.add('is-open');
+    }).catch(function () { location.href = a.href; });
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !detail.hidden) close(); });
+  document.querySelectorAll('select[data-auto]').forEach(function (s) { s.addEventListener('change', function () { s.form.submit(); }); });
+})();
+</script>
 <script>
 (function () {
   var bar = document.getElementById('bulk'); if (!bar) return;
+  var tog = document.getElementById('select-toggle');
   function update() {
     var n = document.querySelectorAll('input[name=ids]:checked').length;
     bar.classList.toggle('has-picks', n > 0);
-    document.getElementById('picked-n').textContent = n + ' ticked';
+    document.getElementById('picked-n').textContent = n + ' selected';
   }
+  function selecting(on) {
+    document.body.classList.toggle('selecting', on);
+    if (tog) { tog.setAttribute('aria-pressed', on ? 'true' : 'false'); tog.textContent = on ? 'Done' : 'Select'; }
+    if (!on) document.querySelectorAll('input[name=ids]:checked').forEach(function (i) { i.checked = false; });
+    update();
+  }
+  if (tog) tog.addEventListener('click', function () { selecting(!document.body.classList.contains('selecting')); });
   document.addEventListener('change', function (e) { if (e.target.name === 'ids') update(); });
+  // while selecting, tapping a tile picks it instead of opening it
+  document.addEventListener('click', function (e) {
+    if (!document.body.classList.contains('selecting')) return;
+    var a = e.target.closest('.tile a.open'); if (!a) return;
+    e.preventDefault();
+    var box = a.closest('.tile').querySelector('input[name=ids]'); if (box) { box.checked = !box.checked; update(); }
+  });
   var all = document.getElementById('collect-all');
   if (all) all.addEventListener('click', function (e) {
     var name = prompt('Name for this collection'); if (!name) { e.preventDefault(); return; }

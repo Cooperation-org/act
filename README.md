@@ -39,7 +39,8 @@ Live: **cooperation.org/letters/** on the civic-actions VM (10.0.0.154) since 20
 - Python 3.12 venv, `pip install -r requirements.txt`. WeasyPrint needs `libpango-1.0-0
   libpangoft2-1.0-0 libharfbuzz-subset0`.
 - `manage.py migrate --check` (run `migrate` with the `act_owner` credentials if pending),
-  `collectstatic`. `media/` must be writable by the service user (`act`).
+  `collectstatic`. The uploads folder must be writable by the service user (`act`): `media/`
+  for the letters and campaigns apps, `private-media/` for Story Kit (its files are private).
 - `deploy/act-retry-mail.service` + `.timer`: confirmation-mail retries (`systemctl enable --now act-retry-mail.timer`).
 - `deploy/act.service` (gunicorn 127.0.0.1:8050) and `deploy/nginx-cooperation.org.conf` (locations
   added inside the existing cooperation.org vhost) are what is live. `deploy/nginx-act.conf` is the
@@ -85,14 +86,18 @@ projects repo `Ideas/inbound-artifacts/` (the flow) and `Ideas/story-kit/` (the 
   - LinkedClaims: claims whose subject is the org's site (`GET {LT_API}/api/claims/subject/<url>`).
   - a link, with what it shows.
 - One Artifact per item per org (sha256 of the file, or of the URL). The sender's words are kept
-  exactly; photo dates come from EXIF (location tags are never read).
+  exactly; photo dates come from EXIF, and the photo is then stored without any metadata, so no
+  place, device or time travels with it.
 - **What we have** (`/library/`): filter by kind, label, way in, person, dates; label, hide, collect,
   start a story. **Collections** are hand-picked sets or a saved filter.
 - **Stories**: `/stories/<slug>/edit/` orders pieces (drag, works by touch), adds captions and
   paragraphs; publish makes `/stories/<slug>/` public. Drafts are visible to the org only.
   The AI helper ("Draft from this collection") appears only with `ANTHROPIC_API_KEY`; it uses only the
   pieces' own words and marks every line it writes until a person edits it.
-- Files: an S3-compatible bucket (Backblaze B2) when `ACT_STORAGE_BUCKET` is set, else `media/`.
+- Files: an S3-compatible bucket (Backblaze B2) when `ACT_STORAGE_BUCKET` is set, else
+  `private-media/`. The app serves them under `/files/` and checks who may see each one: the org
+  that owns it, or anyone reading a published story that shows it. **Never point nginx at the
+  folder** — a file reached by its address alone is a photo anyone can keep.
   Set `ACT_STORAGE_SIGNED_URLS=0` and `ACT_STORAGE_PUBLIC_HOST` only for a public bucket.
 
 ### Install Story Kit on its own VM
@@ -103,8 +108,10 @@ projects repo `Ideas/inbound-artifacts/` (the flow) and `Ideas/story-kit/` (the 
    "Deployments and data"); `ACT_PG_*` point at it.
 3. `manage.py migrate` with the owner role, `collectstatic --clear`, `createsuperuser`.
 4. `deploy/act.service` (gunicorn) and `deploy/nginx-act.conf` with the VM's domain; keep
-   `client_max_body_size 200m` for video.
-5. Files: set `ACT_STORAGE_*` for a B2 bucket, else `media/` must be writable by the service user.
+   `client_max_body_size 200m` for video. nginx serves `/static/` only: files are served by the
+   app, under `/files/`.
+5. Files: set `ACT_STORAGE_*` for a B2 bucket, else `private-media/` must be writable by the
+   service user.
 6. Email intake: `ACT_INTAKE_IMAP_*` for the org's mailbox and a timer running `manage.py poll_email`
    (copy `deploy/act-retry-mail.timer`, change the command).
 7. Sign-in: a LinkedTrust SSO client for `<ACT_PUBLIC_URL>/api/v1/auth/linkedtrust/callback`

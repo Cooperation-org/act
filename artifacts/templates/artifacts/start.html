@@ -2,14 +2,22 @@
 {% block title %}Start · Story Kit{% endblock %}
 {% block content %}
 <h1>Set up your organization</h1>
-<p class="lede">One question. You can change it later.</p>
+<p class="lede">One question to begin. You can change the answer later.</p>
 {% if orgs %}<p class="muted">You already work with {% for o in orgs %}<a href="{% url 'artifacts:switch_org' o.pk %}">{{ o.name }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}.</p>{% endif %}
 <form method="post" class="narrow">{% csrf_token %}
   {% if error %}<p class="pending" role="alert">{{ error }}</p>{% endif %}
-  <label for="name">Your organization's name</label>
+  <label for="name">What is your organization called?</label>
   <input type="text" id="name" name="name" required autocomplete="organization" autofocus>
-  <label for="website">Website <span class="muted">(optional, used to find LinkedClaims about you)</span></label>
+  <label for="website">Website <span class="muted">Optional. We use it to look for signed statements about you.</span></label>
   <input type="text" id="website" name="website" inputmode="url" placeholder="yourorg.org">
-  <p style="margin-top:1.4rem"><button type="submit" class="big">Continue</button></p>
+  <p style="margin-top:1.4rem"><button type="submit" class="big">Create and start</button></p>
 </form>
+<section class="next-steps" aria-labelledby="next-title">
+  <h2 id="next-title">What happens next</h2>
+  <ol>
+    <li><b>You start on Capture.</b> Send your first photo, video or voice note from your phone.</li>
+    <li><b>Everything arrives in your Inbox,</b> with who sent it and when.</li>
+    <li><b>When you have enough,</b> turn it into a story that readers can check.</li>
+  </ol>
+</section>
 {% endblock %}

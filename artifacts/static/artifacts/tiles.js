@@ -22,6 +22,7 @@
     document.body.appendChild(toastEl);
     clearTimeout(toastTimer); toastTimer = setTimeout(function () { if (toastEl) toastEl.remove(); }, 6000);
   }
+  window.storyKitToast = toast;
   function removeTile(tile, status, message, back) {
     var parent = tile.parentNode, next = tile.nextSibling;
     tile.classList.add('gone');

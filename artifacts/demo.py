@@ -44,9 +44,11 @@ def make_copy(sample):
         t.save()
         tags[old] = t
     arts = {}
-    for a in Artifact.objects.filter(org=sample).prefetch_related("tags"):
+    for i, a in enumerate(Artifact.objects.filter(org=sample).prefetch_related("tags")):
         old, old_tags = a.pk, [tags[t.pk] for t in a.tags.all()]
         a.pk, a.org, a.source = None, org, sources.get(a.source_id)
+        if i < 4:  # the newest few are the guest's own, so "what you sent" has something to show
+            a.added_by = guest
         a.save()
         a.tags.set(old_tags)
         arts[old] = a

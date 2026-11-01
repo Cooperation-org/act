@@ -117,11 +117,20 @@ STORAGES = {
     "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage" if DEBUG
                     else "django.contrib.staticfiles.storage.ManifestStaticFilesStorage"},
 }
-MEDIA_URL = f"{BASE_PATH}/media/"
-MEDIA_ROOT = BASE_DIR / "media"
+# Story Kit's files are private: the app serves them and checks who may see each one.
+# They sit outside the folder nginx hands out as static media, so a file cannot be
+# reached by knowing its address. The other apps' files (letters' signatures,
+# campaigns' photos) are public and stay in the folder nginx serves.
+if "artifacts" in ENABLED_APPS:
+    MEDIA_URL = f"{BASE_PATH}/files/"
+    MEDIA_ROOT = BASE_DIR / "private-media"
+else:
+    MEDIA_URL = f"{BASE_PATH}/media/"
+    MEDIA_ROOT = BASE_DIR / "media"
 
 # Uploaded files (Story Kit artifacts, photos) go to an S3-compatible bucket when one is
-# configured (Backblaze B2: endpoint https://s3.us-east-005.backblazeb2.com), else media/.
+# configured (Backblaze B2: endpoint https://s3.us-east-005.backblazeb2.com), else the
+# media folder above.
 # A bucket is this app's own (ACT_STORAGE_*), even when it shares keys with another app.
 ACT_STORAGE_BUCKET = os.environ.get("ACT_STORAGE_BUCKET", "")
 if ACT_STORAGE_BUCKET:

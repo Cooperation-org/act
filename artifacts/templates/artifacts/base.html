@@ -1,43 +1,74 @@
-{% load static %}<!doctype html>
+{% load static kit %}<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
 <title>{% block title %}Story Kit{% endblock %}</title>
 <link rel="stylesheet" href="{% static 'artifacts/kit.css' %}">
 <link rel="manifest" href="{% url 'artifacts:manifest' %}">
-<meta name="theme-color" content="#00718f">
+<meta name="theme-color" content="#f4f5f1">
 <link rel="icon" href="{% static 'artifacts/icon-192.png' %}">
 <link rel="apple-touch-icon" href="{% static 'artifacts/icon-192.png' %}">
 {% block head %}{% endblock %}
 </head>
-<body{% block body_class %}{% endblock %}>
+<body class="app{% if org %} has-nav{% endif %}">
+{% include "artifacts/_icons.html" %}
+{% shell as chrome %}
 <a class="skip" href="#main">Skip to content</a>
-<div class="wrap">
-<header class="kit">
-  <a class="mark" href="{% url 'artifacts:home' %}">Story Kit{% if org %} <span>· {{ org.name }}</span>{% endif %}</a>
+<header class="top">
+  <a class="brand" href="{% url 'artifacts:home' %}"><span class="brand-name">Story Kit</span>{% if org %}<span class="brand-org">{{ org.name }}</span>{% endif %}</a>
   {% if org %}
-  <nav aria-label="Main">
-    <a href="{% url 'artifacts:ways' %}"{% if nav == "ways" %} aria-current="page"{% endif %}>Ways to send</a>
-    <a href="{% url 'artifacts:send' %}"{% if nav == "send" %} aria-current="page"{% endif %}>Send</a>
-    <a href="{% url 'artifacts:library' %}"{% if nav == "library" %} aria-current="page"{% endif %}>What we have</a>
-    <a href="{% url 'artifacts:labels' %}"{% if nav == "labels" %} aria-current="page"{% endif %}>Labels</a>
+  <nav class="topnav" aria-label="Main">
+    <a href="{% url 'artifacts:library' %}?show=inbox"{% if nav == "inbox" %} aria-current="page"{% endif %}>Inbox{% if chrome.inbox %}<span class="n">&middot; {{ chrome.inbox }}</span>{% endif %}</a>
+    <a href="{% url 'artifacts:library' %}"{% if nav == "library" or nav == "mine" %} aria-current="page"{% endif %}>Library</a>
     <a href="{% url 'artifacts:collections' %}"{% if nav == "collections" %} aria-current="page"{% endif %}>Collections</a>
     <a href="{% url 'artifacts:stories' %}"{% if nav == "stories" %} aria-current="page"{% endif %}>Stories</a>
   </nav>
+  <form class="topsearch search-field" role="search" action="{% url 'artifacts:library' %}">
+    <label class="sr" for="top-q">Search</label>{% ic "search" %}
+    <input type="search" id="top-q" name="q" placeholder="Search words, people, tags" value="{{ f.q|default:'' }}">
+    {% for k, v in keep_all %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+  </form>
+  <button type="button" class="avatar" data-open="account" aria-label="{{ chrome.initials }}, account and more">{{ chrome.initials }}</button>
   {% endif %}
 </header>
-{% if org.demo_copy %}<p class="demo-bar">Your own copy of a made-up organization. Change anything. <a class="btn" href="{% url 'artifacts:demo_leave' %}">Start your own</a></p>{% endif %}
+{% if org %}
+<nav class="tabs" aria-label="Main">
+  <a href="{% url 'artifacts:send' %}"{% if nav == "send" %} aria-current="page"{% endif %}>{% ic "plus" "ic-tab" %}<span>Capture</span></a>
+  <a href="{% url 'artifacts:library' %}?person={{ chrome.mine|urlencode }}"{% if nav == "mine" %} aria-current="page"{% endif %}>{% ic "grid" "ic-tab" %}<span>My uploads</span></a>
+  <a href="{% url 'artifacts:stories' %}"{% if nav == "stories" %} aria-current="page"{% endif %}>{% ic "stories" "ic-tab" %}<span>Stories</span></a>
+</nav>
+<dialog class="sheet" id="account" aria-labelledby="account-title">
+  <div class="sheet-top"><div class="grabber"></div>
+    <div class="sheet-head"><h2 id="account-title">{{ org.name }}</h2><button type="button" data-close>Done</button></div></div>
+  <div class="sheet-body">
+    {% if org.demo_copy %}<p class="who">A practice copy of a sample organization. Change anything; it is cleared after about a day.</p>{% endif %}
+    <ul class="menu">
+      <li><a href="{% url 'artifacts:send' %}">{% ic "plus" %}<span>Add something</span></a></li>
+      <li><a href="{% url 'artifacts:library' %}?show=inbox">{% ic "inbox" %}<span>Inbox</span>{% if chrome.inbox %}<span class="count">{{ chrome.inbox }}</span>{% endif %}</a></li>
+      <li><a href="{% url 'artifacts:library' %}">{% ic "library" %}<span>Library</span></a></li>
+      <li><a href="{% url 'artifacts:stories' %}">{% ic "stories" %}<span>Stories</span></a></li>
+      <li><a href="{% url 'artifacts:collections' %}">{% ic "folder" %}<span>Collections</span></a></li>
+      <li><a href="{% url 'artifacts:ways' %}">{% ic "upload" %}<span>Ways to add</span></a></li>
+      <li><a href="{% url 'artifacts:labels' %}">{% ic "note" %}<span>Labels</span></a></li>
+      {% if org.demo_copy %}<li><a href="{% url 'artifacts:demo_leave' %}">{% ic "leaf" %}<span>Start your own</span></a></li>{% endif %}
+    </ul>
+    {% if chrome.orgs %}<div class="orgs"><h3>Switch organization</h3><ul class="menu">
+      {% for o in chrome.orgs %}<li><a href="{% url 'artifacts:switch_org' o.pk %}"{% if o.pk == org.pk %} aria-current="true"{% endif %}><span>{{ o.name }}</span></a></li>{% endfor %}
+    </ul></div>{% endif %}
+  </div>
+</dialog>
+{% endif %}
+<main id="main" class="wrap{% block wrapclass %}{% endblock %}">
 {% if messages %}<ul class="flash" role="status">{% for m in messages %}<li class="{{ m.tags }}">{{ m }}</li>{% endfor %}</ul>{% endif %}
-<main id="main">
 {% block content %}{% endblock %}
 </main>
-</div>
 <script>
 if ('serviceWorker' in navigator) { navigator.serviceWorker.register('{% url "artifacts:sw" %}').catch(function(){}); }
 </script>
 <script src="{% static 'artifacts/tiles.js' %}" defer></script>
+<script src="{% static 'artifacts/shell.js' %}" defer></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

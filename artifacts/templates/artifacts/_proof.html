@@ -1,0 +1,6 @@
+{% load kit %}<dl class="proof-card">
+  <div><dt>Taken</dt><dd>{{ a.when|date:"j F Y" }}</dd></div>
+  <div><dt>Came in</dt><dd>{{ a|how_sent }}</dd></div>
+  <div><dt>Signed</dt><dd>{% if a.claim_id %}<a href="{{ a.claim_url }}" rel="noopener">Yes, see the claim</a>{% else %}Not signed yet{% endif %}</dd></div>
+  <div><dt>Consent</dt><dd>{% if a.consent %}Everyone shown agreed{% else %}Not recorded{% endif %}</dd></div>
+</dl>

@@ -4,14 +4,22 @@ Who: a program or comms lead at a small org, not technical, on a phone or a lapt
 Every page answers one question for them; anything else is a link away.
 """
 import json
+import mimetypes
+import re
+import uuid
+from datetime import timedelta
 from functools import wraps
+from pathlib import Path
 from urllib.parse import urlencode
 
 from django.conf import settings
 from django.contrib import messages
+from django.core.exceptions import SuspiciousOperation
+from django.core.files.storage import default_storage
 from django.db import transaction
-from django.db.models import Count, Q
-from django.http import Http404, HttpResponse, HttpResponseBadRequest, JsonResponse
+from django.db.models import Count, Exists, OuterRef, Q
+from django.http import (Http404, HttpResponse, HttpResponseBadRequest, JsonResponse,
+                         StreamingHttpResponse)
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -79,7 +87,7 @@ def demo_open(request):
         mine = user_orgs(request.user).filter(demo_copy__isnull=False).order_by("-pk").first()
         if mine:
             request.session[SESSION_ORG] = mine.pk
-            return redirect("artifacts:library")
+            return _landing(request, mine)
     demo.remove_old()
     guest, org = demo.make_copy(sample)
     if request.user.is_authenticated:  # someone signed in trying the demo keeps their login
@@ -88,7 +96,7 @@ def demo_open(request):
         from django.contrib.auth import login
         login(request, guest, backend="django.contrib.auth.backends.ModelBackend")
     request.session[SESSION_ORG] = org.pk
-    return redirect("artifacts:library")
+    return _landing(request, org)
 
 
 @never_cache
@@ -100,6 +108,16 @@ def demo_leave(request):
     return redirect(f"{reverse('artifacts:signin')}?{urlencode({'next': reverse('artifacts:start')})}")
 
 
+def _landing(request, org):
+    """Where someone starts: a phone opens on Capture, a laptop on what is waiting in the inbox."""
+    ua = request.META.get("HTTP_USER_AGENT", "")
+    if "Mobi" in ua or "iPhone" in ua or "Android" in ua:
+        return redirect("artifacts:send")
+    if Artifact.objects.filter(org=org, status=ArtifactStatus.NEW).exists():
+        return redirect(f"{reverse('artifacts:library')}?show=inbox")
+    return redirect("artifacts:library")
+
+
 @never_cache
 def home(request):
     if not request.user.is_authenticated:
@@ -108,8 +126,8 @@ def home(request):
     if org is None:
         return redirect("artifacts:start")
     if not Artifact.objects.filter(org=org).exists():
-        return redirect("artifacts:ways")
-    return redirect("artifacts:library")
+        return redirect("artifacts:send")   # a new organization starts by capturing its first moment
+    return _landing(request, org)
 
 
 def _unique_slug(model, base, field="slug", size=46):
@@ -149,7 +167,7 @@ def start(request):
                     Source.objects.create(org=org, kind=SourceKind.LINKEDCLAIMS, label="LinkedClaims about us",
                                           config={"subject": website})
             request.session[SESSION_ORG] = org.pk
-            return redirect("artifacts:ways")
+            return redirect("artifacts:send")
     return render(request, "artifacts/start.html", {"error": error, "orgs": user_orgs(request.user)})
 
 
@@ -198,16 +216,41 @@ def _files_from(request, field="files"):
 
 
 def _store_uploads(request, org, files, words, when=None):
+    """Store each file. Returns [(artifact, created)] in the order sent."""
     source = _source(org, SourceKind.UPLOAD) or Source.objects.create(org=org, kind=SourceKind.UPLOAD,
                                                                       label="Phone and computer")
     who = request.user.email or request.user.get_username()
-    new = 0
-    for f in files:
-        _, created = add_file(org, data=f.read(), filename=f.name, content_type=f.content_type or "",
-                              source=source, words=words, sent_by=who, added_by=request.user,
-                              happened_at=when)
-        new += created
-    return new
+    return [add_file(org, data=f.read(), filename=f.name, content_type=f.content_type or "",
+                     source=source, words=words, sent_by=who, added_by=request.user, happened_at=when)
+            for f in files]
+
+
+def _with_extras(request, org, saved):
+    """Apply what was said on the way in: labels, and whether everyone shown agreed."""
+    labels = _tags_from(org, request.POST.get("tags"))
+    agreed = request.POST.get("consent") == "on"
+    for a, _ in saved:
+        if labels:
+            a.tags.add(*labels)
+        if agreed and not a.consent:
+            a.consent = True
+            a.save(update_fields=["consent"])
+
+
+def _sent_row(a):
+    """One piece as the page's script shows it after a send."""
+    return {"kind": a.kind, "kind_label": a.get_kind_display() if a.kind != "data" else "Number",
+            "title": a.title or (a.words[:90] if a.words else a.filename or a.source_url or a.get_kind_display()),
+            "when": a.when.strftime("%a %d %b").replace(" 0", " "), "url": reverse("artifacts:artifact", args=[a.pk])}
+
+
+def _sent_by_me(request, org, limit=3):
+    """What this person sent this week, or their latest few when nothing is from this week."""
+    mine = Artifact.objects.filter(org=org, added_by=request.user).exclude(status=ArtifactStatus.HIDDEN) \
+        .annotate(in_story=Exists(StoryBlock.objects.filter(artifact=OuterRef("pk")))).order_by("-received_at")
+    week = mine.filter(received_at__gte=timezone.now() - timedelta(days=7))
+    this_week = week.exists()
+    return list((week if this_week else mine)[:limit]), this_week
 
 
 @org_required
@@ -218,22 +261,34 @@ def send(request):
         words = (request.POST.get("words") or "").strip()
         day = parse_date(request.POST.get("happened_on") or "")
         when = timezone.make_aware(timezone.datetime(day.year, day.month, day.day, 12)) if day else None
+        ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"  # the page's own script, for progress
         if not files and not words:
+            if ajax:
+                return JsonResponse({"ok": False, "error": "Choose a photo, video or file, or write something."}, status=400)
             messages.error(request, "Choose a photo, video or file, or write something.")
             return redirect("artifacts:send")
         if files:
-            new = _store_uploads(request, org, files, words, when)
+            saved = _store_uploads(request, org, files, words, when)
+            new = sum(1 for _, created in saved if created)
             same = len(files) - new
-            messages.success(request, f"Saved {new} {'item' if new == 1 else 'items'}."
-                             + (f" {same} {'was' if same == 1 else 'were'} already here." if same else ""))
+            text = (f"Saved {new} {'item' if new == 1 else 'items'}."
+                    + (f" {same} {'was' if same == 1 else 'were'} already here." if same else ""))
         else:
             source = _source(org, SourceKind.UPLOAD)
-            add_file(org, data=words.encode(), filename="note.txt", content_type="text/plain", source=source,
-                     words=words, sent_by=request.user.email or request.user.get_username(),
-                     added_by=request.user, happened_at=when)
-            messages.success(request, "Saved your note.")
+            saved = [add_file(org, data=words.encode(), filename="note.txt", content_type="text/plain", source=source,
+                              words=words, sent_by=request.user.email or request.user.get_username(),
+                              added_by=request.user, happened_at=when)]
+            new, text = 1, "Saved your note."
+        _with_extras(request, org, saved)
+        if ajax:
+            return JsonResponse({"ok": True, "saved": new, "message": text, "library": reverse("artifacts:library"),
+                                 "items": [_sent_row(a) for a, _ in saved][:3]})
+        messages.success(request, text)
         return redirect("artifacts:send")
-    return render(request, "artifacts/send.html", {"org": org, "nav": "send", "today": timezone.localdate().isoformat()})
+    sent, this_week = _sent_by_me(request, org)
+    return render(request, "artifacts/send.html", {
+        "org": org, "nav": "send", "today": timezone.localdate().isoformat(), "sent": sent, "this_week": this_week,
+        "mine": request.user.email or request.user.get_username()})
 
 
 @csrf_exempt
@@ -251,7 +306,7 @@ def share_target(request):
     files = _files_from(request)
     link = (request.POST.get("url") or "").strip()
     if files:
-        new = _store_uploads(request, org, files, words)
+        new = sum(1 for _, created in _store_uploads(request, org, files, words) if created)
         messages.success(request, f"Saved {new} shared {'item' if new == 1 else 'items'}.")
     elif link.startswith(("http://", "https://")):
         add_reference(org, kind=ArtifactKind.LINK, url=link, words=words, source=_source(org, SourceKind.LINK),
@@ -278,6 +333,29 @@ def add_link(request):
                                added_by=request.user, happened_at=timezone.now())
     messages.success(request, "Saved the link." if created else "That link is already here.")
     return redirect(request.POST.get("back") or "artifacts:ways")
+
+
+@org_required
+@require_POST
+def add_number(request):
+    """A figure someone can quote, kept with what it counts and where it came from."""
+    org = request.org
+    value = (request.POST.get("value") or "").strip()[:60]
+    what = (request.POST.get("what") or "").strip()[:300]
+    where = (request.POST.get("where") or "").strip()[:300]
+    back = request.POST.get("back") or "artifacts:send"
+    if not value or not what or not where:
+        messages.error(request, "Give the number, say what it counts, and say where it came from.")
+        return redirect(back)
+    source = _source(org, SourceKind.UPLOAD) or Source.objects.create(org=org, kind=SourceKind.UPLOAD,
+                                                                      label="Phone and computer")
+    a, _ = add_reference(org, kind=ArtifactKind.DATA, url=f"number:{uuid.uuid4().hex}", title=value, source=source,
+                         sent_by=request.user.email or request.user.get_username(), added_by=request.user,
+                         happened_at=timezone.now(), source_ref=where)
+    a.about, a.source_url = what, ""   # the web address was only a way to tell two numbers apart
+    a.save(update_fields=["about", "source_url"])
+    messages.success(request, "Saved the number.")
+    return redirect(back)
 
 
 @org_required
@@ -325,7 +403,7 @@ def check_source(request, pk):
 
 # ---- library -----------------------------------------------------------------
 
-FILTER_KEYS = ("kind", "tag", "part", "source", "person", "q", "since", "until", "show", "sort")
+FILTER_KEYS = ("kind", "tag", "part", "source", "person", "q", "since", "until", "show", "sort", "signed", "consent")
 MULTI_KEYS = ("tag", "part")
 SORTS = {"": ("-received_at",), "happened": ("-happened_at", "-received_at"),
          "oldest": ("happened_at", "received_at"), "title": ("title", "filename")}
@@ -333,10 +411,13 @@ SORTS = {"": ("-received_at",), "happened": ("-happened_at", "-received_at"),
 
 def filtered(org, f):
     qs = Artifact.objects.filter(org=org).select_related("source").prefetch_related("tags")
-    if f.get("show") != "hidden":
-        qs = qs.exclude(status=ArtifactStatus.HIDDEN)
-    else:
+    qs = qs.annotate(in_story=Exists(StoryBlock.objects.filter(artifact=OuterRef("pk"))))
+    if f.get("show") == "hidden":
         qs = qs.filter(status=ArtifactStatus.HIDDEN)
+    else:
+        qs = qs.exclude(status=ArtifactStatus.HIDDEN)
+        if f.get("show") == "inbox":
+            qs = qs.filter(status=ArtifactStatus.NEW)
     if f.get("kind"):
         qs = qs.filter(kind=f["kind"])
     for key in MULTI_KEYS:  # every chosen label must be on the item
@@ -345,6 +426,10 @@ def filtered(org, f):
             qs = qs.filter(pk__in=Artifact.objects.filter(org=org, tags__name=name).values("pk"))
     if f.get("source"):
         qs = qs.filter(source__kind=f["source"])
+    if f.get("signed") == "yes":
+        qs = qs.filter(claim_id__isnull=False)
+    if f.get("consent") == "missing":
+        qs = qs.filter(consent=False)
     if f.get("person"):
         qs = qs.filter(sent_by=f["person"])
     if f.get("q"):
@@ -402,6 +487,61 @@ def _with(f, key, value):
     rest = dict(f)
     rest[key] = list(f.get(key, [])) + [value]
     return f"{reverse('artifacts:library')}?{urlencode(rest, doseq=True)}"
+
+
+def _set(f, key, value):
+    """The library address with one single-valued filter set, or cleared when value is empty."""
+    rest = {k: x for k, x in f.items() if k != key}
+    if value:
+        rest[key] = value
+    q = urlencode(rest, doseq=True)
+    return reverse("artifacts:library") + (f"?{q}" if q else "")
+
+
+KIND_PLURAL = {"photo": "Photos", "video": "Videos", "voice": "Voice", "text": "Notes", "file": "Files",
+               "link": "Links", "claim": "Claims", "data": "Numbers"}
+KIND_SINGLE = {"photo": "Photo", "video": "Video", "voice": "Voice", "text": "Note", "file": "File",
+               "link": "Link", "claim": "Claim", "data": "Number"}
+SEGMENTS = 4  # All plus the four most used kinds fit a phone; the rest are in the filter sheet
+
+
+def _active(f):
+    """(words, address that takes it off) for each filter in force, so each can be removed in one tap."""
+    out = [(v, _without(f, k, v)) for k in MULTI_KEYS for v in f.get(k, [])]
+    if f.get("q"):
+        out.append((f"\u201c{f['q']}\u201d", _set(f, "q", "")))
+    for key, label in (("person", ""), ("since", "From "), ("until", "To ")):
+        if f.get(key):
+            out.append((f"{label}{f[key]}", _set(f, key, "")))
+    if f.get("source"):
+        out.append((dict(SourceKind.choices).get(f["source"], f["source"]), _set(f, "source", "")))
+    if f.get("show") == "hidden":
+        out.append(("Archived", _set(f, "show", "")))
+    if f.get("show") == "inbox":
+        out.append(("Not looked at yet", _set(f, "show", "")))
+    if f.get("signed") == "yes":
+        out.append(("Signed", _set(f, "signed", "")))
+    if f.get("consent") == "missing":
+        out.append(("Missing consent", _set(f, "consent", "")))
+    return out
+
+
+def _checked(f):
+    """The three questions the inbox is read by: (words, address, on). Each is one tap to set or clear."""
+    out = []
+    for label, key, value in (("Not looked at yet", "show", "inbox"), ("Signed", "signed", "yes"),
+                              ("Missing consent", "consent", "missing")):
+        on = f.get(key) == value
+        out.append((label, _set(f, key, "" if on else value), on))
+    return out
+
+
+def _date_options(f):
+    """Recent-time choices for the rail: (words, since date, chosen)."""
+    today = timezone.localdate()
+    options = [("Any time", ""), ("Last 7 days", (today - timedelta(days=7)).isoformat()),
+               ("Last 30 days", (today - timedelta(days=30)).isoformat()), ("This year", today.replace(month=1, day=1).isoformat())]
+    return [(label, value, f.get("since", "") == value) for label, value in options]
 
 
 def _without(f, key, value):
@@ -467,8 +607,27 @@ def library(request):
         n=Count("artifacts", filter=~Q(artifacts__status=ArtifactStatus.HIDDEN), distinct=True)) \
         .filter(n__gt=0).order_by("-n", "name")
     chosen = [(k, v, _without(f, k, v)) for k in MULTI_KEYS for v in f.get(k, [])]
+    present = [k for k, _ in ArtifactKind.choices if everything.filter(kind=k).exists()]
+    shown = present[:SEGMENTS]
+    if f.get("kind") in present and f["kind"] not in shown:
+        shown = shown[:-1] + [f["kind"]]  # the one chosen is always on show
+    kind_links = [("All", _set(f, "kind", ""), not f.get("kind"))] + [
+        (KIND_PLURAL.get(k, k.title()), _set(f, "kind", k), f.get("kind") == k) for k in shown]
+    all_kind_links = [("All", _set(f, "kind", ""), not f.get("kind"))] + [
+        (KIND_SINGLE.get(k, k.title()), _set(f, "kind", k), f.get("kind") == k) for k in present]
+    me = request.user.email or request.user.get_username()
+    email_source = _source(org, SourceKind.EMAIL)
     return render(request, "artifacts/library.html", {
-        "org": org, "nav": "library", "items": qs[:300], "total": qs.count(), "f": f, "filter_json": json.dumps(f),
+        "title": "Inbox" if f.get("show") == "inbox" else "My uploads" if f.get("person") == me and len(f) == 1 else "Library",
+        "all_kind_links": all_kind_links, "checked": _checked(f), "date_options": _date_options(f),
+        "inbox_count": everything.filter(status=ArtifactStatus.NEW).count(),
+        "email_address": (email_source.config.get("address") if email_source else "") or "",
+        "rail_keep": [(k, x) for k, val in f.items() if k not in ("person", "since") for x in (val if isinstance(val, list) else [val])],
+        "kind_links": kind_links, "active": _active(f),
+        "keep_all": [(k, x) for k, val in f.items() if k != "q" for x in (val if isinstance(val, list) else [val])],
+        "org": org, "items": qs[:300], "total": qs.count(), "f": f, "filter_json": json.dumps(f),
+        "nav": "inbox" if f.get("show") == "inbox" else
+               "mine" if f.get("person") in (request.user.email, request.user.get_username()) and len(f) == 1 else "library",
         "any_at_all": everything.exists(),
         "kinds": [(k, label) for k, label in ArtifactKind.choices if everything.filter(kind=k).exists()],
         "parts": _chips(f, "part", [t for t in in_use if t.group == TagGroup.PART]),
@@ -498,6 +657,8 @@ def artifact(request, pk):
                    + _tags_from(org, request.POST.get("tags")))
         messages.success(request, "Saved.")
         return redirect("artifacts:artifact", pk=a.pk)
+    if request.GET.get("panel"):
+        return render(request, "artifacts/_panel.html", {"a": a, "org": org})
     return render(request, "artifacts/artifact.html", {
         "org": org, "nav": "library", "a": a,
         "part_text": ", ".join(t.name for t in a.tags.all() if t.group == TagGroup.PART),
@@ -728,7 +889,107 @@ def story(request, slug):
             if m != month:
                 b.month = month = m
     return render(request, "artifacts/story.html", {
-        "s": s, "blocks": blocks, "first_image": first_image, "is_member": is_member, "lt_embed": settings.LT_EMBED})
+        "s": s, "blocks": blocks, "first_image": first_image, "is_member": is_member, "lt_embed": settings.LT_EMBED,
+        "pieces": [b.artifact for b in blocks if b.artifact],
+        "signed_n": sum(1 for b in blocks if b.artifact and b.artifact.claim_id)})
+
+
+# ---- files ---------------------------------------------------------------------
+# A photo is not public because it sits in a folder. It is served to the org that owns
+# it, and to anyone reading a published story that shows it. To nobody else.
+
+INLINE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp",
+                "audio/wav", "audio/mpeg", "video/mp4", "video/x-m4v", "video/webm",
+                "video/quicktime", "text/plain", "application/pdf"}
+
+
+def _may_see(request, path):
+    """(may see it, is it public) for one stored file."""
+    if request.user.is_authenticated and (
+            request.user.is_superuser
+            or user_orgs(request.user).filter(artifacts__file=path).exists()):
+        return True, False
+    published = Story.objects.filter(status=StoryStatus.PUBLISHED,
+                                     blocks__artifact__file=path,
+                                     blocks__artifact__status__in=(ArtifactStatus.NEW,
+                                                                  ArtifactStatus.KEPT)).exists()
+    return published, published
+
+
+def _byte_range(request, size):
+    """(start, end) of what the browser asked for, or None when it asked for the whole
+    file. Raises ValueError for a range that cannot be served."""
+    m = re.match(r"bytes=(\d*)-(\d*)$", request.headers.get("Range", "").strip())
+    if not m:
+        return None
+    first, last = m.groups()
+    if not first and not last:
+        return None
+    if not first:  # bytes=-500: the last 500 bytes
+        start, end = max(0, size - int(last)), size - 1
+    else:
+        start = int(first)
+        end = int(last) if last else size - 1
+    if size <= 0 or start >= size or start > end:
+        raise ValueError("range not satisfiable")
+    return start, min(end, size - 1)
+
+
+def _chunks(handle, length):
+    """The bytes asked for, in pieces, and the file closed when done."""
+    try:
+        left = length
+        while left > 0:
+            data = handle.read(min(65536, left))
+            if not data:
+                break
+            left -= len(data)
+            yield data
+    finally:
+        handle.close()
+
+
+def media_file(request, path):
+    """One stored file: the org that owns it, or anyone reading a published story that
+    shows it. Anyone else is answered with nothing."""
+    allowed, public = _may_see(request, path)
+    if not allowed:
+        raise Http404
+    try:
+        handle = default_storage.open(path, "rb")
+    except (FileNotFoundError, SuspiciousOperation, OSError):
+        raise Http404
+    size = getattr(handle, "size", 0)
+    try:
+        wanted = _byte_range(request, size)
+    except ValueError:
+        resp = HttpResponse(status=416)
+        resp["Content-Range"] = f"bytes */{size}"
+        return resp
+    artifact = Artifact.objects.filter(file=path).first()
+    ctype = ((artifact.content_type if artifact else "") or mimetypes.guess_type(path)[0]
+             or "application/octet-stream").split(";")[0].strip().lower()
+    inline = ctype in INLINE_TYPES
+    start, end = wanted if wanted else (0, max(0, size - 1))
+    length = end - start + 1
+    if wanted:
+        handle.seek(start)
+    resp = StreamingHttpResponse(_chunks(handle, length),
+                                 content_type=ctype if inline else "application/octet-stream")
+    resp["Content-Length"] = str(length)
+    resp["Accept-Ranges"] = "bytes"
+    resp["X-Content-Type-Options"] = "nosniff"
+    resp["Vary"] = "Cookie"
+    if wanted:
+        resp.status_code = 206
+        resp["Content-Range"] = f"bytes {start}-{end}/{size}"
+    if inline:
+        resp["Cache-Control"] = "public, max-age=300" if public else "private, no-store"
+    else:
+        name = "".join(ch for ch in Path(path).name if ch.isprintable() and ch not in '"\\')
+        resp["Content-Disposition"] = f'attachment; filename="{name}"'
+        resp["Cache-Control"] = "private, no-store"
+    return resp
 
 
 # ---- install as an app (phone share sheet) -----------------------------------
@@ -737,7 +998,7 @@ def manifest(request):
     base = settings.BASE_PATH or ""
     data = {
         "name": "Story Kit", "short_name": "Story Kit", "start_url": f"{base}/send/", "scope": f"{base}/",
-        "display": "standalone", "background_color": "#ffffff", "theme_color": "#00718f",
+        "display": "standalone", "background_color": "#f4f5f1", "theme_color": "#f4f5f1",
         "icons": [{"src": f"{settings.STATIC_URL}artifacts/icon-192.png", "sizes": "192x192", "type": "image/png"},
                   {"src": f"{settings.STATIC_URL}artifacts/icon-512.png", "sizes": "512x512", "type": "image/png"}],
         "share_target": {

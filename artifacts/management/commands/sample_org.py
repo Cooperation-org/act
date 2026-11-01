@@ -11,22 +11,38 @@ import tempfile
 from datetime import datetime, timezone
 
 from django.core.management.base import BaseCommand, CommandError
+from django.utils import timezone as dj_timezone
 
 from campaigns.models import Org
 
 from ...intake import add_file, add_reference
-from ...models import ArtifactKind, Source, SourceKind, Tag, TagGroup
+from ...models import (Artifact, ArtifactKind, Collection, Source, SourceKind, Story, StoryBlock, StoryStatus,
+                       Tag, TagGroup)
 
 STAFF, MENTOR = "jordan@umbrella.example", "lee.mentor@umbrella.example"
 
+# One finished story, built from the bakery's pieces: (piece title or None, paragraph).
+STORY_SLUG = "main-street-bakery-first-months"
+STORY = [
+    (None, "Maria had a plan for a bakery and a price list that only worked for her."),
+    ("Pitch night", ""),
+    (None, "By July she had signed a lease on the corner storefront."),
+    ("Lease signed", ""),
+    ("40", ""),
+    (None, "By October the bakery had outgrown its oven."),
+    ("Second oven", ""),
+]
+
 # (site, business, owner email, [(date, kind, title, words, extra labels)])
-# kind: photo, voice, video, text, link. Items with labels=None are left unlabeled,
-# so Sort with AI has something to do.
+# kind: photo, voice, video, text, link, data. Items with labels=None are left unlabeled,
+# so Sort with AI has something to do. A data item's title is the number, and its words are
+# "what it counts|where it came from".
 SAMPLE = [
     ("main street", "main street bakery", "maria@mainstreetbakery.example", [
         ("2026-05-12", "photo", "Pitch night", "Maria pitching the bakery plan to the spring cohort.", ["pitch"]),
         ("2026-07-02", "text", "Lease signed", "Signed a two-year lease on the corner storefront. Rent $1,850 a month.", ["milestone"]),
         ("2026-10-08", "photo", "Second oven", "Main Street Bakery bought a second oven with the October sales. Two people hired.", None),
+        ("2026-10-09", "data", "40", "founders in the spring cohort|Program roster, exported 1 Oct", ["milestone"]),
     ]),
     ("riverside", "riverside bike repair", "dev@riversidebikes.example", [
         ("2026-04-20", "photo", "Pop-up stand", "First weekend fixing bikes under a tent by the river path.", ["pop-up"]),
@@ -46,6 +62,7 @@ SAMPLE = [
         ("2026-06-10", "photo", "Reading corner", "The reading corner parents helped build.", ["parents"]),
         ("2026-08-30", "text", "Waitlist", "Hillcrest Family Childcare is full at six children; nine families on the waitlist.", None),
         ("2026-10-15", "voice", "A parent", "A parent at Hillcrest Family Childcare: \"I could take the night shift because Rosa opens at six.\"", None),
+        ("2026-10-12", "data", "9", "families on the Hillcrest waitlist|Rosa's waitlist sheet, 12 Oct", ["milestone"]),
     ]),
     ("hillcrest", "two rivers coffee cart", "sam@tworivers.example", [
         ("2026-05-25", "photo", "Cart build", "Sam and a mentor building the cart from a used trailer.", ["before"]),
@@ -113,7 +130,16 @@ class Command(BaseCommand):
                 sender = [owner, STAFF, MENTOR][n % 3] if kind != "voice" else STAFF
                 when = _when(day)
                 common = dict(words=words, sent_by=sender, happened_at=when)
-                if kind == "link":
+                if kind == "data":
+                    about, _, where = words.partition("|")
+                    a, created = add_reference(org, kind=ArtifactKind.DATA, source=upload, title=title,
+                                               url=f"number:{business}:{title}", source_ref=where, sent_by=sender,
+                                               happened_at=when)
+                    if created:
+                        a.about = about
+                        a.source_url = ""
+                        a.save(update_fields=["about", "source_url"])
+                elif kind == "link":
                     a, created = add_reference(org, kind=ArtifactKind.LINK, source=links, title=title,
                                                url=f"https://{owner.split('@')[1]}/shop", **common)
                 else:
@@ -133,4 +159,23 @@ class Command(BaseCommand):
                     a.tags.add(Tag.objects.get_or_create(org=org, name=site, defaults={"group": TagGroup.PART})[0],
                                Tag.objects.get_or_create(org=org, name=business, defaults={"group": TagGroup.PART})[0],
                                *[Tag.objects.get_or_create(org=org, name=x)[0] for x in labels])
+        self._story(org)
         self.stdout.write(f"{made} new sample items in {org.name} ({n} in the sample).")
+
+    def _story(self, org):
+        """A finished story and the collection it came from, so the builder and the public page have something to show."""
+        everything = Artifact.objects.filter(org=org)
+        collection, _ = Collection.objects.get_or_create(org=org, name="Spring cohort", defaults={
+            "description": "Everything the spring cohort sent in."})
+        collection.artifacts.add(*everything)
+        story, created = Story.objects.get_or_create(org=org, slug=STORY_SLUG, defaults={
+            "title": "Main Street Bakery: the first months", "collection": collection, "status": StoryStatus.PUBLISHED,
+            "published_at": dj_timezone.now(), "statement": "Photos, a number and a few lines from the owner, "
+            "sent in as they happened, from the pitch to a second oven."})
+        if not created or story.blocks.exists():
+            return
+        for i, (title, text) in enumerate(STORY):
+            piece = everything.filter(title=title).first() if title else None
+            if title and piece is None:
+                continue
+            StoryBlock.objects.create(story=story, order=i, artifact=piece, text=text)
