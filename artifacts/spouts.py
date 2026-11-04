@@ -167,6 +167,10 @@ def drive_enabled():
 
 
 FOLDER_MIME = "application/vnd.google-apps.folder"
+# Google Docs, Sheets and Slides are not files; they are copied as PDF
+GOOGLE_PDF = {"application/vnd.google-apps.document": "document",
+              "application/vnd.google-apps.spreadsheet": "spreadsheets",
+              "application/vnd.google-apps.presentation": "presentation"}
 
 
 def _drive_api_files(folder, key, path=(), max_depth=3):
@@ -202,14 +206,14 @@ def _drive_api_files(folder, key, path=(), max_depth=3):
 
 
 _EMBED_ENTRY = re.compile(
-    r'<a href="https://drive\.google\.com/(file/d|drive/folders)/([A-Za-z0-9_-]+)[^"]*".*?'
+    r'<a href="https://(?:drive|docs)\.google\.com/(file/d|drive/folders|document/d|spreadsheets/d|presentation/d)/'
+    r'([A-Za-z0-9_-]+)[^"]*".*?'
     r'(?:/type/([a-z]+/[A-Za-z0-9.+-]+))?".*?<div class="flip-entry-title">([^<]*)</div>', re.S)
 
 
 def _drive_public_files(folder, path=(), max_depth=3):
     """Files in a folder shared 'Anyone with the link', from Drive's public folder view
-    (no key needed). Walks subfolders a few levels down. Google Docs/Sheets are skipped:
-    they are not files to copy."""
+    (no key needed). Walks subfolders a few levels down."""
     r = requests.get("https://drive.google.com/embeddedfolderview", params={"id": folder}, timeout=30)
     if r.status_code != 200 or "flip-entry" not in r.text and "flip-list" not in r.text:
         raise RuntimeError("Google Drive would not show that folder. Check it is shared as 'Anyone with the link'.")
@@ -218,13 +222,19 @@ def _drive_public_files(folder, path=(), max_depth=3):
         if not m:
             continue
         what, fid, mime, name = m.groups()
-        name = html.unescape(name)
+        name = html.unescape(name).strip()
         if what == "drive/folders":
             if len(path) < max_depth:
                 yield from _drive_public_files(fid, path + (name,), max_depth)
             continue
-        yield {"id": fid, "name": name, "mime": mime or mimetypes.guess_type(name)[0] or "",
-               "size": 0, "url": f"https://drive.google.com/file/d/{fid}/view", "when": None, "by": "",
+        kind = what.split("/")[0]
+        if kind in GOOGLE_PDF.values():
+            mime = next(m for m, k in GOOGLE_PDF.items() if k == kind)
+            url = f"https://docs.google.com/{kind}/d/{fid}/edit"
+        else:
+            mime = mime or mimetypes.guess_type(name)[0] or ""
+            url = f"https://drive.google.com/file/d/{fid}/view"
+        yield {"id": fid, "name": name, "mime": mime, "size": 0, "url": url, "when": None, "by": "",
                "folders": path}
 
 
@@ -258,6 +268,13 @@ def labels_for(org, names):
 
 
 def _drive_download(f, key):
+    kind = GOOGLE_PDF.get(f["mime"])
+    if kind and key:
+        return requests.get(f"{DRIVE_API}/{f['id']}/export", params={"mimeType": "application/pdf", "key": key},
+                            timeout=300)
+    if kind:
+        return requests.get(f"https://docs.google.com/{kind}/d/{f['id']}/export", params={"format": "pdf"},
+                            timeout=300)
     if key:
         return requests.get(f"{DRIVE_API}/{f['id']}", params={"alt": "media", "key": key}, timeout=300)
     return requests.get("https://drive.usercontent.google.com/download",
@@ -274,7 +291,8 @@ def import_drive(source, limit=300, max_bytes=300 * 1024 * 1024):
     new = already = seen = 0
     have = set(source.artifacts.values_list("source_ref", flat=True))
     for f in files:
-        if f["mime"].startswith("application/vnd.google-apps") or f["size"] > max_bytes:
+        google = f["mime"] in GOOGLE_PDF
+        if (f["mime"].startswith("application/vnd.google-apps") and not google) or f["size"] > max_bytes:
             continue
         if f["id"] in have:
             already += 1
@@ -287,7 +305,9 @@ def import_drive(source, limit=300, max_bytes=300 * 1024 * 1024):
         if got.status_code != 200 or ctype.startswith("text/html") or len(got.content) > max_bytes:
             continue  # too large for Drive's direct download, or not shared
         try:
-            a, created = add_file(source.org, data=got.content, filename=f["name"], content_type=f["mime"],
+            a, created = add_file(source.org, data=got.content,
+                                  filename=f["name"] + ".pdf" if google else f["name"],
+                                  content_type="application/pdf" if google else f["mime"],
                                   source=source, source_ref=f["id"], source_url=f["url"], sent_by=f["by"],
                                   happened_at=f["when"])
         except BrokenFile:

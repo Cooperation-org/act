@@ -332,15 +332,18 @@ class DriveImportTests(Base):
         src = Source.objects.create(org=self.org, kind=SourceKind.DRIVE, config={"folder_id": "FOLDER00001"})
         listing = mock.Mock(status_code=200, text=self.PAGE)
         file = mock.Mock(status_code=200, content=png_bytes("green"), headers={"Content-Type": "image/png"})
+        doc = mock.Mock(status_code=200, content=b"%PDF-1.4\n%%EOF\n", headers={"Content-Type": "application/pdf"})
         with override_settings(ACT_GOOGLE_API_KEY=""), \
-                mock.patch("artifacts.spouts.requests.get", side_effect=[listing, file, listing]):
+                mock.patch("artifacts.spouts.requests.get", side_effect=[listing, file, doc, listing]) as get:
             from .spouts import import_drive
-            self.assertEqual(import_drive(src), (1, 0))
-            self.assertEqual(import_drive(src), (0, 1))
-        a = Artifact.objects.get(org=self.org)
+            self.assertEqual(import_drive(src), (2, 0))
+            self.assertEqual(import_drive(src), (0, 2))
+        self.assertEqual(get.call_args_list[2].args[0], "https://docs.google.com/document/d/DOCID000001/export")
+        a = Artifact.objects.get(org=self.org, source_ref="FILEID00001")
         self.assertEqual(a.filename, "shop & sign.png")
         self.assertEqual(a.kind, ArtifactKind.PHOTO)
-        self.assertEqual(a.source_ref, "FILEID00001")
+        d = Artifact.objects.get(org=self.org, source_ref="DOCID000001")   # a Google Doc is copied as PDF
+        self.assertEqual(d.filename, "A Google Doc.pdf")
 
 
 class PageTests(Base):
