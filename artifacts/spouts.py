@@ -324,6 +324,8 @@ def import_drive(source, limit=300, max_bytes=300 * 1024 * 1024):
 def import_claims(source, limit=500):
     """Copy the LinkedClaims whose subject is this source's URL. Returns (new, already)."""
     subject = source.config.get("subject", "")
+    if not subject:
+        raise RuntimeError("No web address set for this LinkedClaims source.")
     url = f"{settings.LT_API}/api/claims/subject/{quote(subject, safe=':/')}"
     new = already = 0
     page = 1

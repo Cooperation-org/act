@@ -961,6 +961,8 @@ def story_edit(request, slug):
                     (b.get("artifact") if b.get("artifact") in valid else None,
                      (b.get("text") or "").strip(), bool(b.get("by_ai"))) for b in blocks))])
             if action == "publish" and request.POST.get("confirmed") == "1":
+                if s.published_at is None and s.title and s.title != "Untitled story":
+                    s.slug = _unique_slug(Story, f"{org.slug}-{s.title}")
                 s.status = StoryStatus.PUBLISHED
                 s.published_at = s.published_at or timezone.now()
                 s.published = s.snapshot()
