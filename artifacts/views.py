@@ -54,6 +54,18 @@ def current_org(request):
     return org or orgs.order_by("pk").first()
 
 
+def own_or_switch(request, model, pk):
+    """The record with this pk in the visitor's current org; when it belongs to another org the
+    visitor is in, switch to that org first, so a shared link opens wherever the visitor stood."""
+    found = model.objects.filter(pk=pk, org__in=user_orgs(request.user)).select_related("org").first()
+    if found is None:
+        raise Http404
+    if found.org_id != request.org.pk:
+        request.session[SESSION_ORG] = found.org_id
+        request.org = found.org
+    return found
+
+
 def org_required(view):
     @never_cache
     @wraps(view)
@@ -695,8 +707,8 @@ def library(request):
 
 @org_required
 def artifact(request, pk):
+    a = own_or_switch(request, Artifact, pk)
     org = request.org
-    a = get_object_or_404(Artifact, pk=pk, org=org)
     if request.method == "POST":
         if request.POST.get("action") == "delete":
             delete_artifacts(org, Artifact.objects.filter(pk=a.pk))
@@ -826,8 +838,8 @@ def collections(request):
 
 @org_required
 def collection(request, pk):
+    c = own_or_switch(request, Collection, pk)
     org = request.org
-    c = get_object_or_404(Collection, pk=pk, org=org)
     if request.method == "POST":
         action = request.POST.get("action")
         if action == "remove":

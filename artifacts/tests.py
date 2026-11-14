@@ -394,6 +394,15 @@ class PageTests(Base):
         self.assertEqual(self.client.get(reverse("artifacts:artifact", args=[theirs.pk])).status_code, 404)
         self.assertNotIn("secret", self.client.get(reverse("artifacts:library")).content.decode())
 
+    def test_link_into_another_of_my_orgs_switches_to_it(self):
+        third = Org.objects.create(slug="o3", name="Org Three")
+        VolunteerProfile.objects.create(user=self.user, org=third)
+        c = Collection.objects.create(org=third, name="Deck")
+        a, _ = add_file(third, data=b"mine too", filename="m.txt", words="mine too")
+        self.assertEqual(self.client.get(reverse("artifacts:collection", args=[c.pk])).status_code, 200)
+        self.assertEqual(self.client.get(reverse("artifacts:artifact", args=[a.pk])).status_code, 200)
+        self.assertIn("mine too", self.client.get(reverse("artifacts:library")).content.decode())
+
     def test_collection_story_publish(self):
         a, _ = add_file(self.org, data=png_bytes(), filename="a.png", words="one")
         b, _ = add_file(self.org, data=b"note", filename="b.txt", words="two")
