@@ -1,0 +1,46 @@
+{% extends "artifacts/base.html" %}
+{% load kit %}
+{% block title %}Team · Story Kit{% endblock %}
+{% block content %}
+<h1>{{ org.name }}</h1>
+{% if admin %}
+<form method="post" class="narrow">{% csrf_token %}<input type="hidden" name="action" value="details">
+  <label for="name">Name</label>
+  <input type="text" id="name" name="name" value="{{ org.name }}" required autocomplete="organization">
+  <label for="website">Website</label>
+  <input type="text" id="website" name="website" value="{{ org.website }}" inputmode="url" placeholder="yourorg.org">
+  <p><button type="submit">Save</button></p>
+</form>
+{% elif org.website %}<p><a href="{{ org.website }}" target="_blank" rel="noopener">{{ org.website }}</a></p>{% endif %}
+
+{% if admin %}
+<h2>Invite links</h2>
+<p class="muted">Anyone with a link can join after signing in. Links work for {{ invite_days }} days.</p>
+<h3>Member</h3>
+<p class="muted">Adds photos, video, voice and files, and makes stories.</p>
+<div class="copy"><code id="inv-member">{{ links.member }}</code><button type="button" class="quiet" data-copy="inv-member">Copy link</button></div>
+<h3>Admin</h3>
+<p class="muted">Everything a member does, plus invites people and edits the name and website.</p>
+<div class="copy"><code id="inv-admin">{{ links.admin }}</code><button type="button" class="quiet" data-copy="inv-admin">Copy link</button></div>
+{% endif %}
+
+<h2>Team</h2>
+<table class="labels">
+  <thead><tr><th>Person</th><th>Role</th>{% if admin %}<th></th>{% endif %}</tr></thead>
+  <tbody>
+  {% for p in people %}
+  <tr>
+    <td>{{ p.user.get_full_name|default:p.user.email|default:p.user.get_username }}{% if p.user.get_full_name and p.user.email %} <span class="muted">{{ p.user.email }}</span>{% endif %}{% if p.user == request.user %} <span class="muted">(you)</span>{% endif %}</td>
+    {% if admin %}
+    <td><form method="post" id="p{{ p.pk }}">{% csrf_token %}<input type="hidden" name="pk" value="{{ p.pk }}">
+      <select name="role" aria-label="Role"><option value="member">Member</option><option value="admin"{% if p.is_approver %} selected{% endif %}>Admin</option></select>
+      <button type="submit" name="action" value="role" class="quiet">Save</button></form></td>
+    <td><button type="submit" name="action" value="remove" form="p{{ p.pk }}" class="quiet">Remove</button></td>
+    {% else %}
+    <td>{% if p.is_approver %}Admin{% else %}Member{% endif %}</td>
+    {% endif %}
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

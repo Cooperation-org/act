@@ -1,0 +1,20 @@
+{% extends "artifacts/base.html" %}
+{% block title %}Join · Story Kit{% endblock %}
+{% block content %}
+{% if expired %}
+<h1>This invite link has expired</h1>
+<p class="lede">Ask an admin of your organization for a new link.</p>
+{% else %}
+<h1>Join {{ invite_org.name }}</h1>
+<p class="lede">As {% if role == "admin" %}an admin{% else %}a member{% endif %} on Story Kit, where {{ invite_org.name }} collects photos, video, voice and files and makes stories from them.</p>
+{% if already %}
+<p><a class="btn big" href="{% url 'artifacts:switch_org' invite_org.pk %}">Open {{ invite_org.name }}</a></p>
+{% elif user.is_authenticated %}
+<form method="post">{% csrf_token %}<p><button type="submit" class="big">Join {{ invite_org.name }}</button></p></form>
+<p class="muted">Signed in as {{ user.email|default:user.get_username }}.</p>
+{% else %}
+<p><a class="btn big" href="{{ signin }}">Sign in to join</a></p>
+<p class="muted">With Google or Bluesky, through LinkedTrust.</p>
+{% endif %}
+{% endif %}
+{% endblock %}

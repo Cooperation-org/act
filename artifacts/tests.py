@@ -1395,3 +1395,47 @@ class PublishedVersionTests(Base):
         copy = Story.objects.get(org=DemoCopy.objects.get().org)
         mine = Artifact.objects.get(org=copy.org, words="first piece")
         self.assertEqual(copy.published["blocks"], [{"artifact": mine.pk, "text": ""}])
+
+
+class TeamInviteTests(TestCase):
+    def setUp(self):
+        from django.contrib.auth.models import User
+        from campaigns.models import Org, VolunteerProfile
+        self.org = Org.objects.create(slug="t-org", name="T Org")
+        self.admin = User.objects.create_user("adm", "adm@x.org")
+        self.new = User.objects.create_user("new", "new@x.org")
+        VolunteerProfile.objects.create(user=self.admin, org=self.org, is_approver=True)
+
+    def test_member_invite_joins_as_member_and_cannot_edit(self):
+        from campaigns.models import VolunteerProfile
+        from artifacts.views import invite_token
+        url = reverse("artifacts:join", args=[invite_token(self.org, "member")])
+        self.client.force_login(self.new)
+        self.assertContains(self.client.get(url), "Join T Org")
+        self.client.post(url)
+        p = VolunteerProfile.objects.get(user=self.new, org=self.org)
+        self.assertFalse(p.is_approver)
+        self.client.post(reverse("artifacts:team"), {"action": "details", "name": "Hacked"})
+        self.org.refresh_from_db()
+        self.assertEqual(self.org.name, "T Org")
+
+    def test_admin_invite_and_admin_edits_details(self):
+        from campaigns.models import VolunteerProfile
+        from artifacts.views import invite_token
+        self.client.force_login(self.new)
+        self.client.post(reverse("artifacts:join", args=[invite_token(self.org, "admin")]))
+        self.assertTrue(VolunteerProfile.objects.get(user=self.new, org=self.org).is_approver)
+        self.client.post(reverse("artifacts:team"), {"action": "details", "name": "New Name", "website": "x.org"})
+        self.org.refresh_from_db()
+        self.assertEqual((self.org.name, self.org.website), ("New Name", "https://x.org"))
+
+    def test_bad_token_and_last_admin_kept(self):
+        from campaigns.models import VolunteerProfile
+        self.assertEqual(self.client.get(reverse("artifacts:join", args=["nope"])).status_code, 410)
+        self.client.force_login(self.admin)
+        p = VolunteerProfile.objects.get(user=self.admin, org=self.org)
+        self.client.post(reverse("artifacts:team"), {"action": "role", "pk": p.pk, "role": "member"})
+        p.refresh_from_db()
+        self.assertTrue(p.is_approver)
+        r = self.client.get(reverse("artifacts:team"))
+        self.assertContains(r, "/join/")

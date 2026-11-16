@@ -1261,3 +1261,100 @@ def service_worker(request):
     resp = HttpResponse(SERVICE_WORKER, content_type="application/javascript")
     resp["Service-Worker-Allowed"] = f"{settings.BASE_PATH or ''}/"
     return resp
+
+
+# ---- team: invite links, roles, the org's own details ----------------------------------------
+# Admin = VolunteerProfile.is_approver (the person who made the org has it). Members add and
+# make stories; admins also invite, change roles and edit the org's details.
+INVITE_SALT = "storykit-invite"
+INVITE_DAYS = 30
+ROLES = {"admin": True, "member": False}
+
+
+def is_org_admin(user, org):
+    return user.is_superuser or VolunteerProfile.objects.filter(user=user, org=org, is_approver=True).exists()
+
+
+def invite_token(org, role):
+    from django.core import signing
+    return signing.dumps({"o": org.pk, "r": role}, salt=INVITE_SALT)
+
+
+def read_invite(token):
+    from django.core import signing
+    try:
+        data = signing.loads(token, salt=INVITE_SALT, max_age=timedelta(days=INVITE_DAYS))
+    except signing.BadSignature:
+        return None, None
+    org = Org.objects.filter(pk=data.get("o")).first()
+    role = data.get("r") if data.get("r") in ROLES else None
+    return (org, role) if org and role else (None, None)
+
+
+@org_required
+def team(request):
+    org = request.org
+    admin = is_org_admin(request.user, org)
+    if request.method == "POST":
+        if not admin:
+            raise Http404
+        action = request.POST.get("action")
+        if action == "details":
+            name = (request.POST.get("name") or "").strip()[:200]
+            website = (request.POST.get("website") or "").strip()
+            if website and not website.startswith(("http://", "https://")):
+                website = f"https://{website}"
+            if name:
+                org.name, org.website = name, website[:200]
+                org.save(update_fields=["name", "website"])
+                messages.success(request, "Saved.")
+            else:
+                messages.error(request, "The organization needs a name.")
+        elif action in ("role", "remove"):
+            p = get_object_or_404(VolunteerProfile, pk=request.POST.get("pk"), org=org)
+            admins = org.volunteers.filter(is_approver=True)
+            last_admin = p.is_approver and admins.count() == 1
+            if action == "role":
+                make_admin = request.POST.get("role") == "admin"
+                if last_admin and not make_admin:
+                    messages.error(request, "Every organization keeps at least one admin.")
+                else:
+                    p.is_approver = make_admin
+                    p.save(update_fields=["is_approver"])
+            elif last_admin:
+                messages.error(request, "Every organization keeps at least one admin.")
+            else:
+                p.delete()
+                messages.success(request, f"Removed {p.user.email or p.user.get_username()}.")
+        return redirect("artifacts:team")
+    people = org.volunteers.select_related("user").order_by("-is_approver", "user__email")
+    links = {}
+    if admin:
+        links = {r: request.build_absolute_uri(reverse("artifacts:join", args=[invite_token(org, r)]))
+                 for r in ROLES}
+    return render(request, "artifacts/team.html", {
+        "org": org, "nav": "team", "admin": admin, "people": people, "links": links,
+        "invite_days": INVITE_DAYS,
+    })
+
+
+@never_cache
+def join(request, token):
+    org, role = read_invite(token)
+    if org is None:
+        return render(request, "artifacts/join.html", {"expired": True}, status=410)
+    if request.user.is_authenticated and request.method == "POST":
+        p, made = VolunteerProfile.objects.get_or_create(user=request.user, org=org,
+                                                         defaults={"is_approver": ROLES[role]})
+        if not made and ROLES[role] and not p.is_approver:
+            p.is_approver = True
+            p.save(update_fields=["is_approver"])
+        request.session[SESSION_ORG] = org.pk
+        messages.success(request, f"You are in {org.name}.")
+        return redirect("artifacts:home")
+    mine = (VolunteerProfile.objects.filter(user=request.user, org=org).first()
+            if request.user.is_authenticated else None)
+    already = mine is not None and (mine.is_approver or not ROLES[role])
+    return render(request, "artifacts/join.html", {"invite_org": org, "role": role, "already": already,
+                                                   "signin": f"{reverse('artifacts:signin')}?"
+                                                             f"{urlencode({'next': request.path})}"})

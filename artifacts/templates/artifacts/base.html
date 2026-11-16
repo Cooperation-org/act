@@ -52,6 +52,7 @@
       <li><a href="{% url 'artifacts:collections' %}">{% ic "folder" %}<span>Collections</span></a></li>
       <li><a href="{% url 'artifacts:ways' %}">{% ic "upload" %}<span>Ways to add</span></a></li>
       <li><a href="{% url 'artifacts:labels' %}">{% ic "note" %}<span>Labels</span></a></li>
+      {% if not org.demo_copy %}<li><a href="{% url 'artifacts:team' %}">{% ic "people" %}<span>Team and details</span></a></li>{% endif %}
       {% if org.demo_copy %}<li><a href="{% url 'artifacts:demo_leave' %}">{% ic "leaf" %}<span>Start your own</span></a></li>{% endif %}
     </ul>
     {% if chrome.orgs %}<div class="orgs"><h3>Switch organization</h3><ul class="menu">
