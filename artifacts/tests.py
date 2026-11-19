@@ -1439,3 +1439,69 @@ class TeamInviteTests(TestCase):
         self.assertTrue(p.is_approver)
         r = self.client.get(reverse("artifacts:team"))
         self.assertContains(r, "/join/")
+
+
+def _pptx(pictures_by_slide, layout_picture=None):
+    """A minimal .pptx: slides in the order given, each with its pictures; the second slide is
+    listed first in the zip to check slide order comes from presentation.xml."""
+    import zipfile
+    buf = io.BytesIO()
+    R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+    P = "http://schemas.openxmlformats.org/presentationml/2006/main"
+    PR = "http://schemas.openxmlformats.org/package/2006/relationships"
+    with zipfile.ZipFile(buf, "w") as z:
+        ids = "".join(f'<p:sldId id="{256 + i}" r:id="rId{i + 1}"/>' for i in range(len(pictures_by_slide)))
+        z.writestr("ppt/presentation.xml", f'<p:presentation xmlns:p="{P}" xmlns:r="{R}"><p:sldIdLst>{ids}</p:sldIdLst></p:presentation>')
+        rels = "".join(f'<Relationship Id="rId{i + 1}" Type="x" Target="slides/slide{len(pictures_by_slide) - i}.xml"/>'
+                       for i in range(len(pictures_by_slide)))
+        z.writestr("ppt/_rels/presentation.xml.rels", f'<Relationships xmlns="{PR}">{rels}</Relationships>')
+        for i, pics in enumerate(pictures_by_slide):
+            part = len(pictures_by_slide) - i
+            z.writestr(f"ppt/slides/slide{part}.xml", "<x/>")
+            r = "".join(f'<Relationship Id="p{j}" Type="image" Target="../media/{name}"/>' for j, (name, _) in enumerate(pics))
+            z.writestr(f"ppt/slides/_rels/slide{part}.xml.rels", f'<Relationships xmlns="{PR}">{r}</Relationships>')
+            for name, body in pics:
+                z.writestr(f"ppt/media/{name}", body)
+        if layout_picture:
+            z.writestr("ppt/media/logo.png", layout_picture)
+    return buf.getvalue()
+
+
+def _png(w, h, color):
+    buf = io.BytesIO()
+    Image.new("RGB", (w, h), color).save(buf, format="PNG")
+    return buf.getvalue()
+
+
+class DeckTests(TestCase):
+    def setUp(self):
+        self.org = Org.objects.create(slug="deck-org", name="Deck Org")
+        self.user = get_user_model().objects.create_user("d", "d@x.org")
+        VolunteerProfile.objects.create(user=self.user, org=self.org, is_approver=True)
+
+    def test_uploaded_pptx_gives_each_slide_picture_in_order(self):
+        big1, big2, icon = _png(800, 600, "red"), _png(640, 480, "blue"), _png(40, 40, "green")
+        data = _pptx([[("image1.png", big1), ("icon.png", icon)], [("image2.png", big2), ("image1.png", big1)]],
+                     layout_picture=_png(900, 900, "black"))
+        deck, created = add_file(self.org, data=data, filename="Annual review.pptx", sent_by="d@x.org")
+        self.assertTrue(created)
+        photos = Artifact.objects.filter(org=self.org, kind=ArtifactKind.PHOTO).order_by("pk")
+        self.assertEqual([p.title for p in photos], ["Slide 1 of Annual review", "Slide 2 of Annual review"])
+        self.assertEqual(photos[0].sent_by, "d@x.org")
+
+    def test_not_a_deck_is_left_alone(self):
+        add_file(self.org, data=b"PK not really", filename="broken.pptx")
+        self.assertFalse(Artifact.objects.filter(org=self.org, kind=ArtifactKind.PHOTO).exists())
+
+    def test_slides_link_is_copied(self):
+        from . import deck
+        data = _pptx([[("image1.png", _png(800, 600, "red"))]])
+        resp = mock.Mock(status_code=200, content=data,
+                         headers={"content-disposition": "attachment; filename=\"Pitch.pptx\"; filename*=UTF-8''Pitch%20deck.pptx"})
+        with mock.patch("requests.get", return_value=resp):
+            d = deck.copy_slides_link(self.org, "https://docs.google.com/presentation/d/1AbCdEfGhIjKlMnOpQrStUvWxYz/edit",
+                                      sent_by="d@x.org")
+        self.assertEqual(d.filename, "Pitch deck.pptx")
+        self.assertTrue(Artifact.objects.filter(org=self.org, title="Slide 1 of Pitch deck").exists())
+        with mock.patch("requests.get", return_value=mock.Mock(status_code=200, content=b"<html>sign in", headers={})):
+            self.assertIsNone(deck.copy_slides_link(self.org, "https://docs.google.com/presentation/d/1ZzzzzzzzzzzzzzzzzzzzzZ/edit"))

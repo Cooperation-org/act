@@ -37,7 +37,7 @@ from django.views.decorators.http import require_POST
 from campaigns.admin import user_orgs
 from campaigns.models import Org, VolunteerProfile
 
-from . import ai, demo, spouts
+from . import ai, deck, demo, spouts
 from .intake import BrokenFile, add_file, add_reference
 from .models import (Artifact, ArtifactKind, ArtifactStatus, Collection, Source, SourceKind, Story,
                      StoryBlock, StoryStatus, StoryTemplate, Tag, TagGroup)
@@ -384,10 +384,16 @@ def add_link(request):
         messages.error(request, "That does not look like a web address. It should start with https://")
         return redirect(request.POST.get("back") or "artifacts:ways")
     source = _source(org, SourceKind.LINK) or Source.objects.create(org=org, kind=SourceKind.LINK, label="Links")
+    who = {"source": source, "sent_by": request.user.email or request.user.get_username(),
+           "added_by": request.user, "happened_at": timezone.now()}
     _, created = add_reference(org, kind=ArtifactKind.LINK, url=url, words=(request.POST.get("words") or "").strip(),
-                               source=source, sent_by=request.user.email or request.user.get_username(),
-                               added_by=request.user, happened_at=timezone.now())
-    messages.success(request, "Saved the link." if created else "That link is already here.")
+                               **who)
+    if deck.slides_id(url):
+        deck.copy_slides_in_background(org, url, **who)
+        messages.success(request, "Saved the link. Copying the slides and their pictures into your Inbox; "
+                                  "this works when the deck is shared as anyone with the link.")
+    else:
+        messages.success(request, "Saved the link." if created else "That link is already here.")
     return redirect(request.POST.get("back") or "artifacts:ways")
 
 

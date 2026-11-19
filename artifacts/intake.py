@@ -232,6 +232,9 @@ def add_file(org, *, data: bytes, filename: str, content_type: str = "", source=
             a.save()
     except IntegrityError:  # the same file landed at the same moment from another spout
         return _existing(org, sha), False
+    from . import deck
+    if deck.is_deck(filename, content_type):
+        deck.add_pictures(org, a, data)
     return a, True
 
 
